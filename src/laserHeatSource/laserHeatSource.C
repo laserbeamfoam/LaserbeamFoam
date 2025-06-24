@@ -145,6 +145,7 @@ laserHeatSource::laserHeatSource
         dimensionedScalar("refineflag", dimensionSet(0,0,0,0,0), 0.0)
     ),
     powderSim_(lookupOrDefault<Switch>("PowderSim", false)),
+    Radial_Polar_HS_(lookupOrDefault<Switch>("Radial_Polar_HS", false)),
     laserNames_(0),
     laserDicts_(0),
     timeVsLaserPosition_(0),
@@ -283,7 +284,28 @@ laserHeatSource::laserHeatSource
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
+bool laserHeatSource::pointOnFace(const face& f, const point& p, const pointField& meshPoints){
 
+    pointField fPoints(f.points(meshPoints));
+
+    // Step 1: Check if point lies on the plane of the face
+    vector normal = f.normal(meshPoints);
+    scalar d = - (normal & fPoints[0]); // Plane equation: n·x + d = 0
+    scalar distToPlane = (normal & p) + d;
+if(debug){
+     Info<<"dist to plane: "<<distToPlane<<endl;
+}
+    if (mag(distToPlane) > SMALL){  // Point is not in the plane
+        return false;
+        }
+        else{
+            return true;
+        }
+
+
+
+
+}
 
 void laserHeatSource::updateDeposition
 (
@@ -462,17 +484,18 @@ void laserHeatSource::updateDeposition
     const vector normal_interface(0, 1, 0);
 
     const scalar beam_radius =
-        a_cond.value()
-       /Foam::cos
-        (
-            Foam::acos
-            (
-                (normal_interface & (V_incident/mag(V_incident)))
-               /(mag(normal_interface)*mag(V_incident/mag(V_incident)))
-            )
-        );
+        a_cond.value();
+    //    /Foam::cos
+    //     (
+    //         Foam::acos
+    //         (
+    //             (normal_interface & (V_incident/mag(V_incident)))
+    //            /(mag(normal_interface)*mag(V_incident/mag(V_incident)))
+    //         )
+    //     );
 
     // Adjust sample radius for if beam is not normal too top boundary
+
     const scalar CosTheta_incident =
         Foam::cos
         (
@@ -483,10 +506,10 @@ void laserHeatSource::updateDeposition
             )
         );
 
-    if (debug)
-    {
-        Info<< "cos(theta): " << CosTheta_incident << endl;
-    }
+    // if (debug)
+    // {
+    //     Info<< "cos(theta): " << CosTheta_incident << endl;
+    // }
 
     scalar listLength(0);
     DynamicList<vector> initial_points(listLength, vector::zero);
@@ -501,7 +524,98 @@ void laserHeatSource::updateDeposition
     const vectorField& nFilteredI = nFiltered;
     const scalarField& alphaFilteredI = alphaFiltered;
 
-    forAll(CI, celli)
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+    
+    if(Radial_Polar_HS()==true){
+
+        label nRings = 200;
+        label nAngles = 120;
+        scalar rMax = 1.5*beam_radius;
+        point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
+        // Info<<" \n \n TESTTTTTTTT \n \n"<<endl;
+        vector V_i(V_incident/mag(V_incident)); //normalise vector in-case user hasnt
+
+        // Generate two orthonormal vectors in the plane
+        vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
+        vector u = (V_i ^ a);
+        u = u/mag(u);
+        vector v = (V_i ^ u);
+        vector perturbation (1e-9,1e-9,1e-9);
+
+        // if(mesh.findCell(P0)!=-1){
+        initial_points.append(P0 + perturbation);
+        // }
+
+        for (label i = 1; i < nRings; ++i)
+        {
+        scalar r = rMax * scalar(i) / scalar(nRings);  // linear spacing
+        for (label j = 0; j < nAngles; ++j)
+
+            {
+
+            scalar theta = 2.0 * pi.value() * scalar(j) / scalar(nAngles);
+
+            vector offset = r * (cos(theta) * u + sin(theta) * v);
+
+            
+            // Info<<"test"<<mesh.findCell(P0 + offset)<<endl;
+            // if(mesh.findCell(P0 + offset)!=-1){
+            
+    //         pointslistGlobal1[i] += perturbation;
+                initial_points.append(P0 + offset + perturbation);
+            // }
+            // Info<<"i disc: "<<i<<", j disc: "<<j<<endl;
+            // Info<<P0 + offset<<endl;
+            }
+
+        }
+
+        // Info<<initial_points<<endl;
+        // Info<<initial_points[270]<<endl;
+
+
+    //     forAll(initial_points, i)
+    // {
+    //     //find if a point is on a face and add a small perturbation
+    //     const pointField& points = mesh.points();
+
+    //     forAll(mesh.faces(),faceI){
+    //             // Info<<"FACE: "<<faceI<<endl;
+    //             const face& f = mesh.faces()[faceI];
+
+    //                     if (pointOnFace(f, initial_points[i], points))
+    //     {
+    //         if(debug){
+    //         Info << "Point is on face " << faceI << nl;
+    //         }
+    //         vector perturbation (1e-9,1e-9,1e-9);
+    //         initial_points[i] += perturbation;
+
+    //     }
+
+                
+    //     }
+   
+    // }
+
+    
+    }
+    else{
+
+           forAll(CI, celli)
     {
         const scalar x_coord = CI[celli].x();
         // const scalar y_coord = CI[celli].y();
@@ -541,6 +655,16 @@ void laserHeatSource::updateDeposition
 
         }
     }
+    }
+
+
+
+
+
+
+
+
+
 
     // Populate and gather the list onto the master processor.
     gatheredData1[Pstream::myProcNo()] = initial_points;
@@ -558,7 +682,43 @@ void laserHeatSource::updateDeposition
             accessOp<Field<vector> >()
         )
     );
+    // Info<<"synched points: "<<pointslistGlobal1<<endl;
 
+
+
+
+
+
+///////////////////////////////////////////////////need to loop over all global points and add perturbation if they are exactly on a face 
+
+    //         forAll(pointslistGlobal1, i)
+    // {
+    //     //find if a point is on a face and add a small perturbation
+    //     const pointField& points = mesh.points();
+
+    //     forAll(mesh.faces(),faceI){
+    //             // Info<<"FACE: "<<faceI<<endl;
+    //             const face& f = mesh.faces()[faceI];
+
+    //                     if (pointOnFace(f, pointslistGlobal1[i], points))
+    //     {
+    //         if(debug){
+    //         Info << "Point is on face " << faceI << nl;
+    //         }
+    //         vector perturbation (1e-9,1e-9,1e-9);
+    //         pointslistGlobal1[i] += perturbation;
+
+    //     }
+
+                
+    //     }
+   
+    // }
+///////////////////////////////////////////////////need to loop over all global points and add perturbation if they are exactly on a face 
+
+
+
+    
     // For each beam, store the starting point and locations at which the rays
     // change direction. Also, store the global ordered index of the ray
     // direction-change points
@@ -609,12 +769,26 @@ void laserHeatSource::updateDeposition
 
         vector V2(V_incident/mag(V_incident));
         point V1_tip(pointslistGlobal1[i]);
+
         const point mid
         (
             currentLaserPosition.x(),
             pointslistGlobal1[i].y(),
             currentLaserPosition.z()
         );
+
+        if(Radial_Polar_HS()==true){
+            const point mid
+            (
+            currentLaserPosition.x(),
+            currentLaserPosition.y(),//pointslistGlobal1[i].y(),
+            currentLaserPosition.z()
+            );
+        }
+        // else{
+
+        // }
+
         const vector x1 = mid - 10.0*V2;
         const vector x2 = mid + 10.0*V2;
         const vector x0
@@ -623,7 +797,7 @@ void laserHeatSource::updateDeposition
             pointslistGlobal1[i].y(),
             pointslistGlobal1[i].z()
         );
-
+        // Info<<"HERE"<<endl;
         // Cross product to find distance to beam central axis
         const scalar dist = mag(((x0 - x1)^(x0 - x2)))/mag(x2 - x1);
 
@@ -631,11 +805,15 @@ void laserHeatSource::updateDeposition
         // This is only used for post-processing to write VTKs of the beams
         label directionChangeOrderI = 0;
 
+        // Info<<"HERE2"<<endl;
+        
+
         scalar Q =
             (
                 CosTheta_incident/(N_sub_divisions*N_sub_divisions)
             )
-           *(
+           *
+           (
                (Radius_Flavour*Q_cond.value())
               /(
                   Foam::pow(a_cond.value(), 2.0)*pi.value()
@@ -649,11 +827,34 @@ void laserHeatSource::updateDeposition
                )
            );
 
+if(Radial_Polar_HS()==true){
+                Q =
+           (
+               (Radius_Flavour*Q_cond.value())
+              /(
+                  pointslistGlobal1.size()*Foam::pow(a_cond.value(), 2.0)*pi.value()
+               )
+           )
+          *Foam::exp
+           (
+             - Radius_Flavour
+              *(
+                  Foam::pow(dist, 2.0)/Foam::pow(a_cond.value(), 2.0)
+               )
+           );
+       
+}
+
+            // Info<<"dist: "<<dist<<", Q: "<<Q<<endl;
+           
+
+
         // ID of the processor that contains the beam tip
         label tipProcID = -1;
 
-        while (Q > 1.0e-9)
+        while (Q > 1.0e-9)//getting stuck in this loop - newHS
         {
+            // Info<<"HERE4"<<Q<<endl;
             // Track when the tip changes direction for post-processing the rays
             bool beamChangedDirection = false;
 
@@ -677,7 +878,8 @@ void laserHeatSource::updateDeposition
                     myCellId = mesh.findCell(V1_tip);
                 }
             }
-
+            // Info<<myCellId<<"\t"<<Q<<endl;
+            // Q/=mesh.V()[myCellId];
             // Proc ID where the tip is located
             // If the tip in not on any processor, then this is set to -1
             if (myCellId != -1)
@@ -689,13 +891,13 @@ void laserHeatSource::updateDeposition
                 tipProcID = -1;
             }
             reduce(tipProcID, maxOp<label>());
-
+            // Info<<"HERE 1: "<<myCellId<<endl;
             if (myCellId != -1)
             {
                 // Set test field to beam flavour
                 rayNumber_[myCellId] = i + 1;
                 rayQ_[myCellId] += Q;
-
+                // Info<<"HERE 2: "<<myCellId<<endl;
                 if
                 (
                     mag(nFilteredI[myCellId]) > 0.5
@@ -740,7 +942,7 @@ void laserHeatSource::updateDeposition
                         (
                             V2 & nFilteredI[myCellId]
                         )/(mag(V2)*mag(nFilteredI[myCellId]));
-
+                    // Info<<"HERE 2"<<endl;
                     if (argument >= (1.0 - SMALL))
                     {
                         argument = 1.0;
@@ -834,6 +1036,8 @@ void laserHeatSource::updateDeposition
                            )
                        );
                     const scalar absorptivity = 1.0 - ((R_s + R_p)/2.0);
+
+                    // Info<<i<<"\t"<<absorptivity<<endl;
 
                     // Sometimes the ray can be reflected and 'skip' along the
                     // interface cells - this is unphysical and the ray should
@@ -1020,13 +1224,13 @@ void laserHeatSource::updateDeposition
                  Q = DUMMYSCAL;
                  beamChangedDirection = true;
              }
-
+// Info<<"HERE5"<<endl;
              reduce(V2, maxOp<vector>());
              reduce(Q, maxOp<scalar>());
 
              // Update seed cells for local search
              rayCellIDs[i] = myCellId;
-
+// Info<<"HERE56"<<endl;
              if (tipProcID == Pstream::myProcNo())
              {
                  label myCellIdnext =
@@ -1075,7 +1279,7 @@ void laserHeatSource::updateDeposition
                  {
                      V1_tip = DUMMYMAX;
                  }
-
+                // Info<<"HERE567"<<endl;
                  // Update direction-change ordered index
                  directionChangeOrderI++;
 
@@ -1093,10 +1297,11 @@ void laserHeatSource::updateDeposition
                  tipProcID = -1;
              }
              reduce(tipProcID, maxOp<label>());
-
+// Info<<"HERE5678: "<<Q<<endl;
              // Sync direction-change ordered index
              reduce(directionChangeOrderI, maxOp<int>());
          };
+        //  Info<<"HERE56789"<<endl;
      }
 
 

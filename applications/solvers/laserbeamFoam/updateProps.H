@@ -49,10 +49,12 @@
     metalaverage = fvc::average(alpha1);
     laser.refineFlag() *= 0.0;
     laser.refineFlag() += metalaverage;
+    laser.refineFlag().correctBoundaryConditions();
 
     alpha_filtered = volScalarField("alpha_filtered", alpha1);
-
+alpha_filtered.correctBoundaryConditions();
     scalarField& alpha_filteredI = alpha_filtered;
+    // alpha_filteredI.correctBoundaryConditions();
     forAll(CI, celli)
     {
         if (alpha1I[celli] > 0.99)
@@ -77,11 +79,13 @@
     LatentHeat =
         alpha_filtered*LatentHeat1 + (1.0 - alpha_filtered)*LatentHeat2;
 
-    gradepsilon1 = fvc::grad(alpha_filtered);
+    // gradepsilon1 = fvc::grad(epsilon1);
+    // gradepsilon1.correctBoundaryConditions();
 
-    n_filtered = fvc::grad(alpha_filtered)/((mag(gradepsilon1) + deltaN));
+    n_filtered = fvc::grad(alpha_filtered)/((mag(fvc::grad(alpha_filtered)) + deltaN));
 
     e1temp = fvc::average(epsilon1);
+    e1temp.correctBoundaryConditions();
 
     const scalarField& e1tempI = e1temp;
     const scalarField& epsilon1I = epsilon1;
@@ -100,25 +104,25 @@
 
     epsilon1mask.correctBoundaryConditions();
 
-    e2temp = fvc::average(epsilon1mask);
-    epsilon1mask2 *= 0.0;
+    // e2temp = fvc::average(epsilon1mask);
+    // epsilon1mask2 *= 0.0;
 
-    const scalarField& e2tempI = e2temp;
-    scalarField& epsilon1mask2I = epsilon1mask2;
-    forAll(CI, celli)
-    {
-        if (e2tempI[celli] <= 0.95)
-        {
-            epsilon1mask2I[celli] = 0.0;
-        }
-        else
-        {
-            epsilon1mask2I[celli] = epsilon1maskI[celli];
-        }
+    // const scalarField& e2tempI = e2temp;
+    // scalarField& epsilon1mask2I = epsilon1mask2;
+    // forAll(CI, celli)
+    // {
+    //     if (e2tempI[celli] <= 0.95)
+    //     {
+    //         epsilon1mask2I[celli] = 0.0;
+    //     }
+    //     else
+    //     {
+    //         epsilon1mask2I[celli] = epsilon1maskI[celli];
+    //     }
 
-    }
+    // }
 
-    epsilon1mask2.correctBoundaryConditions();
+    // epsilon1mask2.correctBoundaryConditions();
 
     if (laser.powderSim())
     {

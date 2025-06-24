@@ -25,7 +25,7 @@ rho             8000;
     LatentHeat 2.7e5;
     beta    5.0e-6;
     poly_kappa   (25 0.0 0 0 0 0 0 0);
-    poly_cp   (700 0.0 0 0 0 0 0 0);
+    poly_cp   (650 0.0 0 0 0 0 0 0);
     elec_resistivity	1.0e-6;
 
 

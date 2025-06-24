@@ -377,19 +377,19 @@ volScalarField epsilon1mask
     dimensionedScalar("epsilon1mask",dimless,0.0)
 );
 
-volScalarField epsilon1mask2
-(
-    IOobject
-    (
-        "epsilon1mask2",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("epsilon1mask2", dimless, 0.0)
-);
+// volScalarField epsilon1mask2
+// (
+//     IOobject
+//     (
+//         "epsilon1mask2",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::READ_IF_PRESENT,
+//         IOobject::NO_WRITE
+//     ),
+//     mesh,
+//     dimensionedScalar("epsilon1mask2", dimless, 0.0)
+// );
 
 volVectorField gradT
 (
@@ -590,9 +590,61 @@ volScalarField alpha_filtered
     dimensionedScalar("alpha_filtered", dimensionSet(0, 0, 0, -0, 0), 0.0)
 );
 
-volVectorField gradepsilon1(fvc::grad(alpha_filtered));
-volScalarField e1temp(fvc::average(epsilon1));
-volScalarField e2temp(fvc::average(epsilon1mask));
+// volVectorField gradepsilon1
+// (
+//     IOobject
+//     (
+//         "gradepsilon1",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::NO_READ,
+//         IOobject::NO_WRITE
+//     ),
+//     mesh,
+//     dimensionedVector("gradepsilon1", dimensionSet(0, -1, 0, -0, 0), vector::zero)
+// );
+// gradepsilon1 = fvc::grad(epsilon1);
+// gradepsilon1.correctBoundaryConditions();
+
+// volVectorField gradepsilon1(fvc::grad(epsilon1));// CANNOT define like this for dynamic mesh re-distribution
+// gradepsilon1.correctBoundaryConditions();// CANNOT define like this for dynamic mesh re-distribution
+// volScalarField e1temp(fvc::average(epsilon1));// CANNOT define like this for dynamic mesh re-distribution
+// volScalarField e2temp(fvc::average(epsilon1mask));// CANNOT define like this for dynamic mesh re-distribution
+
+
+volScalarField e1temp
+(
+    IOobject
+    (
+        "e1temp",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("e1temp", dimensionSet(0, 0, 0, -0, 0), 0.0)
+);
+e1temp = fvc::average(epsilon1);
+
+// volScalarField e2temp
+// (
+//     IOobject
+//     (
+//         "e2temp",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::NO_READ,
+//         IOobject::NO_WRITE
+//     ),
+//     mesh,
+//     dimensionedScalar("e2temp", dimensionSet(0, 0, 0, -0, 0), 0.0)
+// );
+
+// e2temp = fvc::average(epsilon1mask);
+
+
+
 
 dimensionedScalar elec_resistivity_metal
 (
@@ -634,11 +686,59 @@ incompressibleInterPhaseTransportModel turbulence
 // Create laser heat source
 laserHeatSource laser(mesh);
 
-volScalarField rhoCp(rho*cp);
+
+volScalarField rhoCp
+(
+    IOobject
+    (
+        "rhoCp",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("rhoCp", dimensionSet(1, -1, -2, -1, 0), 0.0)
+);
+rhoCp = (rho*cp);
+// volScalarField rhoCp(rho*cp);
 rhoCp.oldTime();
 
-surfaceScalarField rhoPhi("rhoPhi", fvc::interpolate(rho)*phi);
-surfaceScalarField rhophicp(fvc::interpolate(cp)*rhoPhi);
+
+surfaceScalarField rhoPhi
+(
+    IOobject
+    (
+        "rhoPhi",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("rhoPhi", dimensionSet(1, 0, -1, 0, 0), 0.0)
+);
+rhoPhi = fvc::interpolate(rho)*phi;
+
+
+surfaceScalarField rhophicp
+(
+    IOobject
+    (
+        "rhophicp",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("rhophicp", dimensionSet(1, 2, -3, -1, 0), 0.0)
+);
+rhophicp = fvc::interpolate(cp)*rhoPhi;
+
+// surfaceScalarField rhoPhi("rhoPhi", fvc::interpolate(rho)*phi);
+// surfaceScalarField rhophicp(fvc::interpolate(cp)*rhoPhi);
+
 
 #include "updateProps.H"
 
@@ -652,9 +752,40 @@ const dimensionedScalar DarcyConstantsmall
     "DarcyConstantsmall", dimless, 1.0e-12
 );
 
-volVectorField gradAlpha(fvc::grad(alpha1));
 
-volVectorField nHatM(gradAlpha/(mag(gradAlpha) + deltaN));
+volVectorField gradAlpha
+(
+    IOobject
+    (
+        "gradAlpha",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector("gradAlpha", dimensionSet(0, -1, 0, -0, 0), vector::zero)
+);
+gradAlpha = fvc::grad(alpha1);
+
+// volVectorField gradAlpha(fvc::grad(alpha1));
+
+volVectorField nHatM
+(
+    IOobject
+    (
+        "nHatM",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector("nHatM", dimensionSet(0, 0, 0, -0, 0), vector::zero)
+);
+nHatM = gradAlpha/(mag(gradAlpha) + deltaN);
+
+// volVectorField nHatM(gradAlpha/(mag(gradAlpha) + deltaN));
 
 // This variable is >=0 if the cell has been liquid
 volScalarField meltHistory

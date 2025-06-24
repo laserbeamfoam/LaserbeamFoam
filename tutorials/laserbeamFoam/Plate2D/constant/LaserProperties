@@ -15,6 +15,10 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+
+
+
+
 lasers
 (
     laser0
@@ -43,6 +47,8 @@ lasers
 
         // Laser profile type (defaults to 2)
         //Radius_Flavour 2.0;
+        
+        
     }
 
     laser1
@@ -72,4 +78,7 @@ lasers
         // Laser profile type (defaults to 2)
         //Radius_Flavour 2.0;
     }
+    
+    
+    
 );
