@@ -522,13 +522,16 @@ void laserHeatSource::updateDeposition
     DynamicList<scalar> point_assoc_area(listLength, 0.0);//area associated with the point
     point_assoc_area.clear();
 
-    DynamicList<scalar> point_assoc_power(listLength, 0.0);//area associated with the point
+    DynamicList<scalar> point_assoc_power(listLength, 0.0);//power associated with the point
     point_assoc_power.clear();
 
 
 
     // List with size equal to number of processors
     List<pointField> gatheredData1(Pstream::nProcs());
+    // List<scalarField> gatheredData_areas(Pstream::nProcs());
+    List<scalarField> gatheredData_powers(Pstream::nProcs());
+
 
     // Take a references for efficiency and brevity
     const vectorField& CI = mesh.C();
@@ -547,8 +550,8 @@ void laserHeatSource::updateDeposition
  
 
             //TO READ IN ONCE IT WORKS
-        label nRings = 1000;
-        label nAngles = 1000;
+        label nRings = 100;
+        label nAngles = 100;
         scalar rMax = 1.5*beam_radius;
             //TO READ IN ONCE IT WORKS
         
@@ -580,27 +583,25 @@ void laserHeatSource::updateDeposition
         if(mesh.findCell(P0 + perturbation)!=-1){
         initial_points.append(P0 + perturbation);//makes things complicated
         // point_assoc_area.append(pi.value()*Foam::pow((d_r/2.0),2.0));
-        point_assoc_area.append(
-            0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1)
-            );
+        // point_assoc_area.append(
+        //     0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1)
+        //     );
+            scalar center_associated_area = 0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1);
 
         point_assoc_power.append(
-            (
+            center_associated_area*(
                (Radius_Flavour*Q_cond.value())
               /(
-                //    pointslistGlobal1.size()*
-                //  npointstotrack*
                   Foam::pow(a_cond.value(), 2.0)*pi.value()
                )
            )
-        //    /mesh.V()[mesh.findCell(P0 + perturbation)]
         );
 
 
         }
 
             scalar power(0.0);
-            scalar area(0.0);
+            // scalar area(0.0);
 
 
         for (label i = 1; i < nRings; i++)//start at 1 so we can add the central point seperately
@@ -624,9 +625,9 @@ void laserHeatSource::updateDeposition
 
                 if(mesh.findCell(P0 + offset+ perturbation)!=-1){
                 initial_points.append(P0 + offset + perturbation);
-                point_assoc_area.append(dAi);
+                // point_assoc_area.append(dAi);
                 point_assoc_power.append(
-                    (
+                    dAi*(
                (Radius_Flavour*Q_cond.value())
               /(
                 //    pointslistGlobal1.size()*
@@ -657,16 +658,16 @@ void laserHeatSource::updateDeposition
 
             
 
-            forAll(point_assoc_area, i)
-    {
-            area+=point_assoc_area[i];
-            power+=point_assoc_area[i]*point_assoc_power[i];
-                }
+    //         forAll(point_assoc_area, i)
+    // {
+    //         // area+=point_assoc_area[i];
+    //         power+=/*point_assoc_area[i]*/point_assoc_power[i];
+    //             }
 
-                Info<<"\n"<<endl;
-                Info<<"Discretised beam area: "<<area<<endl;
-                Info<<"Discretised beam power: "<<power<<endl;
-                Info<<"\n"<<endl;
+    //             Info<<"\n"<<endl;
+    //             // Info<<"Discretised beam area: "<<area<<endl;
+    //             Info<<"Discretised beam power: "<<power<<endl;
+    //             Info<<"\n"<<endl;
 
         // Info<<initial_points<<endl;
         // Info<<initial_points[270]<<endl;
@@ -755,8 +756,17 @@ void laserHeatSource::updateDeposition
     gatheredData1[Pstream::myProcNo()] = initial_points;
     Pstream::gatherList(gatheredData1);
 
+    // gatheredData_areas[Pstream::myProcNo()] = point_assoc_area;
+    // Pstream::gatherList(gatheredData_areas);
+
+    gatheredData_powers[Pstream::myProcNo()] = point_assoc_power;
+    Pstream::gatherList(gatheredData_powers);
+
+
     // Distibulte the data accross the different processors
     Pstream::scatterList(gatheredData1);
+    // Pstream::scatterList(gatheredData_areas);
+    Pstream::scatterList(gatheredData_powers);
 
     // List of initial points
     pointField pointslistGlobal1
@@ -765,6 +775,24 @@ void laserHeatSource::updateDeposition
         (
             gatheredData1,
             accessOp<Field<vector> >()
+        )
+    );
+
+    //     scalarField pointassociatedareas_global
+    // (
+    //     ListListOps::combine<Field<scalar> >
+    //     (
+    //         gatheredData_areas,
+    //         accessOp<Field<scalar> >()
+    //     )
+    // );
+
+        scalarField pointassociatedpowers_global
+    (
+        ListListOps::combine<Field<scalar> >
+        (
+            gatheredData_powers,
+            accessOp<Field<scalar> >()
         )
     );
     // Info<<"synched points: "<<pointslistGlobal1<<endl;
@@ -913,7 +941,7 @@ void laserHeatSource::updateDeposition
            );
 
 if(Radial_Polar_HS()==true){
-                Q = (point_assoc_power[i])/npointstotrack;//*point_assoc_area[i];
+                Q = (pointassociatedpowers_global[i]);//*pointassociatedareas_global[i];
         //    (
         //        (Radius_Flavour*Q_cond.value())
         //       /(
@@ -1133,7 +1161,7 @@ if(Radial_Polar_HS()==true){
                     if (theta_in >= pi.value()/2.0)
                     {
                         Q *= 0.0;
-                        deposition_[myCellId] += absorptivity*Q/yDimI[myCellId];
+                        deposition_[myCellId] += absorptivity*Q/mesh.V()[myCellId];//yDimI[myCellId];
                         if (debug)
                         {
                             errorTrack_[myCellId] -= 1.0;
@@ -1143,7 +1171,7 @@ if(Radial_Polar_HS()==true){
                     // else{}
                     else
                     {
-                        deposition_[myCellId] += absorptivity*Q/yDimI[myCellId];
+                        deposition_[myCellId] += absorptivity*Q/mesh.V()[myCellId];//yDimI[myCellId];
                         Q *= 1.0 - absorptivity;
                         V2 -=
                             (
@@ -1297,7 +1325,7 @@ if(Radial_Polar_HS()==true){
                         V2 = -V2;
 
                         beamChangedDirection = true;
-                        deposition_[myCellId] += absorptivity*Q/yDimI[myCellId];
+                        deposition_[myCellId] += absorptivity*Q/mesh.V()[myCellId];//yDimI[myCellId];yDimI[myCellId];
                         Q *= (1.0 - absorptivity);
                     }
                 }
