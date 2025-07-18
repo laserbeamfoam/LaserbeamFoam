@@ -558,7 +558,7 @@ void laserHeatSource::updateDeposition
         scalar d_r = rMax/nRings;
         scalar d_theta = 2.0*pi.value()/nAngles;
 
-        scalar npointstotrack=nRings*nAngles + 1;
+        // scalar npointstotrack=nRings*nAngles + 1;
 
 
 
@@ -566,6 +566,28 @@ void laserHeatSource::updateDeposition
     if(Radial_Polar_HS()==true){
 
 
+        label totalSamples = nRings * nAngles;
+        label samplesPerProc = totalSamples / Pstream::nProcs();
+        label remainder = totalSamples % Pstream::nProcs();
+
+        label startIdx = Pstream::myProcNo() * samplesPerProc;
+        label endIdx = startIdx + samplesPerProc;
+        
+        // Last processor handles remainder
+        if (Pstream::myProcNo() == Pstream::nProcs() - 1)
+        {
+            endIdx += remainder;
+        }
+
+
+
+        Pout<<"startpoint: "<<startIdx<<endl;
+        Pout<<"Endpoint: "<<endIdx<<endl;
+        // Info<<"\n"<<endl;
+        // Info<<"Number of Cores Used in Ray-Tracing"<<Pstream::nProcs()<<endl;
+        // Info<<"\n"<<endl;
+
+        
 
 
         point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
@@ -600,20 +622,23 @@ void laserHeatSource::updateDeposition
 
         }
 
-            scalar power(0.0);
+            // scalar power(0.0);
             // scalar area(0.0);
 
+        label localIdx = 0;
 
-        for (label i = 1; i < nRings; i++)//start at 1 so we can add the central point seperately
+        for (label i = 1; i < nRings; ++i)//start at 1 so we can add the central point seperately
+        // for (label i = startRing; i < endRing; ++i)//start at 1 so we can add the central point seperately
         {
+            // Info<<i<<endl;
         scalar r = rMax * scalar(i) / scalar(nRings);  // linear spacing
         
         // Info<<"radius : "<<r<<endl;
 
-        for (label j = 0; j < nAngles; j++)
+        for (label j = 0; j < nAngles; ++j)
 
             {
-
+                    // Pout<<i<<"\t"<<j<<endl;
             scalar theta = 2.0 * pi.value() * scalar(j) / scalar(nAngles);
             // Info<<"theta : "<<theta<<endl;
             vector offset = r * (cos(theta) * u + sin(theta) * v);
@@ -656,6 +681,8 @@ void laserHeatSource::updateDeposition
 
         }
 
+            // label sync = 0;
+            // reduce(sync, sumOp<label>());
             
 
     //         forAll(point_assoc_area, i)

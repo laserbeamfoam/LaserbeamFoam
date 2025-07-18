@@ -1,0 +1,62 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+defaultFieldValues
+(
+    volScalarFieldValue alpha.air 1
+    volScalarFieldValue alpha.metal1 0
+    volScalarFieldValue alpha.metal2 0
+    volScalarFieldValue alpha.metal3 0
+    volScalarFieldValue alpha.metal4 0
+    volScalarFieldValue alpha.metal1vapour 0
+    volScalarFieldValue alpha.metal2vapour 0
+    volScalarFieldValue alpha.metal3vapour 0
+    volScalarFieldValue alpha.metal4vapour 0
+    volVectorFieldValue U (0 0 0)
+);
+
+regions
+(
+
+	boxToCell
+    {
+        box (-0.5 2e-3 -0.5) (0.5 1 0.5);
+        fieldValues
+        (
+            volScalarFieldValue alpha.air		0
+            volScalarFieldValue alpha.metal1 	0.5
+            volScalarFieldValue alpha.metal2 	0.5
+        );
+    }
+    
+	boxToCell
+    {
+        box (3e-3 5e-3 3e-3) (7e-3 8e-3 7e-3);
+        fieldValues
+        (
+            volScalarFieldValue alpha.air		0
+            volScalarFieldValue alpha.metal1 	0
+            volScalarFieldValue alpha.metal2 	0
+            volScalarFieldValue alpha.metal3vapour 	0.5
+            volScalarFieldValue alpha.metal4vapour 	0.5
+        );
+    } 
+    
+);
+
+
+// ************************************************************************* //

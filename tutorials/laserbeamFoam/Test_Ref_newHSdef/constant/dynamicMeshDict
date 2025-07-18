@@ -63,7 +63,7 @@ topoChanger
 
 
 }
-
+/*
 distributor
 {
     type            distributor;
@@ -71,5 +71,6 @@ distributor
     libs            ("libfvMeshDistributors.so");
 
     redistributionInterval  10;
+    */
 }
 // ************************************************************************* //
