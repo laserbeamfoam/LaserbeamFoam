@@ -551,12 +551,12 @@ void laserHeatSource::updateDeposition
 
             //TO READ IN ONCE IT WORKS
         label nRadial_ = 100;
-        label nPolar_ = 100;
+        label nAngular_ = 100;
         scalar rMax = 1.5*beam_radius;
             //TO READ IN ONCE IT WORKS
         
-        scalar d_r = rMax/nRadial_;
-        scalar d_theta = 2.0*pi.value()/nPolar_;
+        // scalar d_r = rMax/nRadial_;
+        // scalar d_theta = 2.0*pi.value()/nAngular_;
 
         // scalar npointstotrack=nRings*nPolar_ + 1;
 
@@ -566,18 +566,17 @@ void laserHeatSource::updateDeposition
     if(Radial_Polar_HS()==true){
 
 
-        label totalSamples = nRadial_ * nPolar_;
+        label totalSamples = nRadial_ * nAngular_;
         label samplesPerProc = totalSamples / Pstream::nProcs();
         label remainder = totalSamples % Pstream::nProcs();
 
-        label startIdx = Pstream::myProcNo() * samplesPerProc;
-        label endIdx = startIdx + samplesPerProc;
+        const label nProcs = Pstream::nProcs();
+        const label myRank = Pstream::myProcNo();
+
+        label startIdx = myRank * samplesPerProc + min(myRank, remainder);
+        label endIdx = startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
         
-        // Last processor handles remainder
-        if (Pstream::myProcNo() == Pstream::nProcs() - 1)
-        {
-            endIdx += remainder;
-        }
+        const label localSamples = endIdx - startIdx;
 
 
 
@@ -593,12 +592,61 @@ void laserHeatSource::updateDeposition
         point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
 
         vector V_i(V_incident/mag(V_incident)); //normalise vector in-case user hasnt
+
+        // // Generate two orthonormal vectors in the plane
+        vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
+        vector u = (V_i ^ a);
+        u = u/mag(u);
+        vector v = (V_i ^ u);
         vector perturbation (1e-10,1e-10,1e-10);
 
-        label localIdx = 0;
-
-                for (label i = startIdx; i < endIdx; i++)
+         for (label localIdx = 0; localIdx < localSamples; ++localIdx)
         {
+
+            const label globalIdx = startIdx + localIdx;
+            
+            // Convert global index to angular and radial indices
+            const label iTheta = globalIdx / nRadial_;
+            const label iR = globalIdx % nRadial_;
+
+            // Angular discretization
+            const scalar theta = 2.0 * M_PI * iTheta / nAngular_;
+            
+            // Radial discretization (uniform in radius)
+            const scalar r = rMax * (iR + 0.5) / nRadial_;
+
+            // Calculate area element
+            const scalar deltaTheta = 2.0 * M_PI / nAngular_;
+            const scalar deltaR = rMax / nRadial_;
+            const scalar area = r * deltaR * deltaTheta;
+
+            // Convert to Cartesian coordinates in local plane system
+            const scalar x_local = r * cos(theta);
+            const scalar y_local = r * sin(theta);
+
+            const vector globalPos = P0 
+                + x_local * u 
+                + y_local * v;
+
+            initial_points.append(globalPos + perturbation);
+
+            point_assoc_power.append(
+                    area*(
+               (Radius_Flavour*Q_cond.value())
+              /(
+                  Foam::pow(a_cond.value(), 2.0)*pi.value()
+               )
+           )
+
+          *Foam::exp
+           (
+             - Radius_Flavour
+              *(
+                  Foam::pow(r, 2.0)/Foam::pow(a_cond.value(), 2.0)
+               )
+           ) 
+                );
+
 
 
         }
