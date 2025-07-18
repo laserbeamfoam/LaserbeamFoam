@@ -550,15 +550,15 @@ void laserHeatSource::updateDeposition
  
 
             //TO READ IN ONCE IT WORKS
-        label nRings = 100;
-        label nAngles = 100;
+        label nRadial_ = 100;
+        label nPolar_ = 100;
         scalar rMax = 1.5*beam_radius;
             //TO READ IN ONCE IT WORKS
         
-        scalar d_r = rMax/nRings;
-        scalar d_theta = 2.0*pi.value()/nAngles;
+        scalar d_r = rMax/nRadial_;
+        scalar d_theta = 2.0*pi.value()/nPolar_;
 
-        // scalar npointstotrack=nRings*nAngles + 1;
+        // scalar npointstotrack=nRings*nPolar_ + 1;
 
 
 
@@ -566,7 +566,7 @@ void laserHeatSource::updateDeposition
     if(Radial_Polar_HS()==true){
 
 
-        label totalSamples = nRings * nAngles;
+        label totalSamples = nRadial_ * nPolar_;
         label samplesPerProc = totalSamples / Pstream::nProcs();
         label remainder = totalSamples % Pstream::nProcs();
 
@@ -593,139 +593,110 @@ void laserHeatSource::updateDeposition
         point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
 
         vector V_i(V_incident/mag(V_incident)); //normalise vector in-case user hasnt
-
-        // Generate two orthonormal vectors in the plane
-        vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
-        vector u = (V_i ^ a);
-        u = u/mag(u);
-        vector v = (V_i ^ u);
         vector perturbation (1e-10,1e-10,1e-10);
 
-    
-        if(mesh.findCell(P0 + perturbation)!=-1){
-        initial_points.append(P0 + perturbation);//makes things complicated
-        // point_assoc_area.append(pi.value()*Foam::pow((d_r/2.0),2.0));
-        // point_assoc_area.append(
-        //     0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1)
-        //     );
-            scalar center_associated_area = 0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1);
+        label localIdx = 0;
 
-        point_assoc_power.append(
-            center_associated_area*(
-               (Radius_Flavour*Q_cond.value())
-              /(
-                  Foam::pow(a_cond.value(), 2.0)*pi.value()
-               )
-           )
-        );
+                for (label i = startIdx; i < endIdx; i++)
+        {
 
 
         }
 
-            // scalar power(0.0);
-            // scalar area(0.0);
+        // // Generate two orthonormal vectors in the plane
+        // vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
+        // vector u = (V_i ^ a);
+        // u = u/mag(u);
+        // vector v = (V_i ^ u);
+        // vector perturbation (1e-10,1e-10,1e-10);
 
-        label localIdx = 0;
+    
+        // if(mesh.findCell(P0 + perturbation)!=-1){
+        // initial_points.append(P0 + perturbation);//makes things complicated
+        // // point_assoc_area.append(pi.value()*Foam::pow((d_r/2.0),2.0));
+        // // point_assoc_area.append(
+        // //     0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1)
+        // //     );
+        //     scalar center_associated_area = 0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1);
 
-        for (label i = 1; i < nRings; ++i)//start at 1 so we can add the central point seperately
-        // for (label i = startRing; i < endRing; ++i)//start at 1 so we can add the central point seperately
-        {
-            // Info<<i<<endl;
-        scalar r = rMax * scalar(i) / scalar(nRings);  // linear spacing
+        // point_assoc_power.append(
+        //     center_associated_area*(
+        //        (Radius_Flavour*Q_cond.value())
+        //       /(
+        //           Foam::pow(a_cond.value(), 2.0)*pi.value()
+        //        )
+        //    )
+        // );
+
+
+        // }
+
+        //     // scalar power(0.0);
+        //     // scalar area(0.0);
+
+        // label localIdx = 0;
+
+        // for (label i = 1; i < nRings; ++i)//start at 1 so we can add the central point seperately
+        // // for (label i = startRing; i < endRing; ++i)//start at 1 so we can add the central point seperately
+        // {
+        //     // Info<<i<<endl;
+        // scalar r = rMax * scalar(i) / scalar(nRings);  // linear spacing
         
-        // Info<<"radius : "<<r<<endl;
+        // // Info<<"radius : "<<r<<endl;
 
-        for (label j = 0; j < nAngles; ++j)
+        // for (label j = 0; j < nAngles; ++j)
 
-            {
-                    // Pout<<i<<"\t"<<j<<endl;
-            scalar theta = 2.0 * pi.value() * scalar(j) / scalar(nAngles);
-            // Info<<"theta : "<<theta<<endl;
-            vector offset = r * (cos(theta) * u + sin(theta) * v);
+        //     {
+        //             // Pout<<i<<"\t"<<j<<endl;
+        //     scalar theta = 2.0 * pi.value() * scalar(j) / scalar(nAngles);
+        //     vector offset = r * (cos(theta) * u + sin(theta) * v);
+ 
 
-        //    Info<<"Area associated: "<<(r-(d_r/2.0))* d_r * d_theta <<endl;
-            
+        //         scalar dAi =  (sqr(r+d_r)-sqr(r))*d_theta/2.0 ;
 
-                scalar dAi =  (sqr(r+d_r)-sqr(r))*d_theta/2.0 ;
+        //         if(mesh.findCell(P0 + offset+ perturbation)!=-1){
+        //         initial_points.append(P0 + offset + perturbation);
+        //         // point_assoc_area.append(dAi);
+        //         point_assoc_power.append(
+        //             dAi*(
+        //        (Radius_Flavour*Q_cond.value())
+        //       /(
+        //           Foam::pow(a_cond.value(), 2.0)*pi.value()
+        //        )
+        //    )
 
-                if(mesh.findCell(P0 + offset+ perturbation)!=-1){
-                initial_points.append(P0 + offset + perturbation);
-                // point_assoc_area.append(dAi);
-                point_assoc_power.append(
-                    dAi*(
-               (Radius_Flavour*Q_cond.value())
-              /(
-                //    pointslistGlobal1.size()*
-                //  npointstotrack*
-                  Foam::pow(a_cond.value(), 2.0)*pi.value()
-               )
-           )
-
-          *Foam::exp
-           (
-             - Radius_Flavour
-              *(
-                  Foam::pow(r, 2.0)/Foam::pow(a_cond.value(), 2.0)
-               )
-           ) 
-        //    /mesh.V()[mesh.findCell(P0 + offset+ perturbation)]
-                );
+        //   *Foam::exp
+        //    (
+        //      - Radius_Flavour
+        //       *(
+        //           Foam::pow(r, 2.0)/Foam::pow(a_cond.value(), 2.0)
+        //        )
+        //    ) 
+        //         );
 
 
 
          
-            }
-            // Info<<"i disc: "<<i<<", j disc: "<<j<<endl;
-            // Info<<P0 + offset<<endl;
-            }
+        //     }
+        //     }
 
-        }
+        // }
 
-            // label sync = 0;
-            // reduce(sync, sumOp<label>());
-            
-
-    //         forAll(point_assoc_area, i)
-    // {
-    //         // area+=point_assoc_area[i];
-    //         power+=/*point_assoc_area[i]*/point_assoc_power[i];
-    //             }
-
-    //             Info<<"\n"<<endl;
-    //             // Info<<"Discretised beam area: "<<area<<endl;
-    //             Info<<"Discretised beam power: "<<power<<endl;
-    //             Info<<"\n"<<endl;
-
-        // Info<<initial_points<<endl;
-        // Info<<initial_points[270]<<endl;
-
-
-    //     forAll(initial_points, i)
-    // {
-    //     //find if a point is on a face and add a small perturbation
-    //     const pointField& points = mesh.points();
-
-    //     forAll(mesh.faces(),faceI){
-    //             // Info<<"FACE: "<<faceI<<endl;
-    //             const face& f = mesh.faces()[faceI];
-
-    //                     if (pointOnFace(f, initial_points[i], points))
-    //     {
-    //         if(debug){
-    //         Info << "Point is on face " << faceI << nl;
-    //         }
-    //         vector perturbation (1e-9,1e-9,1e-9);
-    //         initial_points[i] += perturbation;
-
-    //     }
-
-                
-    //     }
-   
-    // }
 
     
     }
+
+
+
+
+
+
+
+
+
+
+
+
     else{
 
            forAll(CI, celli)
