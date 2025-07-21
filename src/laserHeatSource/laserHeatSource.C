@@ -975,17 +975,84 @@ void laserHeatSource::updateDeposition
 
 
 
+
+
+
+
     DynamicList<CompactRay> Rays_all;
 
     forAll(pointslistGlobal1, i){
 
     CompactRay RayTemp(pointslistGlobal1[i],V_incident,pointassociatedpowers_global[i]);
-    Rays_all.append(RayTemp);
+                RayTemp.global_Ray_number_=i;
+                RayTemp.currentCell_=mesh.findCell(pointslistGlobal1[i]);
+   
+                Rays_all.append(RayTemp);
 
     }
 
-    Info<<"rayprint: "<<Rays_all[0].origin_<<endl;
-    Info<<"rayprint: "<<Rays_all[1].active_<<endl;
+    // Info<<"Number of rays: "<<Rays_all.size()<<endl;
+    // Info<<"rayprint: "<<Rays_all[0].origin_<<endl;
+    // Info<<"rayprint: "<<Rays_all[1].active_<<endl;
+
+
+
+//Find all points on current processor - WANT TO TRACK ALL RAYS ON PROCESSORS AND SYNC ONCE THEY ARE ALL OFF
+DynamicList<CompactRay> Rays_current_processor;
+    forAll(Rays_all, i)
+    {
+
+        label myCellId =
+                        findLocalCell(
+                        Rays_all[i].origin_, rayCellIDs[i], mesh, maxLocalSearch, debug
+                        );
+
+         if(myCellId!=-1){
+            Rays_current_processor.append(Rays_all[i]);
+         }
+        
+        // Info<<"i: "<<i<<endl;
+    }
+
+// Pout<<"Rays on processir: "<<Rays_current_processor<<endl;
+
+    forAll(Rays_current_processor, i)// WANT TO TRACK RAYS TO BOUNDARY OF PROCESSOR OR TILL NO ENERGY
+    {
+
+
+        label myCellId =
+            findLocalCell(
+            Rays_current_processor[i].origin_, Rays_current_processor[i].currentCell_, mesh, maxLocalSearch, debug
+            );
+
+
+        while(myCellId!=-1){
+        scalar iterator_distance = 0.1*yDimI[myCellId];
+        Rays_current_processor[i].origin_+=iterator_distance*Rays_current_processor[i].direction_;
+        
+            myCellId =
+                findLocalCell(
+                Rays_current_processor[i].origin_, Rays_current_processor[i].currentCell_, mesh, maxLocalSearch, debug
+                );
+            Rays_current_processor[i].currentCell_=myCellId;
+        }
+
+        // scalar Q = (Rays_current_processor[i].power_);
+        // Pout<<"current processor rays: "<<i<<"\t"<<Rays_current_processor[i].global_Ray_number_<<endl;
+
+
+
+    }
+
+Pout<<"HERE all processors out"<<endl;
+
+
+
+
+
+
+
+
 
 
 
@@ -1040,7 +1107,7 @@ void laserHeatSource::updateDeposition
         // ID of the processor that contains the beam tip
         label tipProcID = -1;
 
-        while (Q > 1.0e-9)//getting stuck in this loop - newHS
+        while (Q > 1.0e-9)//
         {
             // Info<<"HERE4"<<Q<<endl;
             // Track when the tip changes direction for post-processing the rays

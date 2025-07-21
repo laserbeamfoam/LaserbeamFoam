@@ -67,18 +67,26 @@ class CompactRay
     scalar remainingPower_;
     label currentCell_;
     label bounceCount_;
+    label global_Ray_number_;
     bool active_;
     
     CompactRay()
     : power_(0), remainingPower_(0), currentCell_(-1), 
-      bounceCount_(0), active_(false) {}
+      bounceCount_(0),global_Ray_number_(-1), active_(false) {}
       
     CompactRay(const point& origin, const vector& dir, scalar power)
     : origin_(origin), direction_(dir), power_(power), 
-      remainingPower_(power), currentCell_(-1), bounceCount_(0), active_(true)
+      remainingPower_(power), currentCell_(-1), bounceCount_(0),global_Ray_number_(-1), active_(true)
     {
         direction_ /= mag(direction_) + VSMALL;
     }
+
+        // Destructor
+
+        virtual ~CompactRay()
+        {}
+
+
     void reset(const point& origin, const vector& dir, scalar power)
     {
         origin_ = origin;
@@ -87,6 +95,7 @@ class CompactRay
         remainingPower_ = power;
         currentCell_ = -1;
         bounceCount_ = 0;
+        global_Ray_number_ = -1;
         active_ = true;
     }
 };
