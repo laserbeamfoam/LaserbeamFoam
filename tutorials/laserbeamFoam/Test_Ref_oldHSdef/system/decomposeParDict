@@ -19,7 +19,7 @@ numberOfSubdomains  8;
 //method              scotch;
 
 decomposer      hierarchical;//hierarchical;
-distributor     simple;
+distributor     hierarchical;
 
 simpleCoeffs
 {

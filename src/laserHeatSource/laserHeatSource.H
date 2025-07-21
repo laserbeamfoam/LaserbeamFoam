@@ -188,6 +188,8 @@ public:
             const scalar currentLaserPower,
             const scalar laserRadius,
             const label N_sub_divisions,
+            const label nRadial_,   //added for radial polar heat source
+            const label nAngular_,   //added for radial polar heat source
             const vector& V_incident,
             const scalar wavelength,
             const scalar e_num_density,
@@ -198,6 +200,8 @@ public:
         );
 
         bool pointOnFace(const face& f, const point& p, const pointField& meshPoints);
+
+        // void initialise_point_RP_linear(DynamicList<vector> *initial_points, DynamicList<scalar> *point_assoc_power);
 
 };
 

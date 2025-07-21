@@ -308,6 +308,118 @@ if(debug){
 
 }
 
+// void laserHeatSource::initialise_point_RP_linear(DynamicList<vector> *initial_points, DynamicList<scalar> *point_assoc_power){
+
+//     scalar listLength(0);
+//     DynamicList<vector> initial_points_tmp(listLength, vector::zero);
+//     initial_points_tmp.clear();
+
+//     DynamicList<scalar> point_assoc_power_tmp(listLength, 0.0);//power associated with the point
+//     point_assoc_power_tmp.clear();
+
+//         // Info<<"nRadial_: "<<nRadial_<<endl;
+//         // Info<<"nAngular_: "<<nAngular_<<endl;
+
+//         //TO READ IN ONCE IT WORKS
+//         label nRadial_ = 100;
+//         label nAngular_ = 100;
+//         scalar rMax = 1.5*beam_radius;
+
+
+
+
+//         label totalSamples = nRadial_ * nAngular_;
+//         label samplesPerProc = totalSamples / Pstream::nProcs();
+//         label remainder = totalSamples % Pstream::nProcs();
+
+//         const label nProcs = Pstream::nProcs();
+//         const label myRank = Pstream::myProcNo();
+
+//         label startIdx = myRank * samplesPerProc + min(myRank, remainder);
+//         label endIdx = startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
+        
+//         const label localSamples = endIdx - startIdx;
+
+
+
+//         Pout<<"startpoint: "<<startIdx<<endl;
+//         Pout<<"Endpoint: "<<endIdx<<endl;
+//         // Info<<"\n"<<endl;
+//         // Info<<"Number of Cores Used in Ray-Tracing"<<Pstream::nProcs()<<endl;
+//         // Info<<"\n"<<endl;
+
+        
+
+
+//         point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
+
+//         vector V_i(V_incident/mag(V_incident)); //normalise vector in-case user hasnt
+
+//         // // Generate two orthonormal vectors in the plane
+//         vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
+//         vector u = (V_i ^ a);
+//         u = u/mag(u);
+//         vector v = (V_i ^ u);
+//         vector perturbation (1e-10,1e-10,1e-10);
+
+//          for (label localIdx = 0; localIdx < localSamples; ++localIdx)
+//         {
+
+//             const label globalIdx = startIdx + localIdx;
+            
+//             // Convert global index to angular and radial indices
+//             const label iTheta = globalIdx / nRadial_;
+//             const label iR = globalIdx % nRadial_;
+
+//             // Angular discretization
+//             const scalar theta = 2.0 * M_PI * iTheta / nAngular_;
+            
+//             // Radial discretization (uniform in radius)
+//             const scalar r = rMax * (iR + 0.5) / nRadial_;
+
+//             // Calculate area element
+//             const scalar deltaTheta = 2.0 * M_PI / nAngular_;
+//             const scalar deltaR = rMax / nRadial_;
+//             const scalar area = r * deltaR * deltaTheta;
+
+//             // Convert to Cartesian coordinates in local plane system
+//             const scalar x_local = r * cos(theta);
+//             const scalar y_local = r * sin(theta);
+
+//             const vector globalPos = P0 
+//                 + x_local * u 
+//                 + y_local * v;
+
+//             initial_points.append(globalPos + perturbation);
+
+//             point_assoc_power.append(
+//                     area*(
+//                (Radius_Flavour*Q_cond.value())
+//               /(
+//                   Foam::pow(a_cond.value(), 2.0)*pi.value()
+//                )
+//            )
+
+//           *Foam::exp
+//            (
+//              - Radius_Flavour
+//               *(
+//                   Foam::pow(r, 2.0)/Foam::pow(a_cond.value(), 2.0)
+//                )
+//            ) 
+//                 );
+
+
+
+//         }
+
+    
+
+//     *initial_points=initial_points_tmp;
+//     *point_assoc_power=point_assoc_power_tmp;
+
+// }
+
 void laserHeatSource::updateDeposition
 (
     const volScalarField& alphaFiltered,
@@ -350,6 +462,8 @@ void laserHeatSource::updateDeposition
             currentLaserPosition[vector::X] += oscAmpX*sin(2*pi*oscFreqX*time);
         }
 
+
+
         // If defined, add oscillation to laser position
         if (dict.found("HS_oscAmpZ"))
         {
@@ -387,6 +501,15 @@ void laserHeatSource::updateDeposition
                 << exit(FatalError);
         }
 
+        const label nRadial_
+        (
+            dict.lookupOrDefault<label>("nRadial", 5)
+        );
+
+        const label nAngular_
+        (
+            dict.lookupOrDefault<label>("nAngular", 30)
+        );
         
         const label N_sub_divisions
         (
@@ -419,6 +542,8 @@ void laserHeatSource::updateDeposition
             currentLaserPower,
             laserRadius,
             N_sub_divisions,
+            nRadial_,   //added for radial polar heat source
+            nAngular_,   //added for radial polar heat source
             V_incident,
             wavelength,
             e_num_density,
@@ -440,6 +565,8 @@ void laserHeatSource::updateDeposition
     const scalar currentLaserPower,
     const scalar laserRadius,
     const label N_sub_divisions,
+    const label nRadial_,   //added for radial polar heat source
+    const label nAngular_,   //added for radial polar heat source
     const vector& V_incident,
     const scalar wavelength,
     const scalar e_num_density,
@@ -498,15 +625,15 @@ void laserHeatSource::updateDeposition
 
     // Adjust sample radius for if beam is not normal too top boundary
 
-    const scalar CosTheta_incident =
-        Foam::cos
-        (
-            Foam::acos
-            (
-                (normal_interface & (V_incident/mag(V_incident)))
-               /(mag(normal_interface)*mag(V_incident/mag(V_incident)))
-            )
-        );
+    // const scalar CosTheta_incident =
+    //     Foam::cos
+    //     (
+    //         Foam::acos
+    //         (
+    //             (normal_interface & (V_incident/mag(V_incident)))
+    //            /(mag(normal_interface)*mag(V_incident/mag(V_incident)))
+    //         )
+    //     );
 
     // if (debug)
     // {
@@ -519,8 +646,8 @@ void laserHeatSource::updateDeposition
     DynamicList<vector> initial_points(listLength, vector::zero);
     initial_points.clear();
 
-    DynamicList<scalar> point_assoc_area(listLength, 0.0);//area associated with the point
-    point_assoc_area.clear();
+    // DynamicList<scalar> point_assoc_area(listLength, 0.0);//area associated with the point
+    // point_assoc_area.clear();
 
     DynamicList<scalar> point_assoc_power(listLength, 0.0);//power associated with the point
     point_assoc_power.clear();
@@ -549,11 +676,7 @@ void laserHeatSource::updateDeposition
 
  
 
-            //TO READ IN ONCE IT WORKS
-        label nRadial_ = 100;
-        label nAngular_ = 100;
-        scalar rMax = 1.5*beam_radius;
-            //TO READ IN ONCE IT WORKS
+
         
         // scalar d_r = rMax/nRadial_;
         // scalar d_theta = 2.0*pi.value()/nAngular_;
@@ -564,6 +687,18 @@ void laserHeatSource::updateDeposition
 
     
     if(Radial_Polar_HS()==true){
+
+        Info<<"nRadial_: "<<nRadial_<<endl;
+        Info<<"nAngular_: "<<nAngular_<<endl;
+
+        //TO READ IN ONCE IT WORKS
+        // label nRadial_ = 100;
+        // label nAngular_ = 100;
+        scalar rMax = 2.0*beam_radius;
+
+        // label nRadial_ = readScalar(laserHeatSource::dict.lookup("nRadial"));
+        // label nAngular_ = readScalar(dict.lookup("nAngular"));
+        //TO READ IN ONCE IT WORKS
 
 
         label totalSamples = nRadial_ * nAngular_;
@@ -579,9 +714,18 @@ void laserHeatSource::updateDeposition
         const label localSamples = endIdx - startIdx;
 
 
+                List<scalar> radialPoints(nRadial_);//if using adaptive sampling
+        for (label iR = 0; iR < nRadial_; ++iR)//if using adaptive sampling
+        {//if using adaptive sampling
+            // Use sqrt spacing for better Gaussian sampling
+            scalar fraction = scalar(iR + 0.5) / nRadial_;//if using adaptive sampling
+            radialPoints[iR] = rMax * pow(fraction,2.0);//if using adaptive sampling increase this power for tighter sampling around the peak
+        }//if using adaptive sampling
 
-        Pout<<"startpoint: "<<startIdx<<endl;
-        Pout<<"Endpoint: "<<endIdx<<endl;
+
+
+        // Pout<<"startpoint: "<<startIdx<<endl;
+        // Pout<<"Endpoint: "<<endIdx<<endl;
         // Info<<"\n"<<endl;
         // Info<<"Number of Cores Used in Ray-Tracing"<<Pstream::nProcs()<<endl;
         // Info<<"\n"<<endl;
@@ -613,11 +757,24 @@ void laserHeatSource::updateDeposition
             const scalar theta = 2.0 * M_PI * iTheta / nAngular_;
             
             // Radial discretization (uniform in radius)
-            const scalar r = rMax * (iR + 0.5) / nRadial_;
+            // const scalar r = rMax * (iR + 0.5) / nRadial_;
+            const scalar r = radialPoints[iR];//if using adaptive sampling
 
             // Calculate area element
             const scalar deltaTheta = 2.0 * M_PI / nAngular_;
-            const scalar deltaR = rMax / nRadial_;
+
+            // const scalar deltaR = rMax / nRadial_;
+
+            scalar deltaR;//if using adaptive sampling
+            if (iR == 0)
+            {
+                deltaR = radialPoints[0];
+            }
+            else
+            {
+                deltaR = radialPoints[iR] - radialPoints[iR-1];
+            }
+
             const scalar area = r * deltaR * deltaTheta;
 
             // Convert to Cartesian coordinates in local plane system
@@ -651,86 +808,6 @@ void laserHeatSource::updateDeposition
 
         }
 
-        // // Generate two orthonormal vectors in the plane
-        // vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
-        // vector u = (V_i ^ a);
-        // u = u/mag(u);
-        // vector v = (V_i ^ u);
-        // vector perturbation (1e-10,1e-10,1e-10);
-
-    
-        // if(mesh.findCell(P0 + perturbation)!=-1){
-        // initial_points.append(P0 + perturbation);//makes things complicated
-        // // point_assoc_area.append(pi.value()*Foam::pow((d_r/2.0),2.0));
-        // // point_assoc_area.append(
-        // //     0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1)
-        // //     );
-        //     scalar center_associated_area = 0.5*(d_r/2.0)*(d_r/2.0)*Foam::sin(d_theta)*(nAngles-1);
-
-        // point_assoc_power.append(
-        //     center_associated_area*(
-        //        (Radius_Flavour*Q_cond.value())
-        //       /(
-        //           Foam::pow(a_cond.value(), 2.0)*pi.value()
-        //        )
-        //    )
-        // );
-
-
-        // }
-
-        //     // scalar power(0.0);
-        //     // scalar area(0.0);
-
-        // label localIdx = 0;
-
-        // for (label i = 1; i < nRings; ++i)//start at 1 so we can add the central point seperately
-        // // for (label i = startRing; i < endRing; ++i)//start at 1 so we can add the central point seperately
-        // {
-        //     // Info<<i<<endl;
-        // scalar r = rMax * scalar(i) / scalar(nRings);  // linear spacing
-        
-        // // Info<<"radius : "<<r<<endl;
-
-        // for (label j = 0; j < nAngles; ++j)
-
-        //     {
-        //             // Pout<<i<<"\t"<<j<<endl;
-        //     scalar theta = 2.0 * pi.value() * scalar(j) / scalar(nAngles);
-        //     vector offset = r * (cos(theta) * u + sin(theta) * v);
- 
-
-        //         scalar dAi =  (sqr(r+d_r)-sqr(r))*d_theta/2.0 ;
-
-        //         if(mesh.findCell(P0 + offset+ perturbation)!=-1){
-        //         initial_points.append(P0 + offset + perturbation);
-        //         // point_assoc_area.append(dAi);
-        //         point_assoc_power.append(
-        //             dAi*(
-        //        (Radius_Flavour*Q_cond.value())
-        //       /(
-        //           Foam::pow(a_cond.value(), 2.0)*pi.value()
-        //        )
-        //    )
-
-        //   *Foam::exp
-        //    (
-        //      - Radius_Flavour
-        //       *(
-        //           Foam::pow(r, 2.0)/Foam::pow(a_cond.value(), 2.0)
-        //        )
-        //    ) 
-        //         );
-
-
-
-         
-        //     }
-        //     }
-
-        // }
-
-
     
     }
 
@@ -753,12 +830,13 @@ void laserHeatSource::updateDeposition
         // const scalar y_coord = CI[celli].y();
         const scalar z_coord = CI[celli].z();
 
+        const scalar r =sqrt(Foam::pow(x_coord - currentLaserPosition.x(), 2.0)
+              + Foam::pow(z_coord - currentLaserPosition.z(), 2.0));
+
         if
         (
             (
-                Foam::pow(x_coord - currentLaserPosition.x(), 2.0)
-              + Foam::pow(z_coord - currentLaserPosition.z(), 2.0)
-             <= Foam::pow(1.5*beam_radius, 2.0)
+                r <= (1.5*beam_radius)
             )
          && (laserBoundary_[celli] > SMALL)
         )
@@ -775,13 +853,35 @@ void laserHeatSource::updateDeposition
                     (
                         CI[celli].x()
                       - (yDimI[celli]/2.0)
-                      + ((yDimI[celli]/(N_sub_divisions+1))*(Ray_j+1)),
+                      + ((yDimI[celli]/(N_sub_divisions+1))*(Ray_j+1))
+                      ,
                         CI[celli].y(),
                         CI[celli].z()
                       - (yDimI[celli]/2.0)
                       + ((yDimI[celli]/(N_sub_divisions+1))*(Ray_k+1))
                     );
                     initial_points.append(p_1);
+
+
+                    point_assoc_power.append(
+                    ((yDimI[celli]/(N_sub_divisions))*(yDimI[celli]/(N_sub_divisions)))*(
+               (Radius_Flavour*Q_cond.value())
+              /(
+                  Foam::pow(a_cond.value(), 2.0)*pi.value()
+               )
+           )
+
+          *Foam::exp
+           (
+             - Radius_Flavour
+              *(
+                  Foam::pow(r, 2.0)/Foam::pow(a_cond.value(), 2.0)
+               )
+           ) 
+                );
+
+
+
                 }
             }
 
@@ -948,17 +1048,17 @@ void laserHeatSource::updateDeposition
 
         // }
 
-        const vector x1 = mid - 10.0*V2;
-        const vector x2 = mid + 10.0*V2;
-        const vector x0
-        (
-            pointslistGlobal1[i].x(),
-            pointslistGlobal1[i].y(),
-            pointslistGlobal1[i].z()
-        );
+        // const vector x1 = mid - 10.0*V2;
+        // const vector x2 = mid + 10.0*V2;
+        // const vector x0
+        // (
+        //     pointslistGlobal1[i].x(),
+        //     pointslistGlobal1[i].y(),
+        //     pointslistGlobal1[i].z()
+        // );
         // Info<<"HERE"<<endl;
         // Cross product to find distance to beam central axis
-        const scalar dist = mag(((x0 - x1)^(x0 - x2)))/mag(x2 - x1);
+        // const scalar dist = mag(((x0 - x1)^(x0 - x2)))/mag(x2 - x1);
 
         // Global index to track the order of the ray direction-changes
         // This is only used for post-processing to write VTKs of the beams
@@ -967,27 +1067,28 @@ void laserHeatSource::updateDeposition
         // Info<<"HERE2"<<endl;
         
 
-        scalar Q =
-            (
-                CosTheta_incident/(N_sub_divisions*N_sub_divisions)
-            )
-           *
-           (
-               (Radius_Flavour*Q_cond.value())
-              /(
-                  Foam::pow(a_cond.value(), 2.0)*pi.value()*(pi.value()*Foam::pow(1.5*a_cond.value(), 2.0))
-               )
-           )
-          *Foam::exp
-           (
-             - Radius_Flavour
-              *(
-                  Foam::pow(dist, 2.0)/Foam::pow(a_cond.value(), 2.0)
-               )
-           );
+        scalar Q = (pointassociatedpowers_global[i]);
+//         =
+//             (
+//                 CosTheta_incident/(N_sub_divisions*N_sub_divisions)
+//             )
+//            *
+//            (
+//                (Radius_Flavour*Q_cond.value())
+//               /(
+//                   Foam::pow(a_cond.value(), 2.0)*pi.value()*(pi.value()*Foam::pow(1.5*a_cond.value(), 2.0))
+//                )
+//            )
+//           *Foam::exp
+//            (
+//              - Radius_Flavour
+//               *(
+//                   Foam::pow(dist, 2.0)/Foam::pow(a_cond.value(), 2.0)
+//                )
+//            );
 
-if(Radial_Polar_HS()==true){
-                Q = (pointassociatedpowers_global[i]);//*pointassociatedareas_global[i];
+// if(Radial_Polar_HS()==true){
+                // Q = (pointassociatedpowers_global[i]);//*pointassociatedareas_global[i];
         //    (
         //        (Radius_Flavour*Q_cond.value())
         //       /(
@@ -1004,7 +1105,7 @@ if(Radial_Polar_HS()==true){
         //        )
         //    );
        
-}
+// }
 
             // Info<<"dist: "<<dist<<", Q: "<<Q<<endl;
            
@@ -1196,7 +1297,7 @@ if(Radial_Polar_HS()==true){
                             + sqr(Foam::sin(theta_in))*sqr(Foam::tan(theta_in))
                            )
                        );
-                    const scalar absorptivity =1.0;// 1.0 - ((R_s + R_p)/2.0);
+                    const scalar absorptivity = 1.0 - ((R_s + R_p)/2.0);//1.0;//
 
                     // Info<<i<<"\t"<<absorptivity<<endl;
 
@@ -1363,7 +1464,7 @@ if(Radial_Polar_HS()==true){
                                )
                            );
 
-                        const scalar absorptivity = 1.0;//1.0 - ((R_s + R_p)/2.0);
+                        const scalar absorptivity = 1.0 - ((R_s + R_p)/2.0);//1.0;//
 
                         // If the ray slips through the interface (unlikely)
                         // send it back the way it came because it must have
