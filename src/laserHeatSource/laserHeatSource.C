@@ -1029,87 +1029,28 @@ void laserHeatSource::updateDeposition
         vector V2(V_incident/mag(V_incident));
         point V1_tip(pointslistGlobal1[i]);
 
-        const point mid
-        (
-            currentLaserPosition.x(),
-            pointslistGlobal1[i].y(),
-            currentLaserPosition.z()
-        );
+        // const point mid
+        // (
+        //     currentLaserPosition.x(),
+        //     pointslistGlobal1[i].y(),
+        //     currentLaserPosition.z()
+        // );
 
-        if(Radial_Polar_HS()==true){
+        // if(Radial_Polar_HS()==true){
             const point mid
             (
             currentLaserPosition.x(),
             currentLaserPosition.y(),//pointslistGlobal1[i].y(),
             currentLaserPosition.z()
             );
-        }
-        // else{
-
         // }
 
-        // const vector x1 = mid - 10.0*V2;
-        // const vector x2 = mid + 10.0*V2;
-        // const vector x0
-        // (
-        //     pointslistGlobal1[i].x(),
-        //     pointslistGlobal1[i].y(),
-        //     pointslistGlobal1[i].z()
-        // );
-        // Info<<"HERE"<<endl;
-        // Cross product to find distance to beam central axis
-        // const scalar dist = mag(((x0 - x1)^(x0 - x2)))/mag(x2 - x1);
-
-        // Global index to track the order of the ray direction-changes
-        // This is only used for post-processing to write VTKs of the beams
         label directionChangeOrderI = 0;
 
-        // Info<<"HERE2"<<endl;
+
         
 
         scalar Q = (pointassociatedpowers_global[i]);
-//         =
-//             (
-//                 CosTheta_incident/(N_sub_divisions*N_sub_divisions)
-//             )
-//            *
-//            (
-//                (Radius_Flavour*Q_cond.value())
-//               /(
-//                   Foam::pow(a_cond.value(), 2.0)*pi.value()*(pi.value()*Foam::pow(1.5*a_cond.value(), 2.0))
-//                )
-//            )
-//           *Foam::exp
-//            (
-//              - Radius_Flavour
-//               *(
-//                   Foam::pow(dist, 2.0)/Foam::pow(a_cond.value(), 2.0)
-//                )
-//            );
-
-// if(Radial_Polar_HS()==true){
-                // Q = (pointassociatedpowers_global[i]);//*pointassociatedareas_global[i];
-        //    (
-        //        (Radius_Flavour*Q_cond.value())
-        //       /(
-        //         //    pointslistGlobal1.size()*
-        //         point_assoc_area[i]
-        //         //   Foam::pow(a_cond.value(), 2.0)*pi.value()
-        //        )
-        //    )
-        //   *Foam::exp
-        //    (
-        //      - Radius_Flavour
-        //       *(
-        //           Foam::pow(dist, 2.0)/Foam::pow(a_cond.value(), 2.0)
-        //        )
-        //    );
-       
-// }
-
-            // Info<<"dist: "<<dist<<", Q: "<<Q<<endl;
-           
-
 
         // ID of the processor that contains the beam tip
         label tipProcID = -1;
