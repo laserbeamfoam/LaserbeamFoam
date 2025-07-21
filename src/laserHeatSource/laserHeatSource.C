@@ -683,7 +683,7 @@ void laserHeatSource::updateDeposition
 
         // scalar npointstotrack=nRings*nPolar_ + 1;
 
-
+//code to add beam samples
 
     
     if(Radial_Polar_HS()==true){
@@ -811,17 +811,6 @@ void laserHeatSource::updateDeposition
     
     }
 
-
-
-
-
-
-
-
-
-
-
-
     else{
 
            forAll(CI, celli)
@@ -889,7 +878,7 @@ void laserHeatSource::updateDeposition
     }
     }
 
-
+//code to add beam samples
 
 
 // Info<<point_assoc_area<<endl;
@@ -924,14 +913,7 @@ void laserHeatSource::updateDeposition
         )
     );
 
-    //     scalarField pointassociatedareas_global
-    // (
-    //     ListListOps::combine<Field<scalar> >
-    //     (
-    //         gatheredData_areas,
-    //         accessOp<Field<scalar> >()
-    //     )
-    // );
+
 
         scalarField pointassociatedpowers_global
     (
@@ -941,39 +923,7 @@ void laserHeatSource::updateDeposition
             accessOp<Field<scalar> >()
         )
     );
-    // Info<<"synched points: "<<pointslistGlobal1<<endl;
 
-
-
-
-
-
-///////////////////////////////////////////////////need to loop over all global points and add perturbation if they are exactly on a face 
-
-    //         forAll(pointslistGlobal1, i)
-    // {
-    //     //find if a point is on a face and add a small perturbation
-    //     const pointField& points = mesh.points();
-
-    //     forAll(mesh.faces(),faceI){
-    //             // Info<<"FACE: "<<faceI<<endl;
-    //             const face& f = mesh.faces()[faceI];
-
-    //                     if (pointOnFace(f, pointslistGlobal1[i], points))
-    //     {
-    //         if(debug){
-    //         Info << "Point is on face " << faceI << nl;
-    //         }
-    //         vector perturbation (1e-9,1e-9,1e-9);
-    //         pointslistGlobal1[i] += perturbation;
-
-    //     }
-
-                
-    //     }
-   
-    // }
-///////////////////////////////////////////////////need to loop over all global points and add perturbation if they are exactly on a face 
 
 
 
@@ -1014,6 +964,41 @@ void laserHeatSource::updateDeposition
     // cell indices
     labelList rayCellIDs(pointslistGlobal1.size(), -1);
 
+
+
+
+
+
+
+
+
+
+
+
+    DynamicList<CompactRay> Rays_all;
+
+    forAll(pointslistGlobal1, i){
+
+    CompactRay RayTemp(pointslistGlobal1[i],V_incident,pointassociatedpowers_global[i]);
+    Rays_all.append(RayTemp);
+
+    }
+
+    Info<<"rayprint: "<<Rays_all[0].origin_<<endl;
+    Info<<"rayprint: "<<Rays_all[1].active_<<endl;
+
+
+
+
+
+
+
+
+
+
+
+
+
     const point DUMMYMAX(-GREAT, -GREAT, -GREAT);
     const scalar DUMMYSCAL(-GREAT);
 
@@ -1029,21 +1014,21 @@ void laserHeatSource::updateDeposition
         vector V2(V_incident/mag(V_incident));
         point V1_tip(pointslistGlobal1[i]);
 
-        // const point mid
-        // (
-        //     currentLaserPosition.x(),
-        //     pointslistGlobal1[i].y(),
-        //     currentLaserPosition.z()
-        // );
+        const point mid
+        (
+            currentLaserPosition.x(),
+            pointslistGlobal1[i].y(),
+            currentLaserPosition.z()
+        );
 
-        // if(Radial_Polar_HS()==true){
+        if(Radial_Polar_HS()==true){
             const point mid
             (
             currentLaserPosition.x(),
             currentLaserPosition.y(),//pointslistGlobal1[i].y(),
             currentLaserPosition.z()
             );
-        // }
+        }
 
         label directionChangeOrderI = 0;
 
@@ -1500,12 +1485,23 @@ void laserHeatSource::updateDeposition
                  tipProcID = -1;
              }
              reduce(tipProcID, maxOp<label>());
-// Info<<"HERE5678: "<<Q<<endl;
+
              // Sync direction-change ordered index
              reduce(directionChangeOrderI, maxOp<int>());
          };
-        //  Info<<"HERE56789"<<endl;
+
      }
+
+
+
+
+
+
+
+
+
+
+
 
 
      const scalar TotalQ = fvc::domainIntegrate(deposition_).value();
