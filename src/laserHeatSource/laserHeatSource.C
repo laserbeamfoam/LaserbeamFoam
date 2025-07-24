@@ -896,7 +896,7 @@ void laserHeatSource::updateDeposition
     // Info<<"Number of rays: "<<Rays_all.size()<<endl;
     // Info<<"rayprint: "<<Rays_all[0].origin_<<endl;
     // Info<<"rayprint: "<<Rays_all[1].active_<<endl;
-
+DynamicList<DynamicList<point>> WriteRays;
 DynamicList<CompactRay> globalRays = Rays_all;
 
 while(globalRays.size()>0){
@@ -906,6 +906,7 @@ Info<<"Number of Rays in Domain: "<<globalRays.size()<<endl;
 
 //Find all points on current processor - WANT TO TRACK ALL RAYS ON PROCESSORS AND SYNC ONCE THEY ARE ALL OFF
 DynamicList<CompactRay> Rays_current_processor;
+// DynamicList<CompactRay> WriteRayscurrentProcessor;
     forAll(globalRays, i)
     {
 
@@ -918,18 +919,12 @@ DynamicList<CompactRay> Rays_current_processor;
             Rays_current_processor.append(globalRays[i]);
          }
         
-        // Info<<"i: "<<i<<endl;
-
-
-
-// if(globalRays[i].origin_.x()>0.002||globalRays[i].origin_.x()<-0.002||globalRays[i].origin_.y()>0.005||globalRays[i].origin_.y()<0.0||globalRays[i].origin_.z()>0.005||globalRays[i].origin_.z()<0.0){
-// globalRays.remove();
-// }
 
 
 if (!globalBB.contains(globalRays[i].origin_))
 {
     // Point definitely outside mesh
+    WriteRays.append(globalRays[i].path_);
     globalRays.remove();
     // return false;
 }
@@ -1140,7 +1135,8 @@ if (!globalBB.contains(globalRays[i].origin_))
                                         )) )*nFilteredI[myCellId]
                             );
 
-            // Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);
+            // WriteRayscurrentProcessor[i].path_.append(Rays_current_processor[i].origin_);
+            
             // }
             // else{}
             }
@@ -1159,7 +1155,8 @@ if (!globalBB.contains(globalRays[i].origin_))
 
 
 
-Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);//THINK THIS IS OVERKILL
+// WriteRays[i].path_.append(Rays_current_processor[i].origin_);//THINK THIS IS OVERKILL
+
 
 
     }
@@ -1169,16 +1166,19 @@ Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);//THIN
 /*DynamicList<CompactRay>*/ globalRays = Rays_current_processor;//to sync
 
 
-
 Pstream::combineGather(globalRays, combineRayLists());
 Pstream::combineScatter(globalRays);
 
+Pstream::combineGather(WriteRays, combineRayPaths());
+Pstream::combineScatter(WriteRays);
 
+// WriteRays
 
+// Info<<"ray path size: "<<globalRays[0].path_.size()<<endl;
 
 }
 
-
+// Info<<"ray path size: "<<globalRays[0].path_.size()<<endl;
 
 
 // Info<<"path test"<<Rays_all[0].path_<<endl;
@@ -1199,17 +1199,26 @@ if (runTime.outputTime())
 
     mkDir(vtkDir);
 
-    // Collect all ray paths from all rays
-    DynamicList<DynamicList<point>> allRayPaths;
+    // // Collect all ray paths from all rays
+    DynamicList<DynamicList<point>> allRayPaths = WriteRays;
     
-    // Rays_all contains all the rays with their complete paths
-    forAll(Rays_all, rayI)
-    {
-        if (Rays_all[rayI].path_.size() > 1)  // Only add rays that have traveled
-        {
-            allRayPaths.append(Rays_all[rayI].path_);
-        }
-    }
+    // // Rays_all contains all the rays with their complete paths
+    // forAll(WriteRays, rayI)
+    // {
+    //     // Info<<" HERE"<<endl;
+    //     // Info<<" HERE"<<endl;
+    //     // Info<<" HERE"<<endl;
+    //     // Info<<" HERE"<<endl;
+    //     // Info<<"ray path size: "<<WriteRays[rayI].path_.size()<<endl;
+    //     // Info<<" HERE"<<endl;
+    //     // Info<<" HERE"<<endl;
+    //     // Info<<" HERE"<<endl;
+
+    //     if (WriteRays.size() > 1)  // Only add rays that have traveled
+    //     {
+    //         allRayPaths.append(WriteRays);
+    //     }
+    // }
 
     // Gather paths from all processors if running in parallel
     if (Pstream::parRun())

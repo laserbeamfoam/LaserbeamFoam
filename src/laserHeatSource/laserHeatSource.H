@@ -148,6 +148,24 @@ struct combineRayLists
 };
 
 
+struct combineLists
+{
+    void operator()(DynamicList<point>& x, const DynamicList<point>& y) const
+    {
+        x.append(y);
+    }
+};
+
+struct combineRayPaths
+{
+    void operator()(DynamicList<DynamicList<point>>& x, const DynamicList<DynamicList<point>>& y) const
+    {
+        forAll(y, i)
+        {
+            x.append(y[i]);
+        }
+    }
+};
 
 class laserHeatSource
 :
