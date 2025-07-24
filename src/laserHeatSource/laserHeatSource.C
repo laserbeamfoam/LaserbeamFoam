@@ -309,117 +309,7 @@ if(debug){
 
 }
 
-// void laserHeatSource::initialise_point_RP_linear(DynamicList<vector> *initial_points, DynamicList<scalar> *point_assoc_power){
 
-//     scalar listLength(0);
-//     DynamicList<vector> initial_points_tmp(listLength, vector::zero);
-//     initial_points_tmp.clear();
-
-//     DynamicList<scalar> point_assoc_power_tmp(listLength, 0.0);//power associated with the point
-//     point_assoc_power_tmp.clear();
-
-//         // Info<<"nRadial_: "<<nRadial_<<endl;
-//         // Info<<"nAngular_: "<<nAngular_<<endl;
-
-//         //TO READ IN ONCE IT WORKS
-//         label nRadial_ = 100;
-//         label nAngular_ = 100;
-//         scalar rMax = 1.5*beam_radius;
-
-
-
-
-//         label totalSamples = nRadial_ * nAngular_;
-//         label samplesPerProc = totalSamples / Pstream::nProcs();
-//         label remainder = totalSamples % Pstream::nProcs();
-
-//         const label nProcs = Pstream::nProcs();
-//         const label myRank = Pstream::myProcNo();
-
-//         label startIdx = myRank * samplesPerProc + min(myRank, remainder);
-//         label endIdx = startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
-        
-//         const label localSamples = endIdx - startIdx;
-
-
-
-//         Pout<<"startpoint: "<<startIdx<<endl;
-//         Pout<<"Endpoint: "<<endIdx<<endl;
-//         // Info<<"\n"<<endl;
-//         // Info<<"Number of Cores Used in Ray-Tracing"<<Pstream::nProcs()<<endl;
-//         // Info<<"\n"<<endl;
-
-        
-
-
-//         point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
-
-//         vector V_i(V_incident/mag(V_incident)); //normalise vector in-case user hasnt
-
-//         // // Generate two orthonormal vectors in the plane
-//         vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
-//         vector u = (V_i ^ a);
-//         u = u/mag(u);
-//         vector v = (V_i ^ u);
-//         vector perturbation (1e-10,1e-10,1e-10);
-
-//          for (label localIdx = 0; localIdx < localSamples; ++localIdx)
-//         {
-
-//             const label globalIdx = startIdx + localIdx;
-            
-//             // Convert global index to angular and radial indices
-//             const label iTheta = globalIdx / nRadial_;
-//             const label iR = globalIdx % nRadial_;
-
-//             // Angular discretization
-//             const scalar theta = 2.0 * M_PI * iTheta / nAngular_;
-            
-//             // Radial discretization (uniform in radius)
-//             const scalar r = rMax * (iR + 0.5) / nRadial_;
-
-//             // Calculate area element
-//             const scalar deltaTheta = 2.0 * M_PI / nAngular_;
-//             const scalar deltaR = rMax / nRadial_;
-//             const scalar area = r * deltaR * deltaTheta;
-
-//             // Convert to Cartesian coordinates in local plane system
-//             const scalar x_local = r * cos(theta);
-//             const scalar y_local = r * sin(theta);
-
-//             const vector globalPos = P0 
-//                 + x_local * u 
-//                 + y_local * v;
-
-//             initial_points.append(globalPos + perturbation);
-
-//             point_assoc_power.append(
-//                     area*(
-//                (Radius_Flavour*Q_cond.value())
-//               /(
-//                   Foam::pow(a_cond.value(), 2.0)*pi.value()
-//                )
-//            )
-
-//           *Foam::exp
-//            (
-//              - Radius_Flavour
-//               *(
-//                   Foam::pow(r, 2.0)/Foam::pow(a_cond.value(), 2.0)
-//                )
-//            ) 
-//                 );
-
-
-
-//         }
-
-    
-
-//     *initial_points=initial_points_tmp;
-//     *point_assoc_power=point_assoc_power_tmp;
-
-// }
 
 void laserHeatSource::updateDeposition
 (
@@ -981,15 +871,18 @@ void laserHeatSource::updateDeposition
 
 
 
+// ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
+
+// Get local bounding box
+boundBox localBB = mesh.bounds();
+
+// Get global bounding box using parallel communication
+boundBox globalBB = localBB;
+reduce(globalBB.min(), minOp<vector>());
+reduce(globalBB.max(), maxOp<vector>());
 
 
-
-
-
-
-
-
-
+// ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
 
 
 
@@ -1035,24 +928,18 @@ DynamicList<CompactRay> Rays_current_processor;
         // Info<<"i: "<<i<<endl;
 
 
-// // Get the global point ID
-// const globalIndex& globalPointNumbering = mesh.globalData().globalPointNumbering();
-// label globalPointI = globalPointNumbering.toGlobal(myCellId);
 
-// // Find which processor owns this global point
-// label procI = globalPointNumbering.whichProcID(globalPointI);
-
-// Info<<"GLOBAL: "<<globalPointI<<endl;
-// Info<<procI<<endl;
-
-// if(globalPointI==-1){
+// if(globalRays[i].origin_.x()>0.002||globalRays[i].origin_.x()<-0.002||globalRays[i].origin_.y()>0.005||globalRays[i].origin_.y()<0.0||globalRays[i].origin_.z()>0.005||globalRays[i].origin_.z()<0.0){
 // globalRays.remove();
 // }
 
-if(globalRays[i].origin_.x()>0.002||globalRays[i].origin_.x()<-0.002||globalRays[i].origin_.y()>0.005||globalRays[i].origin_.y()<0.0||globalRays[i].origin_.z()>0.005||globalRays[i].origin_.z()<0.0){
-globalRays.remove();
-}
 
+if (!globalBB.contains(globalRays[i].origin_))
+{
+    // Point definitely outside mesh
+    globalRays.remove();
+    // return false;
+}
 
 
     }
@@ -1089,169 +976,169 @@ globalRays.remove();
                 //     // Info<<"detected interface"<<endl;
 
 
-                // const scalar damping_frequency =
-                //         plasma_frequency*plasma_frequency
-                //        *constant::electromagnetic::epsilon0.value()
-                //        *resistivity_in[myCellId];
+                const scalar damping_frequency =
+                        plasma_frequency*plasma_frequency
+                       *constant::electromagnetic::epsilon0.value()
+                       *resistivity_in[myCellId];
 
-                //     const scalar e_r =
-                //         1.0
-                //       - (
-                //             sqr(plasma_frequency)/(sqr(angular_frequency)
-                //           + sqr(damping_frequency))
-                //         );
+                    const scalar e_r =
+                        1.0
+                      - (
+                            sqr(plasma_frequency)/(sqr(angular_frequency)
+                          + sqr(damping_frequency))
+                        );
 
-                //     const scalar e_i =
-                //         (damping_frequency/angular_frequency)
-                //         *(
-                //             plasma_frequency*plasma_frequency
-                //            /(
-                //                 angular_frequency*angular_frequency
-                //               + damping_frequency*damping_frequency
-                //             )
-                //         );
+                    const scalar e_i =
+                        (damping_frequency/angular_frequency)
+                        *(
+                            plasma_frequency*plasma_frequency
+                           /(
+                                angular_frequency*angular_frequency
+                              + damping_frequency*damping_frequency
+                            )
+                        );
 
-                //     const scalar ref_index =
-                //         Foam::sqrt
-                //         (
-                //             (Foam::sqrt((e_r*e_r) +(e_i*e_i)) + e_r)/2.0
-                //         );
+                    const scalar ref_index =
+                        Foam::sqrt
+                        (
+                            (Foam::sqrt((e_r*e_r) +(e_i*e_i)) + e_r)/2.0
+                        );
 
-                //     const scalar ext_coefficient =
-                //         Foam::sqrt
-                //         (
-                //             (Foam::sqrt((e_r*e_r) +(e_i*e_i)) - e_r)/2.0
-                //         );
+                    const scalar ext_coefficient =
+                        Foam::sqrt
+                        (
+                            (Foam::sqrt((e_r*e_r) +(e_i*e_i)) - e_r)/2.0
+                        );
 
-                //         scalar argument =
-                //         (
-                //             Rays_current_processor[i].direction_ & nFilteredI[myCellId]
-                //         )/(mag(Rays_current_processor[i].direction_)*mag(nFilteredI[myCellId]));
-                //     // Info<<"HERE 2"<<endl;
-                //     if (argument >= (1.0 - SMALL))
-                //     {
-                //         argument = 1.0;
-                //     }
-                //     else if (argument <= (-1.0 + SMALL))
-                //     {
-                //         argument = -1.0;
-                //     }
+                        scalar argument =
+                        (
+                            Rays_current_processor[i].direction_ & nFilteredI[myCellId]
+                        )/(mag(Rays_current_processor[i].direction_)*mag(nFilteredI[myCellId]));
+                    // Info<<"HERE 2"<<endl;
+                    if (argument >= (1.0 - SMALL))
+                    {
+                        argument = 1.0;
+                    }
+                    else if (argument <= (-1.0 + SMALL))
+                    {
+                        argument = -1.0;
+                    }
 
-                //     const scalar theta_in = std::acos(argument);
+                    const scalar theta_in = std::acos(argument);
 
-                //     const scalar alpha_laser =
-                //         Foam::sqrt
-                //         (
-                //             Foam::sqrt
-                //             (
-                //                 sqr
-                //                 (
-                //                     sqr(ref_index)
-                //                   - sqr(ext_coefficient)
-                //                   - sqr(Foam::sin(theta_in))
-                //                 )
-                //               + (
-                //                     4.0*sqr(ref_index)*sqr(ext_coefficient)
-                //                 )
-                //             )
-                //           + sqr(ref_index)
-                //           - sqr(ext_coefficient)
-                //           - sqr(Foam::sin(theta_in))/2.0
-                //         );
+                    const scalar alpha_laser =
+                        Foam::sqrt
+                        (
+                            Foam::sqrt
+                            (
+                                sqr
+                                (
+                                    sqr(ref_index)
+                                  - sqr(ext_coefficient)
+                                  - sqr(Foam::sin(theta_in))
+                                )
+                              + (
+                                    4.0*sqr(ref_index)*sqr(ext_coefficient)
+                                )
+                            )
+                          + sqr(ref_index)
+                          - sqr(ext_coefficient)
+                          - sqr(Foam::sin(theta_in))/2.0
+                        );
 
-                //     const scalar beta_laser =
-                //         Foam::sqrt
-                //         (
-                //             (
-                //                 Foam::sqrt
-                //                 (
-                //                     sqr
-                //                     (
-                //                         sqr(ref_index)
-                //                       - sqr(ext_coefficient)
-                //                       - sqr(Foam::sin(theta_in))
-                //                     )
-                //                   + 4.0*sqr(ref_index)*sqr(ext_coefficient)
-                //                 )
-                //               - sqr(ref_index)
-                //               + sqr(ext_coefficient)
-                //               + sqr(Foam::sin(theta_in))
-                //             )/2.0
-                //         );
+                    const scalar beta_laser =
+                        Foam::sqrt
+                        (
+                            (
+                                Foam::sqrt
+                                (
+                                    sqr
+                                    (
+                                        sqr(ref_index)
+                                      - sqr(ext_coefficient)
+                                      - sqr(Foam::sin(theta_in))
+                                    )
+                                  + 4.0*sqr(ref_index)*sqr(ext_coefficient)
+                                )
+                              - sqr(ref_index)
+                              + sqr(ext_coefficient)
+                              + sqr(Foam::sin(theta_in))
+                            )/2.0
+                        );
 
-                //     const scalar R_s =
-                //         (
-                //             (
-                //                 sqr(alpha_laser)
-                //               + sqr(beta_laser)
-                //               - 2.0*alpha_laser*Foam::cos(theta_in)
-                //               + sqr(Foam::cos(theta_in))
-                //             )
-                //            /(
-                //                sqr(alpha_laser)
-                //              + sqr(beta_laser)
-                //              + 2.0*alpha_laser*Foam::cos(theta_in)
-                //              + sqr(Foam::cos(theta_in))
-                //            )
-                //         );
+                    const scalar R_s =
+                        (
+                            (
+                                sqr(alpha_laser)
+                              + sqr(beta_laser)
+                              - 2.0*alpha_laser*Foam::cos(theta_in)
+                              + sqr(Foam::cos(theta_in))
+                            )
+                           /(
+                               sqr(alpha_laser)
+                             + sqr(beta_laser)
+                             + 2.0*alpha_laser*Foam::cos(theta_in)
+                             + sqr(Foam::cos(theta_in))
+                           )
+                        );
 
-                //     const scalar R_p =
-                //         R_s
-                //        *(
-                //            (
-                //                sqr(alpha_laser)
-                //              + sqr(beta_laser)
-                //              - (
-                //                    2.0*alpha_laser*Foam::sin(theta_in)
-                //                   *Foam::tan(theta_in)
-                //                )
-                //              + (
-                //                    sqr(Foam::sin(theta_in))
-                //                   *sqr(Foam::tan(theta_in))
-                //                )
-                //            )
-                //           /(
-                //               sqr(alpha_laser)
-                //             + sqr(beta_laser)
-                //             + (
-                //                   2.0*alpha_laser*Foam::sin(theta_in)
-                //                  *Foam::tan(theta_in)
-                //               )
-                //             + sqr(Foam::sin(theta_in))*sqr(Foam::tan(theta_in))
-                //            )
-                //        );
+                    const scalar R_p =
+                        R_s
+                       *(
+                           (
+                               sqr(alpha_laser)
+                             + sqr(beta_laser)
+                             - (
+                                   2.0*alpha_laser*Foam::sin(theta_in)
+                                  *Foam::tan(theta_in)
+                               )
+                             + (
+                                   sqr(Foam::sin(theta_in))
+                                  *sqr(Foam::tan(theta_in))
+                               )
+                           )
+                          /(
+                              sqr(alpha_laser)
+                            + sqr(beta_laser)
+                            + (
+                                  2.0*alpha_laser*Foam::sin(theta_in)
+                                 *Foam::tan(theta_in)
+                              )
+                            + sqr(Foam::sin(theta_in))*sqr(Foam::tan(theta_in))
+                           )
+                       );
                         
                         
-                //         const scalar absorptivity = 1.0- ((R_s + R_p)/2.0);//1.0;//
+                        const scalar absorptivity = 1.0- ((R_s + R_p)/2.0);//1.0;//
 
-                //         if (theta_in >= pi.value()/2.0)
-                //     {
-                //         Info<<"GT 90 !!!"<<endl;
-                //     Rays_current_processor[i].power_*=0.0;
-                //     // deposition_[myCellId] += absorptivity*Q/mesh.V()[myCellId];//yDimI[myCellId];
-                //     }
+                        if (theta_in >= pi.value()/2.0)
+                    {
+                        Info<<"GT 90 !!!"<<endl;
+                    Rays_current_processor[i].power_*=0.0;
+                    // deposition_[myCellId] += absorptivity*Q/mesh.V()[myCellId];//yDimI[myCellId];
+                    }
                 //     // else{}
-                //     else
-                //     {
-                //         deposition_[myCellId] += absorptivity*Rays_current_processor[i].power_/mesh.V()[myCellId];//yDimI[myCellId];
-                //         Rays_current_processor[i].power_ *= 1.0 - absorptivity;
-                //         // V2 -=
-                //         //     (
-                //         //         (
-                //         //             (
-                //         //                 ((2.0*V2) & nFilteredI[myCellId])
-                //         //                /(
-                //         //                     mag(nFilteredI[myCellId])
-                //         //                    *mag(nFilteredI[myCellId])
-                //         //                 )
-                //         //             )
-                //         //         )*nFilteredI[myCellId]
-                //         //     );
+                    else
+                    {
+                        deposition_[myCellId] += absorptivity*Rays_current_processor[i].power_/mesh.V()[myCellId];//yDimI[myCellId];
+                        Rays_current_processor[i].power_ *= 1.0 - absorptivity;
+                        // V2 -=
+                        //     (
+                        //         (
+                        //             (
+                        //                 ((2.0*V2) & nFilteredI[myCellId])
+                        //                /(
+                        //                     mag(nFilteredI[myCellId])
+                        //                    *mag(nFilteredI[myCellId])
+                        //                 )
+                        //             )
+                        //         )*nFilteredI[myCellId]
+                        //     );
 
 
-                //     }
+                    }
 
-                        deposition_[myCellId]=1.0;
+                        // deposition_[myCellId]=1.0;//for debugging
                         
                         Rays_current_processor[i].direction_-=(((
                                         ((2.0*Rays_current_processor[i].direction_) & nFilteredI[myCellId])

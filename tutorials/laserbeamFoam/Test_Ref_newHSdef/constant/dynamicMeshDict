@@ -33,10 +33,10 @@ topoChanger
     upperRefineLevel 0.999;
 
     // Have slower than 2:1 refinement
-    nBufferLayers   2;
+    nBufferLayers   1;
 
     // Refine cells only up to maxRefinement levels
-    maxRefinement   2;
+    maxRefinement   1;
 
     // Stop refinement if maxCells reached
     maxCells        1000000;

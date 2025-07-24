@@ -26,7 +26,7 @@ timeVsLaserPower
     outOfBounds clamp;
 }
 
-V_incident	(0 1 0.5);//(0 1 0);//NORMALISED IN CODE
+V_incident	(0 1 0.25);//(0 1 0);//NORMALISED IN CODE
 
 laserRadius 0.0005;
 
@@ -45,8 +45,8 @@ Radius_Flavour	2.0;
 useLocalSearch    true;//false;
 
 Radial_Polar_HS true;//false;//
-nRadial	100;
-nAngular	360;
+nRadial	20;
+nAngular	90;
 
 
 //debug true;
