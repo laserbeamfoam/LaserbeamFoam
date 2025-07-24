@@ -1036,8 +1036,8 @@ DynamicList<CompactRay> Rays_current_processor;
 
 
 // // Get the global point ID
-const globalIndex& globalPointNumbering = mesh.globalData().globalPointNumbering();
-label globalPointI = globalPointNumbering.toGlobal(myCellId);
+// const globalIndex& globalPointNumbering = mesh.globalData().globalPointNumbering();
+// label globalPointI = globalPointNumbering.toGlobal(myCellId);
 
 // // Find which processor owns this global point
 // label procI = globalPointNumbering.whichProcID(globalPointI);
@@ -1045,7 +1045,11 @@ label globalPointI = globalPointNumbering.toGlobal(myCellId);
 // Info<<"GLOBAL: "<<globalPointI<<endl;
 // Info<<procI<<endl;
 
-if(globalPointI==-1){
+// if(globalPointI==-1){
+// globalRays.remove();
+// }
+
+if(globalRays[i].origin_.x()>0.002||globalRays[i].origin_.x()<-0.002||globalRays[i].origin_.y()>0.005||globalRays[i].origin_.y()<0.0||globalRays[i].origin_.z()>0.005||globalRays[i].origin_.z()<0.0){
 globalRays.remove();
 }
 
@@ -1249,11 +1253,11 @@ globalRays.remove();
 
                         deposition_[myCellId]=1.0;
                         
-                        // Rays_current_processor[i].direction_-=(((
-                        //                 ((2.0*Rays_current_processor[i].direction_) & nFilteredI[myCellId])
-                        //                /(mag(nFilteredI[myCellId])*mag(nFilteredI[myCellId])
-                        //                 )) )*nFilteredI[myCellId]
-                        //     );
+                        Rays_current_processor[i].direction_-=(((
+                                        ((2.0*Rays_current_processor[i].direction_) & nFilteredI[myCellId])
+                                       /(mag(nFilteredI[myCellId])*mag(nFilteredI[myCellId])
+                                        )) )*nFilteredI[myCellId]
+                            );
 
             // Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);
             // }
