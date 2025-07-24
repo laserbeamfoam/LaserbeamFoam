@@ -150,8 +150,26 @@ laserHeatSource::laserHeatSource
     laserNames_(0),
     laserDicts_(0),
     timeVsLaserPosition_(0),
-    timeVsLaserPower_(0)
+    timeVsLaserPower_(0),
+    globalBB_(mesh.bounds())  // Initialize with local bounds first
 {
+
+    // Calculate global bounding box
+    {
+        // Get local bounding box
+        boundBox localBB = mesh.bounds();
+        
+        // Initialize global bounding box with local bounds
+        globalBB_ = localBB;
+        
+        // Reduce to get global bounds across all processors
+        reduce(globalBB_.min(), minOp<vector>());
+        reduce(globalBB_.max(), maxOp<vector>());
+        
+        Info<< "Global mesh bounding box: " << globalBB_ << endl;
+    }
+
+
     // Initialise the laser power and position
     if (found("lasers"))
     {
@@ -441,7 +459,8 @@ void laserHeatSource::updateDeposition
             dep_cutoff,
             Radius_Flavour,
             useLocalSearch,
-            maxLocalSearch
+            maxLocalSearch,
+            globalBB_  // 
         );
     }
 }
@@ -464,7 +483,8 @@ void laserHeatSource::updateDeposition
     const scalar dep_cutoff,
     const scalar Radius_Flavour,
     const Switch useLocalSearch,
-    const label maxLocalSearch
+    const label maxLocalSearch,
+    const boundBox& globalBB  // Now passed as parameter
 )
 {
     const fvMesh& mesh  = deposition_.mesh();
@@ -871,18 +891,18 @@ void laserHeatSource::updateDeposition
 
 
 
-// ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
+// // ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
 
-// Get local bounding box
-boundBox localBB = mesh.bounds();
+// // Get local bounding box
+// boundBox localBB = mesh.bounds();
 
-// Get global bounding box using parallel communication
-boundBox globalBB = localBB;
-reduce(globalBB.min(), minOp<vector>());
-reduce(globalBB.max(), maxOp<vector>());
+// // Get global bounding box using parallel communication
+// boundBox globalBB = localBB;
+// reduce(globalBB.min(), minOp<vector>());
+// reduce(globalBB.max(), maxOp<vector>());
 
 
-// ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
+// // ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
 
 
 

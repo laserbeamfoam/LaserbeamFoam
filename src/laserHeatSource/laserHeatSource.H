@@ -198,6 +198,9 @@ class laserHeatSource
         //- List of the time vs laser power interpolation series
         PtrList<interpolationTable<scalar>> timeVsLaserPower_;
 
+        //- Global bounding box of the mesh
+        boundBox globalBB_;
+
 
     // Private Member Functions
 
@@ -293,8 +296,15 @@ public:
             const scalar dep_cutoff,
             const scalar Radius_Flavour,
             const Switch useLocalSearch,
-            const label maxLocalSearch
+            const label maxLocalSearch,
+            const boundBox& globalBB  // FOR ACCESS TO BOUNDING BOX GLOBALLY
         );
+
+        //- Const access to the global bounding box
+        const boundBox& globalBB() const
+        {
+            return globalBB_;
+        }
 
         bool pointOnFace(const face& f, const point& p, const pointField& meshPoints);
 
