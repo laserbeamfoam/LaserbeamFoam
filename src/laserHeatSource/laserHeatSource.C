@@ -880,33 +880,6 @@ void laserHeatSource::updateDeposition
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-// // ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
-
-// // Get local bounding box
-// boundBox localBB = mesh.bounds();
-
-// // Get global bounding box using parallel communication
-// boundBox globalBB = localBB;
-// reduce(globalBB.min(), minOp<vector>());
-// reduce(globalBB.max(), maxOp<vector>());
-
-
-// // ??THIS SECTION COULD JUST BE DONE ONCE  - IN A SOLVER AND THEN PASSED IN
-
-
-
-
     DynamicList<CompactRay> Rays_all;
 
     forAll(pointslistGlobal1, i){
@@ -978,7 +951,8 @@ if (!globalBB.contains(globalRays[i].origin_))
         while(myCellId!=-1){
             // rayQ_[myCellId]+=0.5;
 
-        scalar iterator_distance = 0.1*yDimI[myCellId];
+        scalar iterator_distance = (0.5/pi.value())*yDimI[myCellId];
+        
 
         // Rays_current_processor[i].origin_+=iterator_distance*Rays_current_processor[i].direction_;
         
@@ -1175,7 +1149,8 @@ if (!globalBB.contains(globalRays[i].origin_))
 
         Rays_current_processor[i].origin_+=iterator_distance*Rays_current_processor[i].direction_;
 
-        // Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);//THINK THIS IS OVERKILL
+
+        Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);//THINK THIS IS OVERKILL
         }
 
         // scalar Q = (Rays_current_processor[i].power_);
@@ -1184,7 +1159,7 @@ if (!globalBB.contains(globalRays[i].origin_))
 
 
 
-
+Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);//THINK THIS IS OVERKILL
 
 
     }
@@ -1206,55 +1181,68 @@ Pstream::combineScatter(globalRays);
 
 
 
-// if (runTime.outputTime()/* && Pstream::master()*/)
-//     {
-//          // Create a directory for the VTK files
-//          fileName vtkDir;
-//          if (Pstream::parRun())
-//          {
-//              vtkDir = runTime.path()/".."/"VTKs";
-//          }
-//          else
-//          {
-//              vtkDir = runTime.path()/"VTKs";
-//          }
-
-//          mkDir(vtkDir);
-
-//     //      // Create a VTK file
-//     //      OFstream rayVtkFile
-//     //      (
-//     //          vtkDir/laserName + "_rays_"
-//     //        + Foam::name(runTime.timeIndex()) + ".vtk"
-//     //      );
-
-//         //  Info<< "Writing rays to " << rayVtkFile.name() << endl;
+// Info<<"path test"<<Rays_all[0].path_<<endl;
 
 
-//         DynamicList<DynamicList<point>> allRaystowrite;
+if (runTime.outputTime())
+{
+    // Create a directory for the VTK files
+    fileName vtkDir;
+    if (Pstream::parRun())
+    {
+        vtkDir = runTime.path()/".."/"VTKs";
+    }
+    else
+    {
+        vtkDir = runTime.path()/"VTKs";
+    }
 
-//          forAll(globalRays, i)
-//                 {
-//                     allRaystowrite.append(globalRays[i].path_);
-//                     // fileName rayname = vtkDir/ "RAY" + Foam::name(i) + Foam::name(runTime.timeIndex()) +".vtk";
-//                     //     writeLinesToVTK(globalRays[i].path_,rayname);
-//                 }
-//         fileName rayname = vtkDir/ "RAY" + Foam::name(runTime.timeIndex()) +".vtk";
-//         writeMultipleRaysToVTK(allRaystowrite,rayname);
+    mkDir(vtkDir);
 
-//     }
+    // Collect all ray paths from all rays
+    DynamicList<DynamicList<point>> allRayPaths;
+    
+    // Rays_all contains all the rays with their complete paths
+    forAll(Rays_all, rayI)
+    {
+        if (Rays_all[rayI].path_.size() > 1)  // Only add rays that have traveled
+        {
+            allRayPaths.append(Rays_all[rayI].path_);
+        }
+    }
 
+    // Gather paths from all processors if running in parallel
+    if (Pstream::parRun())
+    {
+        // Gather all paths to master processor
+        List<DynamicList<DynamicList<point>>> gatheredPaths(Pstream::nProcs());
+        gatheredPaths[Pstream::myProcNo()] = allRayPaths;
+        Pstream::gatherList(gatheredPaths);
+        
+        if (Pstream::master())
+        {
+            // Combine all paths
+            allRayPaths.clear();
+            forAll(gatheredPaths, procI)
+            {
+                const DynamicList<DynamicList<point>>& procPaths = gatheredPaths[procI];
+                forAll(procPaths, pathI)
+                {
+                    allRayPaths.append(procPaths[pathI]);
+                }
+            }
+        }
+    }
 
-
-
-// Pout<<globalRays<<endl;
-
-
-
-
-// Pout<<"OUT OF BIG LOOP"<<endl;
-
-
+    // Write VTK file (only master processor in parallel runs)
+    if (!Pstream::parRun() || Pstream::master())
+    {
+        fileName vtkFileName = vtkDir/"rays_" + laserName + "_" + Foam::name(runTime.timeIndex()) + ".vtk";
+        writeMultipleRaysToVTK(allRayPaths, vtkFileName);
+        
+        Info<< "Written " << allRayPaths.size() << " ray paths to " << vtkFileName << endl;
+    }
+}
 
 
 

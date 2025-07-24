@@ -108,8 +108,8 @@ class CompactRay
         return 
             origin_ == other.origin_ && 
             direction_ == other.direction_ && 
-            power_ == other.power_;
-            // Add comparisons for all your data members
+            power_ == other.power_ &&
+            global_Ray_number_ == other.global_Ray_number_;
     }
 
     bool operator!=(const CompactRay& other) const
