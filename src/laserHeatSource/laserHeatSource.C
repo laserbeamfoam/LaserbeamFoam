@@ -905,6 +905,7 @@ Info<<"Number of Rays in Domain: "<<globalRays.size()<<endl;
 
 
 //Find all points on current processor - WANT TO TRACK ALL RAYS ON PROCESSORS AND SYNC ONCE THEY ARE ALL OFF
+DynamicList<DynamicList<point>> WriteRays_current_processor;
 DynamicList<CompactRay> Rays_current_processor;
 // DynamicList<CompactRay> WriteRayscurrentProcessor;
     forAll(globalRays, i)
@@ -1136,7 +1137,7 @@ if (!globalBB.contains(globalRays[i].origin_))
                             );
 
             // WriteRayscurrentProcessor[i].path_.append(Rays_current_processor[i].origin_);
-            
+            WriteRays_current_processor.append(Rays_current_processor[i].path_);
             // }
             // else{}
             }
@@ -1155,7 +1156,7 @@ if (!globalBB.contains(globalRays[i].origin_))
 
 
 
-// WriteRays[i].path_.append(Rays_current_processor[i].origin_);//THINK THIS IS OVERKILL
+Rays_current_processor[i].path_.append(Rays_current_processor[i].origin_);//THINK THIS IS OVERKILL
 
 
 
@@ -1164,6 +1165,7 @@ if (!globalBB.contains(globalRays[i].origin_))
     //NOW WANT TO SWAP ALL LISTS OF RAYS THAT HAVE LEFT ALL PROCESSORS TO SEE IFD THEY ARE ON OTHER PROCESSORS
 
 /*DynamicList<CompactRay>*/ globalRays = Rays_current_processor;//to sync
+                                       WriteRays = WriteRays_current_processor;
 
 
 Pstream::combineGather(globalRays, combineRayLists());
