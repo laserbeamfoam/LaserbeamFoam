@@ -870,12 +870,11 @@ const volScalarField& Temperature
             // }
 
                 // Cell gradient of alpha
-        volVectorField gradAlpha =
-        alpha2*fvc::grad(alpha1) - alpha1*fvc::grad(alpha2);
+        volVectorField gradAlpha (alpha2*fvc::grad(alpha1) - alpha1*fvc::grad(alpha2));
 
-        volVectorField nHatM = gradAlpha/(mag(gradAlpha) + deltaN_);
+        volVectorField nHatM (gradAlpha/(mag(gradAlpha) + deltaN_));
 
-        volVectorField gradT = fvc::grad(Temperature);
+        volVectorField gradT (fvc::grad(Temperature));
 
 
 
