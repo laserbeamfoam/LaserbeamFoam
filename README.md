@@ -1,6 +1,6 @@
 # `laserbeamFoam` solvers
 
-![alt text](https://github.com/micmog/LaserbeamFoam/blob/OF2506-newsolver/images/t200usT.png?raw=true)
+![alt text](https://github.com/micmog/LaserbeamFoam/blob/main/images/Powder.png?raw=true)
 
 ## Overview
 

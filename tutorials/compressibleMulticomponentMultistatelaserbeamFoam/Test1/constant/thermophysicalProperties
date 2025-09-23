@@ -129,10 +129,10 @@ boils
 
 LatentHeatGas
 (
-(metal1vapour metal1) 1.0e1
-(metal2vapour metal2) 1.0e1
-(metal3vapour metal3) 1.0e1
-(metal4vapour metal4) 1.0e1
+(metal1vapour metal1) 1.0e6
+(metal2vapour metal2) 1.0e6
+(metal3vapour metal3) 1.0e6
+(metal4vapour metal4) 1.0e6
 );
 
 interfaceCompression

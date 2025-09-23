@@ -20,7 +20,7 @@ dynamicFvMesh   dynamicRefineFvMesh;
 refineInterval  1;
 
 // Field to be refinement on
-field           condensate;
+field           refineflag;
 
 // Refine field inbetween lower..upper
 lowerRefineLevel 0.01;
