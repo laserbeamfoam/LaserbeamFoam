@@ -811,3 +811,43 @@ mesh.setFluxRequired(alpha1.name());
 
 #include "isoAdvector/createPorosity.H"
 isoAdvection advector(alpha1, phi, U);
+
+
+
+volScalarField mu
+(
+    IOobject
+    (
+        "mu",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+      mixture.mu()
+);
+
+
+
+
+
+// Create kinematic cloud for particle tracking
+const word kinematicCloudName
+(
+    args.getOrDefault<word>("cloud", "kinematicCloud")
+);
+
+Info<< "Constructing kinematic cloud " << kinematicCloudName << endl;
+
+// The cloud constructor only needs mesh, name, and readFields flag
+basicKinematicCloud parcels
+(
+    kinematicCloudName,
+    rho,
+    U,
+    mu,
+    g
+);
+
+
+

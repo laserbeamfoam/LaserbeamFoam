@@ -66,6 +66,9 @@ Authors
 #include "Polynomial.H"
 #include "laserHeatSource.H"
 
+// #include "basicKinematicCollidingCloud.H"
+#include "basicKinematicCloud.H"
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 int main(int argc, char *argv[])
@@ -110,6 +113,10 @@ int main(int argc, char *argv[])
 
     while (runTime.run())
     {
+
+
+
+
         #include "readControls.H"
         #include "readDyMControls.H"
 
@@ -135,11 +142,63 @@ int main(int argc, char *argv[])
         
         ++runTime;
 
+        parcels.storeGlobalPositions();
+
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
         {
+
+
+            if (pimple.firstIter() || moveMeshOuterCorrectors)
+            {
+                mesh.update();
+
+                if (mesh.changing())
+                {
+                    // Do not apply previous time-step mesh compression flux
+                    // if the mesh topology changed
+                    if (mesh.topoChanging())
+                    {
+                        talphaPhi1Corr0.clear();
+                    }
+
+                    gh = (g & mesh.C()) - ghRef;
+                    ghf = (g & mesh.Cf()) - ghRef;
+
+                    // // CRITICAL: Update particle cloud after mesh change
+                    // parcels.autoMap(mesh.objectRegistry::lookupObject<mapPolyMesh>("mapPolyMesh"));
+                    
+                    // // Rebuild the particle positions on new mesh
+                    // parcels.distribute(mesh.objectRegistry::lookupObject<mapDistributePolyMesh>("mapDistributePolyMesh"));
+                    
+
+                    MRF.update();
+
+                    if (correctPhi)
+                    {
+                        // Calculate absolute flux
+                        // from the mapped surface velocity
+                        phi = mesh.Sf() & Uf();
+
+                        #include "correctPhi.H"
+
+                        // Make the flux relative to the mesh motion
+                        fvc::makeRelative(phi, U);
+
+                        mixture.correct();
+                    }
+
+                    if (checkMeshCourantNo)
+                    {
+                        #include "meshCourantNo.H"
+                    }
+                }
+            }
+
+
+
 
             if (interfaceTrackingScheme == "MULES")
             {
@@ -191,6 +250,28 @@ int main(int argc, char *argv[])
             condition = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
             meltHistory += condition;
         }
+
+
+
+
+
+
+
+
+        mu = mixture.mu();
+
+
+
+        // parcels.storeGlobalPositions();
+    
+        // Evolve the particle cloud
+        Info<< "Evolving " << parcels.name() << endl;
+        parcels.evolve();
+
+
+
+
+
 
         runTime.write();
         runTime.printExecutionTime(Info);

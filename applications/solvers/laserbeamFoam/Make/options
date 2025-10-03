@@ -16,7 +16,17 @@ EXE_INC = \
     -I$(LIB_SRC)/TurbulenceModels/turbulenceModels/lnInclude \
     -I$(LIB_SRC)/TurbulenceModels/incompressible/lnInclude \
     -I$(LIB_SRC)/TurbulenceModels/phaseIncompressible/lnInclude \
-    -I$(LIB_SRC)/transportModels/immiscibleIncompressibleTwoPhaseMixture/lnInclude
+    -I$(LIB_SRC)/transportModels/immiscibleIncompressibleTwoPhaseMixture/lnInclude \
+    -I$(LIB_SRC)/finiteArea/lnInclude \
+    -I$(LIB_SRC)/lagrangian/distributionModels/lnInclude \
+    -I$(LIB_SRC)/regionModels/regionModel/lnInclude \
+    -I$(LIB_SRC)/regionModels/surfaceFilmModels/lnInclude \
+    -I$(LIB_SRC)/regionFaModels/lnInclude \
+    -I$(LIB_SRC)/faOptions/lnInclude \
+    -I$(LIB_SRC)/lagrangian/basic/lnInclude \
+    -I$(LIB_SRC)/lagrangian/intermediate/lnInclude \
+    -I$(LIB_SRC)/ODE/lnInclude \
+    -I$(LIB_SRC)/combustionModels/lnInclude \
 
 EXE_LIBS = \
     -lfiniteVolume \
@@ -36,4 +46,19 @@ EXE_LIBS = \
     -lincompressibleTurbulenceModels \
     -lwaveModels \
     -lVoFphaseTurbulentTransportModels \
-    -lincompressibleInterPhaseTransportModels
+    -lincompressibleInterPhaseTransportModels \
+    -lthermophysicalProperties \
+    -lSLGThermo \
+    -lchemistryModel \
+    -lregionModels \
+    -lradiationModels \
+    -lsurfaceFilmModels \
+    -lsurfaceFilmDerivedFvPatchFields \
+    -llagrangian \
+    -llagrangianIntermediate \
+    -llagrangianTurbulence \
+    -lODE \
+    -lcombustionModels \
+    -lregionFaModels \
+    -lfiniteArea \
+    -lfaOptions

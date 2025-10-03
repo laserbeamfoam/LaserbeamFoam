@@ -1,0 +1,137 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      kinematicCloudProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solution
+{
+    active          true;
+    coupled         true;
+    transient       yes;
+    cellValueSourceCorrection off;
+
+    interpolationSchemes
+    {
+        rho             cell;
+        U               cellPoint;
+        mu              cell;
+        DUcDt               cellPoint;
+        nonOrthDeltaCoeffs  cell;
+    }
+
+    integrationSchemes
+    {
+        U               Euler;
+    }
+
+    sourceTerms
+    {
+        schemes
+        {
+            U semiImplicit 1;
+        }
+    }
+}
+
+constantProperties
+{
+    rho0            7800;
+}
+
+subModels
+{
+    particleForces
+    {
+        sphereDrag;
+        gravity;
+    }
+
+    injectionModels
+    {
+        // Manual injection with size distribution
+        model1
+        {
+            type            manualInjection;
+            massTotal       1e-8;  // Total mass to inject [kg]
+            parcelBasisType mass;
+            SOI             0;
+            
+            // Position and time of injection
+            positionsFile   "kinematicCloudPositions";
+            U0              (0 1 0);
+            
+            // Size distribution - different diameters
+            sizeDistribution
+            {
+                type        RosinRammler;
+                RosinRammlerDistribution
+                {
+                    minValue    1e-6;   // 1 micron
+                    maxValue    100e-6; // 100 microns
+                    lambda           50e-6;  // Mean diameter
+                    n           3.5;    // Distribution width parameter
+                }
+            }
+        }
+        
+        }
+
+/*
+    injectionModels
+    {
+    model1
+        {
+            type            patchInjection;
+            patch           atmosphere;  // Your inlet patch name
+            duration        1;
+            SOI            0;
+            parcelsPerSecond 1000;
+            U0              (0 0 0);
+            flowRateProfile constant 1;
+            massTotal       1e-5;
+            parcelBasisType mass;
+            
+            sizeDistribution
+            {
+                type        fixedValue;
+                fixedValueDistribution
+                {
+                    value   20e-6;  // Fixed 20 micron particles
+                }
+            }
+          
+          }
+          }  
+            
+*/
+    dispersionModel none;
+    
+    patchInteractionModel standardWallInteraction;
+    
+    stochasticCollisionModel none;
+    
+    standardWallInteractionCoeffs
+    {
+        type stick;
+    }
+
+    surfaceFilmModel none;
+}
+
+cloudFunctions
+{
+}
+
+// ************************************************************************* //
