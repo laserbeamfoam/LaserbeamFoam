@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
-| =========                 |                                                 |
-| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Version:  3.0.1                                 |
-|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
-|    \\/     M anipulation  |                                                 |
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2006
+     \\/     M anipulation  |
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -15,7 +15,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-application     Flint_multiphaseEulerFoamD;
+application		ultraLaserbeamFoam;
 
 startFrom       latestTime;
 
@@ -23,34 +23,43 @@ startTime       0;
 
 stopAt          endTime;
 
-endTime         9e-1;
+endTime         1e-2;
 
-deltaT          1.0e-5;
+deltaT          1e-6;
 
 writeControl    adjustableRunTime;
 
-writeInterval   1e-04;
+writeInterval   1.0e-4;
 
 purgeWrite      0;
 
 writeFormat     ascii;
 
-writePrecision  10;
+writePrecision  6;
 
 writeCompression off;
 
 timeFormat      general;
 
-timePrecision   10;
+timePrecision   6;
 
 runTimeModifiable yes;
 
 adjustTimeStep  yes;
 
-maxCo           0.1;//0.1;
-maxAlphaCo      0.1;
+maxCo           0.25;
+maxAlphaCo      0.25;
+maxDeltaT       5.0e-6;
 
-maxDeltaT       1e-5;
 
 
 // ************************************************************************* //
+
+
+
+
+
+
+
+
+

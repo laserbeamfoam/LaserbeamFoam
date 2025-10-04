@@ -21,6 +21,8 @@ solution
     coupled         true;
     transient       yes;
     cellValueSourceCorrection off;
+    
+    writeActiveOnly true;  //
 
     interpolationSchemes
     {
@@ -47,7 +49,7 @@ solution
 
 constantProperties
 {
-    rho0            7800;
+    rho0            16700;
 }
 
 subModels

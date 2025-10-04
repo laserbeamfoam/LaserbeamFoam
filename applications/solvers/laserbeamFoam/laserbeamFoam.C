@@ -150,56 +150,6 @@ int main(int argc, char *argv[])
         while (pimple.loop())
         {
 
-
-            if (pimple.firstIter() || moveMeshOuterCorrectors)
-            {
-                mesh.update();
-
-                if (mesh.changing())
-                {
-                    // Do not apply previous time-step mesh compression flux
-                    // if the mesh topology changed
-                    if (mesh.topoChanging())
-                    {
-                        talphaPhi1Corr0.clear();
-                    }
-
-                    gh = (g & mesh.C()) - ghRef;
-                    ghf = (g & mesh.Cf()) - ghRef;
-
-                    // // CRITICAL: Update particle cloud after mesh change
-                    // parcels.autoMap(mesh.objectRegistry::lookupObject<mapPolyMesh>("mapPolyMesh"));
-                    
-                    // // Rebuild the particle positions on new mesh
-                    // parcels.distribute(mesh.objectRegistry::lookupObject<mapDistributePolyMesh>("mapDistributePolyMesh"));
-                    
-
-                    MRF.update();
-
-                    if (correctPhi)
-                    {
-                        // Calculate absolute flux
-                        // from the mapped surface velocity
-                        phi = mesh.Sf() & Uf();
-
-                        #include "correctPhi.H"
-
-                        // Make the flux relative to the mesh motion
-                        fvc::makeRelative(phi, U);
-
-                        mixture.correct();
-                    }
-
-                    if (checkMeshCourantNo)
-                    {
-                        #include "meshCourantNo.H"
-                    }
-                }
-            }
-
-
-
-
             if (interfaceTrackingScheme == "MULES")
             {
                 #include "MULES/firstIter.H"
@@ -267,6 +217,116 @@ int main(int argc, char *argv[])
         // Evolve the particle cloud
         Info<< "Evolving " << parcels.name() << endl;
         parcels.evolve();
+
+
+
+massSource *= 0.0;
+
+// Temporary field for alpha addition (for cells not full)
+volScalarField deltaAlphaMetal
+(
+    IOobject
+    (
+        "deltaAlphaMetal",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("zero", dimless, 0.0)
+);
+
+// DynamicList<basicKinematicParcel*> particlesToDelete;
+
+label nMelted = 0;
+label nVaporized = 0;
+
+
+forAllIter(basicKinematicCloud, parcels, pIter)
+{
+    basicKinematicParcel& p = pIter();
+    
+    label celli = p.cell();
+    scalar tempP = T[celli];
+    // scalar alphaMetal = alpha1[celli];
+
+        // Skip if already inactive
+    if (!p.active())
+    {
+        continue;
+    }
+    
+    // Melting temperature check
+    if (tempP > 2000.0)
+    {
+        // Calculate particle properties
+        // scalar particleDiameter = p.d();
+        // scalar particleVolume = constant::mathematical::pi / 6.0 
+        //                        * pow3(particleDiameter);
+        scalar particleMass = p.mass();  // 
+        // scalar particleDensity = p.rho(); // Should be rho_particle
+            // Volume as metal (after phase change)
+    // scalar volumeAsMetal = particleMass / rho1.value();
+    
+    scalar cellVolume = mesh.V()[celli];
+    scalar dt = runTime.deltaTValue();
+        
+        // Mass source term [kg/m³/s]
+        massSource[celli] += particleMass / (cellVolume * dt);
+        
+
+        
+        // Mark particle as inactive (parallel-safe)
+        p.active(false);
+        nMelted++;
+        
+        Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
+            << "rho_particle=" << p.rho() << " kg/m³, "
+            << "T=" << tempP << " K" << endl;
+    }
+    // else if (tempP > Tvap.value() && alphaMetal < 0.1)
+    // {
+    //     particlesToDelete.append(&p);
+    //     Info<< "Particle vaporized at T=" << tempP << " K" << endl;
+    // }
+}
+
+// Parallel reduction for reporting
+reduce(nMelted, sumOp<label>());
+reduce(nVaporized, sumOp<label>());
+
+if (nMelted > 0 || nVaporized > 0)
+{
+    scalar totalMassAdded = gSum(massSource.primitiveField() * mesh.V()) 
+                          * runTime.deltaTValue();
+    
+    Info<< "Melted " << nMelted << " particles, "
+        << "vaporized " << nVaporized << " particles, "
+        << "total mass added: " << totalMassAdded*1e3 << " g" << endl;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

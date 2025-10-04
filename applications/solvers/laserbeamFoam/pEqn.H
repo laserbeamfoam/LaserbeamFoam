@@ -41,10 +41,19 @@
 
     while (pimple.correctNonOrthogonal())
     {
-        fvScalarMatrix p_rghEqn
-        (
-            fvm::laplacian(rAUf, p_rgh) == fvc::div(phiHbyA)
-        );
+        // fvScalarMatrix p_rghEqn
+        // (
+        //     fvm::laplacian(rAUf, p_rgh) == fvc::div(phiHbyA)
+        // );
+// Info<<"rho1: "<<rho1<<endl;
+fvScalarMatrix p_rghEqn
+(
+    fvm::laplacian(rAUf, p_rgh)
+ == 
+    fvc::div(phiHbyA)
+  + massSource / rho1  // Add particle mass source
+//   + fvOptions(psi, p_rgh, rho.name())
+);
 
         p_rghEqn.setReference(pRefCell, getRefCellValue(p_rgh, pRefCell));
 

@@ -1,7 +1,7 @@
 /*--------------------------------*- C++ -*----------------------------------*\
 | =========                 |                                                 |
 | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Version:  3.10                                 |
+|  \\    /   O peration     | Version:  v2006                                 |
 |   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
@@ -14,30 +14,25 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-convertToMeters 0.001;
+scale 0.001;
+
+
 
 vertices
 (
-
-
-    (-2.5 0 -2.5)//0
-    (2.5 0 -2.5)//1
-    (2.5 5 -2.5)//2
-    (-2.5 5 -2.5)//3
-    (-2.5 0 2.5)//4
-    (2.5 0 2.5)//5
-    (2.5 5 2.5)//6
-    (-2.5 5 2.5)//7
-
-
-
+    (0  	0  	0)   //0
+    (10.0  	0  	0)   //1
+    (10.0  	10.0  	0)   //2
+    (0  	10.0  	0)   //3
+    (0  	0  	10.0)   //4
+    (10.0  	0  	10.0)   //5
+    (10.0  	10.0  	10.0)   //6
+    (0  	10.0  	10.0)   //7
 );
+
 blocks
 (
-    hex (0 1 2 3 4 5 6 7) (20 20 20) simpleGrading (1 1 1)		//REGION 1
-
-
-
+	hex (0 1 2 3 4 5 6 7) (5 5 5) simpleGrading (1 1 1)		
 );
 
 edges
@@ -46,35 +41,34 @@ edges
 
 boundary
 (
-
-    lowerWall
-    {
-        type wall;
-        faces
-        (
-            (3 7 6 2)
-
-        );
-    }
-
-    atmosphere
+	top
     {
         type patch;
         faces
         (
-            (1 5 4 0)
+            (4 5 6 7)
         );
     }
-    rightWall
+	
+	bottom
+    {
+        type patch;
+        faces
+        (
+            (0 3 2 1)
+        );
+    }
+	
+	right
     {
         type patch;
         faces
         (
             (1 2 6 5)
-	    
         );
     }
-    leftWall
+	
+	left
     {
         type patch;
         faces
@@ -82,29 +76,28 @@ boundary
             (0 4 7 3)
         );
     }
-    frontAndBack
+
+    front
     {
         type patch;
         faces
         (
-            (0 3 2 1)
-	    (5 6 7 4)
+            (2 3 7 6)
         );
     }
-    /*
-        internal
+	
+    back
     {
-        type internal;
-        faces ();
+        type patch;
+        faces
+        (
+            (0 1 4 5)
+        );
     }
-   */ 
-    
 );
 
 mergePatchPairs
 (
-
-
 );
 
 // ************************************************************************* //

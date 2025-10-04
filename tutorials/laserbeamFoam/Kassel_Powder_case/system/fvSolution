@@ -85,7 +85,7 @@ solvers
 MELTING
 {
     minTempCorrector 1;
-    maxTempCorrector 20;
+    maxTempCorrector 10;
     epsilonTolerance 1e-6;
     epsilonRelaxation 0.9;
     

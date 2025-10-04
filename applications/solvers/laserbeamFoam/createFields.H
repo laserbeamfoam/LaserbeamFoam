@@ -850,4 +850,39 @@ basicKinematicCloud parcels
 );
 
 
+// IOdictionary kinematicCloudProperties
+// (
+//     IOobject
+//     (
+//         "kinematicCloudProperties",
+//         runTime.constant(),
+//         mesh,
+//         IOobject::MUST_READ,
+//         IOobject::NO_WRITE
+//     )
+// );
+
+
+// dimensionedScalar rhoParticle
+// (
+//     "rhoParticle",
+//     dimDensity,
+//     kinematicCloudProperties.subDict("constantProperties").lookup("rho0")
+// );
+
+
+
+volScalarField massSource
+(
+    IOobject
+    (
+        "massSource",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("zero", dimDensity/dimTime, 0.0)
+);
 
