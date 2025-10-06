@@ -59,7 +59,7 @@ subModels
         sphereDrag;
         gravity;
     }
-
+/*
     injectionModels
     {
         // Manual injection with size distribution
@@ -89,35 +89,70 @@ subModels
         }
         
         }
-
-/*
-    injectionModels
-    {
-    model1
-        {
-            type            patchInjection;
-            patch           atmosphere;  // Your inlet patch name
-            duration        1;
-            SOI            0;
-            parcelsPerSecond 1000;
-            U0              (0 0 0);
-            flowRateProfile constant 1;
-            massTotal       1e-5;
-            parcelBasisType mass;
-            
-            sizeDistribution
-            {
-                type        fixedValue;
-                fixedValueDistribution
-                {
-                    value   20e-6;  // Fixed 20 micron particles
-                }
-            }
-          
-          }
-          }  
-            
 */
+
+injectionModels
+{
+    jetModel
+    {
+        type            coneInjection;
+        
+        // Jet origin and orientation
+       // position        (0 0.01 0);
+                // List of (position, axis) pairs - note the double parentheses
+        positionAxis
+        (
+            ((0 0.001 0) (0 1 0))  // (position vector) (axis vector)
+        );
+       // direction       (0 1 0);
+        
+        // Cone geometry
+        thetaInner      1;
+        thetaOuter      5;
+        
+        // Time control
+        duration        10;
+        SOI             0;
+        
+        // Flow rate
+        massTotal       1e-2;
+        nParticle	1;
+        parcelBasisType fixed;//mass;
+        
+        parcelsPerInjector 50000000;    // Required: parcels per injector
+        
+        // Use table format for flowRateProfile
+        flowRateProfile table
+        (
+            (0  500000)
+            (10 500000)
+        );
+        
+        parcelsPerSecond 50000;
+        
+        // Use table format for Umag
+        Umag table
+        (
+            (0  1)
+            (10 1)
+        );
+        
+        // Particle size
+        sizeDistribution
+        {
+            type        fixedValue;
+            fixedValueDistribution
+            {
+                value   50e-6;
+            }
+        }
+    }
+}
+  
+  
+  
+        
+
     dispersionModel none;
     
     patchInteractionModel standardWallInteraction;

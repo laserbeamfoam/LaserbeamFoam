@@ -4,6 +4,11 @@
     beta = alpha1*beta1 + (1.0 - alpha1)*beta2;
     rhok = (1.0 - max(epsilon1*(beta)*(T - TSolidus), 0.0));
 
+
+
+    //  mu = mixture.mu();
+    //  mu.correctBoundaryConditions();
+
     scalarField& alpha1I = alpha1;
     scalarField& TSolidusI = TSolidus;
     scalarField& TLiquidusI = TLiquidus;

@@ -142,13 +142,142 @@ int main(int argc, char *argv[])
         
         ++runTime;
 
-        parcels.storeGlobalPositions();
+        // parcels.storeGlobalPositions();
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
+
+
+
+
+
+
+massSource *= 0.0;
+
+// Temporary field for alpha addition (for cells not full)
+volScalarField deltaAlphaMetal
+(
+    IOobject
+    (
+        "deltaAlphaMetal",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("zero", dimless, 0.0)
+);
+
+// DynamicList<basicKinematicParcel*> particlesToDelete;
+
+label nMelted = 0;
+// label nVaporized = 0;
+
+     mu = mixture.mu();
+     mu.correctBoundaryConditions();
+
+// parcels.storeGlobalPositions();
+
+Info<< "Evolving " << parcels.name() << endl;
+parcels.evolve();
+
+
+
+
+
+
+forAllIter(basicKinematicCloud, parcels, pIter)
+{
+    basicKinematicParcel& p = pIter();
+    
+    if (!p.active())
+    {
+        continue;
+    }
+    
+    label celli = p.cell();
+    
+    if (celli < 0 || celli >= mesh.nCells())
+    {
+        continue;
+    }
+    
+    scalar tempP = T[celli];
+    scalar alphaMetal = alpha1[celli];
+    
+    // Melting temperature check
+    if (tempP > 2000.0)
+    {
+        scalar particleMass = p.mass();
+        scalar volumeAsMetal = particleMass / rho1.value();
+        scalar cellVolume = mesh.V()[celli];
+        scalar dt = runTime.deltaTValue();
+        
+        // Safety check
+        if (dt < SMALL)
+        {
+            WarningInFunction
+                << "dt too small for particle melting calculation" << endl;
+            continue;
+        }
+        
+        // Mass source term [kg/m³/s]
+        massSource[celli] += particleMass / (cellVolume * dt);
+        
+        // Alpha change (limited by available space)
+        scalar deltaAlpha = volumeAsMetal / cellVolume;
+        scalar availableGasFraction = 1.0 - alphaMetal;
+        scalar actualDeltaAlpha = min(deltaAlpha, availableGasFraction);
+        
+        deltaAlphaMetal[celli] += actualDeltaAlpha;
+        
+        // Mark particle as inactive
+        p.active(false);
+        nMelted++;
+        
+        if (actualDeltaAlpha < deltaAlpha)
+        {
+            Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
+                << "T=" << tempP << " K, deltaAlpha=" << actualDeltaAlpha << endl;
+        }
+    }
+}
+
+// Parallel reduction
+reduce(nMelted, sumOp<label>());
+
+// Update alpha field BEFORE PIMPLE loop
+if (nMelted > 0)
+{
+    alpha1 = min(alpha1 + deltaAlphaMetal, 1.0);
+    alpha1.correctBoundaryConditions();
+    
+    scalar totalMassAdded = gSum(massSource.primitiveField() * mesh.V()) 
+                          * runTime.deltaTValue();
+    
+    Info<< "Melted " << nMelted << " particles, "
+        << "total mass added: " << totalMassAdded*1e3 << " g" << endl;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
         {
+
+            parcels.storeGlobalPositions();
 
             if (interfaceTrackingScheme == "MULES")
             {
@@ -208,103 +337,126 @@ int main(int argc, char *argv[])
 
 
 
-        mu = mixture.mu();
+        // mu = mixture.mu();
 
 
 
         // parcels.storeGlobalPositions();
     
         // Evolve the particle cloud
-        Info<< "Evolving " << parcels.name() << endl;
-        parcels.evolve();
+        // Info<< "Evolving " << parcels.name() << endl;
+        // parcels.evolve();
 
 
 
-massSource *= 0.0;
+// massSource *= 0.0;
 
-// Temporary field for alpha addition (for cells not full)
-volScalarField deltaAlphaMetal
-(
-    IOobject
-    (
-        "deltaAlphaMetal",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("zero", dimless, 0.0)
-);
+// // Temporary field for alpha addition (for cells not full)
+// volScalarField deltaAlphaMetal
+// (
+//     IOobject
+//     (
+//         "deltaAlphaMetal",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::NO_READ,
+//         IOobject::NO_WRITE
+//     ),
+//     mesh,
+//     dimensionedScalar("zero", dimless, 0.0)
+// );
 
-// DynamicList<basicKinematicParcel*> particlesToDelete;
+// // DynamicList<basicKinematicParcel*> particlesToDelete;
 
-label nMelted = 0;
-label nVaporized = 0;
+// label nMelted = 0;
+// label nVaporized = 0;
 
 
-forAllIter(basicKinematicCloud, parcels, pIter)
-{
-    basicKinematicParcel& p = pIter();
+// forAllIter(basicKinematicCloud, parcels, pIter)
+// {
+//     basicKinematicParcel& p = pIter();
     
-    label celli = p.cell();
-    scalar tempP = T[celli];
-    // scalar alphaMetal = alpha1[celli];
+//     label celli = p.cell();
+//     scalar tempP = T[celli];
+//     scalar alphaMetal = alpha1[celli];
 
-        // Skip if already inactive
-    if (!p.active())
-    {
-        continue;
-    }
+//         // Skip if already inactive
+//     if (!p.active())
+//     {
+//         continue;
+//     }
     
-    // Melting temperature check
-    if (tempP > 2000.0)
-    {
-        // Calculate particle properties
-        // scalar particleDiameter = p.d();
-        // scalar particleVolume = constant::mathematical::pi / 6.0 
-        //                        * pow3(particleDiameter);
-        scalar particleMass = p.mass();  // 
-        // scalar particleDensity = p.rho(); // Should be rho_particle
-            // Volume as metal (after phase change)
-    // scalar volumeAsMetal = particleMass / rho1.value();
+//     // Melting temperature check
+//     if (tempP > 2000.0)
+//     {
+//         // Calculate particle properties
+//         // scalar particleDiameter = p.d();
+//         // scalar particleVolume = constant::mathematical::pi / 6.0 
+//         //                        * pow3(particleDiameter);
+//         scalar particleMass = p.mass();  // 
+//         // scalar particleDensity = p.rho(); // Should be rho_particle
+//             // Volume as metal (after phase change)
+//     scalar volumeAsMetal = particleMass / rho1.value();
     
-    scalar cellVolume = mesh.V()[celli];
-    scalar dt = runTime.deltaTValue();
+//     scalar cellVolume = mesh.V()[celli];
+//     scalar dt = runTime.deltaTValue();
         
-        // Mass source term [kg/m³/s]
-        massSource[celli] += particleMass / (cellVolume * dt);
+//         // Mass source term [kg/m³/s]
+//         massSource[celli] += particleMass / (cellVolume * dt);
+
+//         scalar deltaAlpha = volumeAsMetal / cellVolume;
+//         // deltaAlphaMetal[celli] += deltaAlpha;
+
+//         scalar availableGasFraction = 1.0 - alphaMetal;
+//         scalar actualDeltaAlpha = min(deltaAlpha, availableGasFraction);
+
+//         deltaAlphaMetal[celli] += actualDeltaAlpha;
         
 
         
-        // Mark particle as inactive (parallel-safe)
-        p.active(false);
-        nMelted++;
+//         // Mark particle as inactive (parallel-safe)
+//         p.active(false);
+//         nMelted++;
+
+
+//         if (actualDeltaAlpha < deltaAlpha)
+//         {
+//             Info<< "Cell overfilled: limited deltaAlpha from " << deltaAlpha 
+//                 << " to " << actualDeltaAlpha << " (alpha was " << alphaMetal << ")" << endl;
+//         }
+
+
         
-        Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
-            << "rho_particle=" << p.rho() << " kg/m³, "
-            << "T=" << tempP << " K" << endl;
-    }
-    // else if (tempP > Tvap.value() && alphaMetal < 0.1)
-    // {
-    //     particlesToDelete.append(&p);
-    //     Info<< "Particle vaporized at T=" << tempP << " K" << endl;
-    // }
-}
+//         Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
+//             << "rho_particle=" << p.rho() << " kg/m³, "
+//             << "T=" << tempP << " K" << endl;
+//     }
+//     // else if (tempP > Tvap.value() && alphaMetal < 0.1)
+//     // {
+//     //     particlesToDelete.append(&p);
+//     //     Info<< "Particle vaporized at T=" << tempP << " K" << endl;
+//     // }
+// }
 
 // Parallel reduction for reporting
-reduce(nMelted, sumOp<label>());
-reduce(nVaporized, sumOp<label>());
+// reduce(nMelted, sumOp<label>());
+// // reduce(nVaporized, sumOp<label>());
 
-if (nMelted > 0 || nVaporized > 0)
-{
-    scalar totalMassAdded = gSum(massSource.primitiveField() * mesh.V()) 
-                          * runTime.deltaTValue();
+
+// alpha1 = min(alpha1 + deltaAlphaMetal, 1.0);
+// alpha1.correctBoundaryConditions();
+
+
+
+// if (nMelted > 0 || nVaporized > 0)
+// {
+//     scalar totalMassAdded = gSum(massSource.primitiveField() * mesh.V()) 
+//                           * runTime.deltaTValue();
     
-    Info<< "Melted " << nMelted << " particles, "
-        << "vaporized " << nVaporized << " particles, "
-        << "total mass added: " << totalMassAdded*1e3 << " g" << endl;
-}
+//     Info<< "Melted " << nMelted << " particles, "
+//         << "vaporized " << nVaporized << " particles, "
+//         << "total mass added: " << totalMassAdded*1e3 << " g" << endl;
+// }
 
 
 

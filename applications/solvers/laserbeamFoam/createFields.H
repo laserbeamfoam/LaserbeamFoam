@@ -726,6 +726,23 @@ volScalarField condition
 );
 
 
+
+volScalarField mu
+(
+    IOobject
+    (
+        "mu",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+      mixture.mu()
+);
+
+
+
+
 typedef incompressibleInterPhaseTransportModel
     <
         immiscibleIncompressibleTwoPhaseMixture
@@ -814,18 +831,18 @@ isoAdvection advector(alpha1, phi, U);
 
 
 
-volScalarField mu
-(
-    IOobject
-    (
-        "mu",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::AUTO_WRITE
-    ),
-      mixture.mu()
-);
+// volScalarField mu
+// (
+//     IOobject
+//     (
+//         "mu",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::READ_IF_PRESENT,
+//         IOobject::AUTO_WRITE
+//     ),
+//       mixture.mu()
+// );
 
 
 
