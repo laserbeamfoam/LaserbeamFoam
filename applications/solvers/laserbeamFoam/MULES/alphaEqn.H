@@ -205,6 +205,9 @@
         }
         else
         {
+
+            // Su += alphaMeltSource;  // Explicit source term
+
             alphaPhi10 = alphaPhiUn;
 
             MULES::explicitSolve
@@ -214,7 +217,7 @@
                 phiCN,
                 alphaPhi10,
                 Sp,
-                (Su + divU*min(alpha1(), scalar(1)))(),
+                (Su + divU*min(alpha1(), scalar(1)))() + alphaMeltSource(),
                 oneField(),
                 zeroField()
             );

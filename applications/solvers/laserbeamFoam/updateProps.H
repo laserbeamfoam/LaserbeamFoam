@@ -6,8 +6,8 @@
 
 
 
-    //  mu = mixture.mu();
-    //  mu.correctBoundaryConditions();
+     mu = mixture.mu();
+     mu.correctBoundaryConditions();
 
     scalarField& alpha1I = alpha1;
     scalarField& TSolidusI = TSolidus;

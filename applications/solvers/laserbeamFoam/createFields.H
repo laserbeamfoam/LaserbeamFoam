@@ -829,7 +829,33 @@ mesh.setFluxRequired(alpha1.name());
 #include "isoAdvector/createPorosity.H"
 isoAdvection advector(alpha1, phi, U);
 
+volScalarField alphaMeltSource
+(
+    IOobject
+    (
+        "alphaMeltSource",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("zero", dimless/dimTime, 0.0)
+);
 
+volScalarField particleEnthalpySource
+(
+    IOobject
+    (
+        "particleEnthalpySource",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("zero", dimPower/dimVolume, 0.0)  // [W/m³]
+);
 
 // volScalarField mu
 // (

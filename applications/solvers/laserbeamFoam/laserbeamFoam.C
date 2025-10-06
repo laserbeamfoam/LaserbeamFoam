@@ -151,30 +151,65 @@ int main(int argc, char *argv[])
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// volScalarField alphaMeltSource
+// (
+//     IOobject
+//     (
+//         "alphaMeltSource",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::NO_READ,
+//         IOobject::AUTO_WRITE
+//     ),
+//     mesh,
+//     dimensionedScalar("zero", dimless/dimTime, 0.0)
+// );
+
+alphaMeltSource *= 0.0;
+
+
+particleEnthalpySource*= 0.0;
+
 massSource *= 0.0;
 
-// Temporary field for alpha addition (for cells not full)
-volScalarField deltaAlphaMetal
-(
-    IOobject
-    (
-        "deltaAlphaMetal",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("zero", dimless, 0.0)
-);
+// // Temporary field for alpha addition (for cells not full)
+// volScalarField deltaAlphaMetal
+// (
+//     IOobject
+//     (
+//         "deltaAlphaMetal",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::NO_READ,
+//         IOobject::NO_WRITE
+//     ),
+//     mesh,
+//     dimensionedScalar("zero", dimless, 0.0)
+// );
 
 // DynamicList<basicKinematicParcel*> particlesToDelete;
 
 label nMelted = 0;
 // label nVaporized = 0;
 
-     mu = mixture.mu();
-     mu.correctBoundaryConditions();
+    //  mu = mixture.mu();
+    //  mu.correctBoundaryConditions();
 
 // parcels.storeGlobalPositions();
 
@@ -226,20 +261,41 @@ forAllIter(basicKinematicCloud, parcels, pIter)
         
         // Alpha change (limited by available space)
         scalar deltaAlpha = volumeAsMetal / cellVolume;
-        scalar availableGasFraction = 1.0 - alphaMetal;
-        scalar actualDeltaAlpha = min(deltaAlpha, availableGasFraction);
+
+        scalar deltaAlphaRate = (volumeAsMetal / cellVolume) / dt;
+        alphaMeltSource[celli] += deltaAlphaRate;
+
+
+
+
+
+        // Energy SINK [W/m³] - particles absorb energy from surroundings
+        // Assume particles enter at injection temperature T_inject
+        scalar T_inject = 300.0;  // Room temperature powder [K]
+        scalar Cp_particle = polycp_m.value((tempP + T_inject)/2.0);  // Average Cp
         
-        deltaAlphaMetal[celli] += actualDeltaAlpha;
+        // Energy needed to heat particle from T_inject to T_local
+        scalar sensibleHeat = (particleMass / dt) * Cp_particle * (tempP - T_inject);
+        
+        // Energy needed for phase change (melting)
+        scalar latentHeat = (particleMass / dt) * LatentHeat1.value();
+        
+        // Total energy absorbed (NEGATIVE source = cooling effect)
+        particleEnthalpySource[celli] -= (sensibleHeat + latentHeat) / cellVolume;
+        
+
+
+
         
         // Mark particle as inactive
         p.active(false);
         nMelted++;
         
-        if (actualDeltaAlpha < deltaAlpha)
-        {
-            Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
-                << "T=" << tempP << " K, deltaAlpha=" << actualDeltaAlpha << endl;
-        }
+        // if (actualDeltaAlpha < deltaAlpha)
+        // {
+        //     Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
+        //         << "T=" << tempP << " K, deltaAlpha=" << actualDeltaAlpha << endl;
+        // }
     }
 }
 
@@ -249,8 +305,8 @@ reduce(nMelted, sumOp<label>());
 // Update alpha field BEFORE PIMPLE loop
 if (nMelted > 0)
 {
-    alpha1 = min(alpha1 + deltaAlphaMetal, 1.0);
-    alpha1.correctBoundaryConditions();
+    // alpha1 = min(alpha1 + deltaAlphaMetal, 1.0);
+    // alpha1.correctBoundaryConditions();
     
     scalar totalMassAdded = gSum(massSource.primitiveField() * mesh.V()) 
                           * runTime.deltaTValue();
@@ -259,7 +315,27 @@ if (nMelted > 0)
         << "total mass added: " << totalMassAdded*1e3 << " g" << endl;
 }
 
+if (gMax(alphaMeltSource) > SMALL){
+Info<<"max_alpha_source: "<<gMax(alphaMeltSource)<<endl;
+}
 
+
+
+
+scalar maxSourceCo = gMax
+(
+    mag(massSource / rho1) * mesh.V() * runTime.deltaTValue() 
+  / mesh.V()
+);
+
+Info<< "Source Courant number: " << maxSourceCo << endl;
+
+if (maxSourceCo > 0.5)
+{
+    WarningInFunction
+        << "Large source terms detected, Co_source = " << maxSourceCo
+        << ", consider reducing timestep or limiting sources" << endl;
+}
 
 
 

@@ -61,6 +61,8 @@
          ==
             
         laser.deposition()
+
+        + particleEnthalpySource      // Add particle heat source here
         
           - Qv*mag(gradAlpha)*thermalDamper
           - TRHS

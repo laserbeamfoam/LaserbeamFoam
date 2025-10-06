@@ -46,12 +46,16 @@
         //     fvm::laplacian(rAUf, p_rgh) == fvc::div(phiHbyA)
         // );
 // Info<<"rho1: "<<rho1<<endl;
+
+
+
 fvScalarMatrix p_rghEqn
 (
     fvm::laplacian(rAUf, p_rgh)
  == 
     fvc::div(phiHbyA)
-  + massSource / rho1  // Add particle mass source
+  + massSource / rho1  // Add particle mass source?
+  
 //   + fvOptions(psi, p_rgh, rho.name())
 );
 

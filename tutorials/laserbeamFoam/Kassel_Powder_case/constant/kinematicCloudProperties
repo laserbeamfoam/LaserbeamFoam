@@ -111,11 +111,11 @@ injectionModels
         thetaOuter      5;
         
         // Time control
-        duration        10;
+        duration        1;
         SOI             0;
         
         // Flow rate
-        massTotal       1e-2;
+        massTotal       0.5e-4;
         nParticle	1;
         parcelBasisType fixed;//mass;
         
