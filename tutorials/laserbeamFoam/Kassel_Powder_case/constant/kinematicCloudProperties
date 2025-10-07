@@ -49,15 +49,21 @@ solution
 
 constantProperties
 {
-    rho0            16700;
+    rho0            16650;
 }
 
 subModels
 {
     particleForces
     {
-        sphereDrag;
+        
         gravity;
+        
+                sphereDrag
+        {
+            // Can specify drag model here if needed
+            // Default is Schiller-Naumann, good for these Reynolds numbers
+        }
     }
 /*
     injectionModels
@@ -93,7 +99,7 @@ subModels
 
 injectionModels
 {
-    jetModel
+    tantalumPowderFeed
     {
         type            coneInjection;
         
@@ -115,11 +121,11 @@ injectionModels
         SOI             0;
         
         // Flow rate
-        massTotal       0.5e-4;
+        massTotal       1e-2;
         nParticle	1;
         parcelBasisType fixed;//mass;
         
-        parcelsPerInjector 50000000;    // Required: parcels per injector
+        parcelsPerInjector 5000000;    // Required: parcels per injector
         
         // Use table format for flowRateProfile
         flowRateProfile table
@@ -138,14 +144,37 @@ injectionModels
         );
         
         // Particle size
-        sizeDistribution
-        {
-            type        fixedValue;
-            fixedValueDistribution
+            sizeDistribution
             {
-                value   50e-6;
+                type        RosinRammler;
+                RosinRammlerDistribution
+                {
+                    minValue    15e-6;   // 15 microns (minimum)
+                    maxValue    63e-6;   // 63 microns (maximum)
+                    lambda      45e-6;   // Mean diameter: 45 microns (typical for Ta powder)
+                    n           3.5;     // Distribution parameter (3-4 is typical)
+                }
             }
-        }
+            
+            
+            
+                        // Alternative: Normal distribution
+            // sizeDistribution
+            // {
+            //     type        normal;
+            //     normalDistribution
+            //     {
+            //         minValue    15e-6;
+            //         maxValue    63e-6;
+            //         mu          40e-6;   // Mean
+            //         sigma       10e-6;   // Standard deviation
+            //     }
+            // }
+            
+            
+            
+            
+            
     }
 }
   
@@ -161,7 +190,11 @@ injectionModels
     
     standardWallInteractionCoeffs
     {
-        type stick;
+        type rebound;  // Particles bounce off walls
+        
+        // Restitution coefficients (energy loss on impact)
+        e   0.5;  // Normal restitution (0-1, 1 = perfectly elastic)
+        mu  0.3;  // Tangential restitution/friction
     }
 
     surfaceFilmModel none;

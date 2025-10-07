@@ -117,8 +117,51 @@ int main(int argc, char *argv[])
 
 
 
+
         #include "readControls.H"
-        #include "readDyMControls.H"
+
+
+    #include "readDyMControls.H"
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
 
         if (interfaceTrackingScheme == "MULES")
         {
@@ -167,6 +210,33 @@ int main(int argc, char *argv[])
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // volScalarField alphaMeltSource
 // (
 //     IOobject
@@ -181,46 +251,24 @@ int main(int argc, char *argv[])
 //     dimensionedScalar("zero", dimless/dimTime, 0.0)
 // );
 
+// Reset sources
 alphaMeltSource *= 0.0;
-
-
-particleEnthalpySource*= 0.0;
-
+particleEnthalpySource *= 0.0;
 massSource *= 0.0;
 
-// // Temporary field for alpha addition (for cells not full)
-// volScalarField deltaAlphaMetal
-// (
-//     IOobject
-//     (
-//         "deltaAlphaMetal",
-//         runTime.timeName(),
-//         mesh,
-//         IOobject::NO_READ,
-//         IOobject::NO_WRITE
-//     ),
-//     mesh,
-//     dimensionedScalar("zero", dimless, 0.0)
-// );
-
-// DynamicList<basicKinematicParcel*> particlesToDelete;
-
 label nMelted = 0;
-// label nVaporized = 0;
-
-    //  mu = mixture.mu();
-    //  mu.correctBoundaryConditions();
-
-// parcels.storeGlobalPositions();
+label nPartiallyMelted = 0;
+label nLimited = 0;  // Track how many were limited by space
 
 Info<< "Evolving " << parcels.name() << endl;
 parcels.evolve();
 
+// Track how much alpha we're trying to add to each cell
+scalarField proposedAlphaAddition(mesh.nCells(), 0.0);
+scalarField proposedMassAddition(mesh.nCells(), 0.0);
+scalarField proposedEnthalpySink(mesh.nCells(), 0.0);
 
-
-
-
-
+// First pass: Calculate what each particle wants to add
 forAllIter(basicKinematicCloud, parcels, pIter)
 {
     basicKinematicParcel& p = pIter();
@@ -238,104 +286,259 @@ forAllIter(basicKinematicCloud, parcels, pIter)
     }
     
     scalar tempP = T[celli];
-    scalar alphaMetal = alpha1[celli];
     
-    // Melting temperature check
     if (tempP > 2000.0)
     {
-        scalar particleMass = p.mass();
-        scalar volumeAsMetal = particleMass / rho1.value();
-        scalar cellVolume = mesh.V()[celli];
+        scalar originalMass = p.mass();
+        label particleID = p.origId();
+        label particleProc = p.origProc();
+        label particleKey = particleProc * 1000000 + particleID;
+        
+        scalar remainingFraction = 1.0;
+        if (particleRemainingMassFraction.found(particleKey))
+        {
+            remainingFraction = particleRemainingMassFraction[particleKey];
+        }
+        
+        scalar remainingMass = originalMass * remainingFraction;
         scalar dt = runTime.deltaTValue();
         
-        // Safety check
-        if (dt < SMALL)
+        if (dt < SMALL || remainingMass < SMALL)
         {
-            WarningInFunction
-                << "dt too small for particle melting calculation" << endl;
+            if (remainingMass < SMALL)
+            {
+                p.active(false);
+                particleRemainingMassFraction.erase(particleKey);
+            }
             continue;
         }
         
-        // Mass source term [kg/m³/s]
-        massSource[celli] += particleMass / (cellVolume * dt);
+        // Calculate desired melting
+        scalar meltingTimescale = 0.01;
+        scalar maxMeltRatePerSecond = originalMass / meltingTimescale;
+        scalar maxMeltThisStep = maxMeltRatePerSecond * dt;
+        scalar meltedMass = min(remainingMass, maxMeltThisStep);
         
-        // Alpha change (limited by available space)
+
+
+        // scalar volumeAsMetal = meltedMass / rho1.value();
+
+        // const scalar rhoParticle = 16650.0;  // Tantalum density
+        scalar volumeAsMetal = meltedMass / p.rho();
+
+
+        scalar cellVolume = mesh.V()[celli];
         scalar deltaAlpha = volumeAsMetal / cellVolume;
-
-        scalar deltaAlphaRate = (volumeAsMetal / cellVolume) / dt;
-        alphaMeltSource[celli] += deltaAlphaRate;
-
-
-
-
-
-        // Energy SINK [W/m³] - particles absorb energy from surroundings
-        // Assume particles enter at injection temperature T_inject
-        scalar T_inject = 300.0;  // Room temperature powder [K]
-        scalar Cp_particle = polycp_m.value((tempP + T_inject)/2.0);  // Average Cp
         
-        // Energy needed to heat particle from T_inject to T_local
-        scalar sensibleHeat = (particleMass / dt) * Cp_particle * (tempP - T_inject);
+        // Accumulate proposed additions
+        proposedAlphaAddition[celli] += deltaAlpha;
+        proposedMassAddition[celli] += meltedMass;
         
-        // Energy needed for phase change (melting)
-        scalar latentHeat = (particleMass / dt) * LatentHeat1.value();
+        // Energy calculation
+        scalar T_inject = 300.0;
+        scalar Cp_particle = polycp_m.value((tempP + T_inject)/2.0);
+        scalar sensibleHeat = meltedMass * Cp_particle * (tempP - T_inject);
+        scalar latentHeat = meltedMass * LatentHeat1.value();
         
-        // Total energy absorbed (NEGATIVE source = cooling effect)
-        particleEnthalpySource[celli] -= (sensibleHeat + latentHeat) / cellVolume;
-        
-
-
-
-        
-        // Mark particle as inactive
-        p.active(false);
-        nMelted++;
-        
-        // if (actualDeltaAlpha < deltaAlpha)
-        // {
-        //     Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
-        //         << "T=" << tempP << " K, deltaAlpha=" << actualDeltaAlpha << endl;
-        // }
+        proposedEnthalpySink[celli] += (sensibleHeat + latentHeat);
     }
 }
 
-// Parallel reduction
-reduce(nMelted, sumOp<label>());
-
-// Update alpha field BEFORE PIMPLE loop
-if (nMelted > 0)
+// Second pass: Apply limits and actually update sources
+forAll(proposedAlphaAddition, celli)
 {
-    // alpha1 = min(alpha1 + deltaAlphaMetal, 1.0);
-    // alpha1.correctBoundaryConditions();
+    if (proposedAlphaAddition[celli] > SMALL)
+    {
+        scalar currentAlpha = alpha1[celli];
+        scalar availableSpace = max(1.0 - currentAlpha, 0.0);
+        
+        // Limit to 95% of available space for safety
+        scalar maxSafeAddition = 0.95 * availableSpace;
+        
+        scalar actualAlphaAddition = min(proposedAlphaAddition[celli], maxSafeAddition);
+        scalar limitFactor = 1.0;
+        
+        if (proposedAlphaAddition[celli] > maxSafeAddition)
+        {
+            limitFactor = maxSafeAddition / proposedAlphaAddition[celli];
+            nLimited++;
+            
+            if (runTime.outputTime())
+            {
+                Info<< "Cell " << celli << " limited: alpha=" << currentAlpha
+                    << ", proposed=" << proposedAlphaAddition[celli]
+                    << ", actual=" << actualAlphaAddition << endl;
+            }
+        }
+        
+        scalar dt = runTime.deltaTValue();
+        scalar cellVolume = mesh.V()[celli];
+        
+        // Apply limited sources
+        alphaMeltSource[celli] = actualAlphaAddition / dt;
+        massSource[celli] = (proposedMassAddition[celli] * limitFactor) / (cellVolume * dt);
+        particleEnthalpySource[celli] = -(proposedEnthalpySink[celli] * limitFactor) / (cellVolume * dt);
+    }
+}
+
+// Third pass: Update particle states based on what was actually melted
+forAllIter(basicKinematicCloud, parcels, pIter)
+{
+    basicKinematicParcel& p = pIter();
     
+    if (!p.active())
+    {
+        continue;
+    }
+    
+    label celli = p.cell();
+    
+    if (celli < 0 || celli >= mesh.nCells())
+    {
+        continue;
+    }
+    
+    scalar tempP = T[celli];
+    
+    if (tempP > 2000.0)
+    {
+        scalar originalMass = p.mass();
+        label particleID = p.origId();
+        label particleProc = p.origProc();
+        label particleKey = particleProc * 1000000 + particleID;
+        
+        scalar remainingFraction = 1.0;
+        if (particleRemainingMassFraction.found(particleKey))
+        {
+            remainingFraction = particleRemainingMassFraction[particleKey];
+        }
+        
+        scalar remainingMass = originalMass * remainingFraction;
+        scalar dt = runTime.deltaTValue();
+        
+        if (dt < SMALL || remainingMass < SMALL)
+        {
+            continue;
+        }
+        
+        // Calculate what was actually melted (with limiting)
+        scalar meltingTimescale = 0.0001;
+        scalar maxMeltRatePerSecond = originalMass / meltingTimescale;
+        scalar maxMeltThisStep = maxMeltRatePerSecond * dt;
+        scalar desiredMelt = min(remainingMass, maxMeltThisStep);
+        
+        // Apply same limit factor as was used for this cell
+        scalar limitFactor = 1.0;
+        if (proposedAlphaAddition[celli] > SMALL)
+        {
+            scalar currentAlpha = alpha1[celli];
+            scalar availableSpace = max(1.0 - currentAlpha, 0.0);
+            scalar maxSafeAddition = 0.95 * availableSpace;
+            
+            if (proposedAlphaAddition[celli] > maxSafeAddition)
+            {
+                limitFactor = maxSafeAddition / proposedAlphaAddition[celli];
+            }
+        }
+        
+        scalar actualMeltedMass = desiredMelt * limitFactor;
+        scalar newRemainingFraction = (remainingMass - actualMeltedMass) / originalMass;
+        
+        if (newRemainingFraction < 0.01)
+        {
+            p.active(false);
+            particleRemainingMassFraction.erase(particleKey);
+            nMelted++;
+        }
+        else
+        {
+            particleRemainingMassFraction.set(particleKey, newRemainingFraction);
+            nPartiallyMelted++;
+        }
+    }
+}
+
+// Parallel reductions
+reduce(nMelted, sumOp<label>());
+reduce(nPartiallyMelted, sumOp<label>());
+reduce(nLimited, sumOp<label>());
+
+if (nMelted > 0 || nPartiallyMelted > 0)
+{
     scalar totalMassAdded = gSum(massSource.primitiveField() * mesh.V()) 
                           * runTime.deltaTValue();
     
-    Info<< "Melted " << nMelted << " particles, "
+    Info<< "Fully melted: " << nMelted << " particles, "
+        << "partially melted: " << nPartiallyMelted << " particles, "
+        << "limited by space: " << nLimited << " cells, "
         << "total mass added: " << totalMassAdded*1e3 << " g" << endl;
 }
 
-if (gMax(alphaMeltSource) > SMALL){
-Info<<"max_alpha_source: "<<gMax(alphaMeltSource)<<endl;
-}
+// Check for overfilling
+scalar maxAlphaSource = gMax(alphaMeltSource);
+scalar maxPredictedAlpha = gMax(alpha1.primitiveField() + alphaMeltSource.primitiveField() * runTime.deltaTValue());
 
-
-
-
-scalar maxSourceCo = gMax
-(
-    mag(massSource / rho1) * mesh.V() * runTime.deltaTValue() 
-  / mesh.V()
-);
-
-Info<< "Source Courant number: " << maxSourceCo << endl;
-
-if (maxSourceCo > 0.5)
+if (maxAlphaSource > SMALL)
 {
-    WarningInFunction
-        << "Large source terms detected, Co_source = " << maxSourceCo
-        << ", consider reducing timestep or limiting sources" << endl;
+    Info<< "Max alpha source: " << maxAlphaSource << " 1/s" << endl;
+    Info<< "Max predicted alpha after source: " << maxPredictedAlpha << endl;
+    
+    if (maxPredictedAlpha > 1.0)
+    {
+        WarningInFunction
+            << "Alpha may exceed 1.0! Max predicted = " << maxPredictedAlpha << endl;
+    }
 }
+
+
+
+
+
+
+
+scalar maxAllowedTempDrop = 50.0;  // Max K drop per timestep
+scalar dt = runTime.deltaTValue();
+
+forAll(particleEnthalpySource, celli)
+{
+    if (particleEnthalpySource[celli] < -SMALL)
+    {
+        // Maximum cooling power that would drop T by maxAllowedTempDrop
+        scalar maxCoolingPower = rhoCp[celli] * maxAllowedTempDrop / dt;
+        
+        // Limit the source
+        if (mag(particleEnthalpySource[celli]) > maxCoolingPower)
+        {
+            // scalar oldSource = particleEnthalpySource[celli];
+            particleEnthalpySource[celli] = -maxCoolingPower;
+            
+            // // Also need to scale back the mass/alpha sources proportionally
+            // // to maintain energy consistency
+            // scalar scaleFactor = mag(particleEnthalpySource[celli]) / mag(oldSource);
+            // massSource[celli] *= scaleFactor;
+            // alphaMeltSource[celli] *= scaleFactor;
+        }
+    }
+}
+Info<<"min enthalpy source "<<gMin(particleEnthalpySource)<<endl;
+// fvc::smooth(particleEnthalpySource, 2);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -367,6 +570,8 @@ if (maxSourceCo > 0.5)
                 #include "isoAdvector/alphaControls.H"
                 #include "isoAdvector/alphaEqnSubCycle.H"
             }
+
+            
 
             #include "updateProps.H"
 
@@ -405,157 +610,6 @@ if (maxSourceCo > 0.5)
             condition = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
             meltHistory += condition;
         }
-
-
-
-
-
-
-
-
-        // mu = mixture.mu();
-
-
-
-        // parcels.storeGlobalPositions();
-    
-        // Evolve the particle cloud
-        // Info<< "Evolving " << parcels.name() << endl;
-        // parcels.evolve();
-
-
-
-// massSource *= 0.0;
-
-// // Temporary field for alpha addition (for cells not full)
-// volScalarField deltaAlphaMetal
-// (
-//     IOobject
-//     (
-//         "deltaAlphaMetal",
-//         runTime.timeName(),
-//         mesh,
-//         IOobject::NO_READ,
-//         IOobject::NO_WRITE
-//     ),
-//     mesh,
-//     dimensionedScalar("zero", dimless, 0.0)
-// );
-
-// // DynamicList<basicKinematicParcel*> particlesToDelete;
-
-// label nMelted = 0;
-// label nVaporized = 0;
-
-
-// forAllIter(basicKinematicCloud, parcels, pIter)
-// {
-//     basicKinematicParcel& p = pIter();
-    
-//     label celli = p.cell();
-//     scalar tempP = T[celli];
-//     scalar alphaMetal = alpha1[celli];
-
-//         // Skip if already inactive
-//     if (!p.active())
-//     {
-//         continue;
-//     }
-    
-//     // Melting temperature check
-//     if (tempP > 2000.0)
-//     {
-//         // Calculate particle properties
-//         // scalar particleDiameter = p.d();
-//         // scalar particleVolume = constant::mathematical::pi / 6.0 
-//         //                        * pow3(particleDiameter);
-//         scalar particleMass = p.mass();  // 
-//         // scalar particleDensity = p.rho(); // Should be rho_particle
-//             // Volume as metal (after phase change)
-//     scalar volumeAsMetal = particleMass / rho1.value();
-    
-//     scalar cellVolume = mesh.V()[celli];
-//     scalar dt = runTime.deltaTValue();
-        
-//         // Mass source term [kg/m³/s]
-//         massSource[celli] += particleMass / (cellVolume * dt);
-
-//         scalar deltaAlpha = volumeAsMetal / cellVolume;
-//         // deltaAlphaMetal[celli] += deltaAlpha;
-
-//         scalar availableGasFraction = 1.0 - alphaMetal;
-//         scalar actualDeltaAlpha = min(deltaAlpha, availableGasFraction);
-
-//         deltaAlphaMetal[celli] += actualDeltaAlpha;
-        
-
-        
-//         // Mark particle as inactive (parallel-safe)
-//         p.active(false);
-//         nMelted++;
-
-
-//         if (actualDeltaAlpha < deltaAlpha)
-//         {
-//             Info<< "Cell overfilled: limited deltaAlpha from " << deltaAlpha 
-//                 << " to " << actualDeltaAlpha << " (alpha was " << alphaMetal << ")" << endl;
-//         }
-
-
-        
-//         Info<< "Particle melted: m=" << particleMass*1e9 << " mg, "
-//             << "rho_particle=" << p.rho() << " kg/m³, "
-//             << "T=" << tempP << " K" << endl;
-//     }
-//     // else if (tempP > Tvap.value() && alphaMetal < 0.1)
-//     // {
-//     //     particlesToDelete.append(&p);
-//     //     Info<< "Particle vaporized at T=" << tempP << " K" << endl;
-//     // }
-// }
-
-// Parallel reduction for reporting
-// reduce(nMelted, sumOp<label>());
-// // reduce(nVaporized, sumOp<label>());
-
-
-// alpha1 = min(alpha1 + deltaAlphaMetal, 1.0);
-// alpha1.correctBoundaryConditions();
-
-
-
-// if (nMelted > 0 || nVaporized > 0)
-// {
-//     scalar totalMassAdded = gSum(massSource.primitiveField() * mesh.V()) 
-//                           * runTime.deltaTValue();
-    
-//     Info<< "Melted " << nMelted << " particles, "
-//         << "vaporized " << nVaporized << " particles, "
-//         << "total mass added: " << totalMassAdded*1e3 << " g" << endl;
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -187,7 +187,7 @@
                 alphaPhiUn,
                 talphaPhi1Corr.ref(),
                 Sp,
-                (-Sp*alpha1)(),
+                (-Sp*alpha1)() + alphaMeltSource(),
                 oneField(),
                 zeroField()
             );
@@ -217,7 +217,7 @@
                 phiCN,
                 alphaPhi10,
                 Sp,
-                (Su + divU*min(alpha1(), scalar(1)))() + alphaMeltSource(),
+                (Su + divU*min(alpha1(), scalar(1)))() /*+ alphaMeltSource()*/,
                 oneField(),
                 zeroField()
             );

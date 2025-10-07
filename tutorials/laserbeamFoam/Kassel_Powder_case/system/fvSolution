@@ -19,11 +19,11 @@ solvers
     "alpha.metal.*"
     {
         nAlphaCorr      2;
-        nAlphaSubCycles 1;
+        nAlphaSubCycles 5;
         
         cAlpha          1;
 
-        MULESCorr       yes;
+        MULESCorr       no;//yes;
         nLimiterIter    5;
 
         solver          smoothSolver;

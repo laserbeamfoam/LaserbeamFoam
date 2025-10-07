@@ -893,25 +893,14 @@ basicKinematicCloud parcels
 );
 
 
-// IOdictionary kinematicCloudProperties
-// (
-//     IOobject
-//     (
-//         "kinematicCloudProperties",
-//         runTime.constant(),
-//         mesh,
-//         IOobject::MUST_READ,
-//         IOobject::NO_WRITE
-//     )
-// );
 
 
-// dimensionedScalar rhoParticle
-// (
-//     "rhoParticle",
-//     dimDensity,
-//     kinematicCloudProperties.subDict("constantProperties").lookup("rho0")
-// );
+
+DynamicList<label> particleIDs;
+DynamicList<scalar> particleRemainingMass;
+
+Map<scalar> particleRemainingMassFraction;
+
 
 
 
@@ -929,3 +918,29 @@ volScalarField massSource
     dimensionedScalar("zero", dimDensity/dimTime, 0.0)
 );
 
+
+
+
+// Info<< "Reading kinematicCloudProperties\n" << endl;
+
+// IOdictionary kinematicCloudProperties
+// (
+//     IOobject
+//     (
+//         "kinematicCloudProperties",
+//         runTime.constant(),
+//         mesh,
+//         IOobject::MUST_READ,
+//         IOobject::NO_WRITE
+//     )
+// );
+
+// // Read particle density
+// const dimensionedScalar rhoParticle
+// (
+//     "rhoParticle",
+//     dimDensity,
+//     kinematicCloudProperties.subDict("constantProperties").lookup("rho0")
+// );
+
+// Info<< "Particle density (rho0): " << rhoParticle.value() << " kg/m³" << endl;
