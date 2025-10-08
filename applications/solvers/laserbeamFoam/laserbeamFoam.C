@@ -320,11 +320,8 @@ forAllIter(basicKinematicCloud, parcels, pIter)
         scalar meltedMass = min(remainingMass, maxMeltThisStep);
         
 
-
-        // scalar volumeAsMetal = meltedMass / rho1.value();
-
-        // const scalar rhoParticle = 16650.0;  // Tantalum density
-        scalar volumeAsMetal = meltedMass / p.rho();
+        
+        scalar volumeAsMetal = meltedMass / rho1.value();
 
 
         scalar cellVolume = mesh.V()[celli];
@@ -496,7 +493,7 @@ if (maxAlphaSource > SMALL)
 
 
 
-scalar maxAllowedTempDrop = 50.0;  // Max K drop per timestep
+scalar maxAllowedTempDrop = 100.0;  // Max K drop per timestep
 scalar dt = runTime.deltaTValue();
 
 forAll(particleEnthalpySource, celli)

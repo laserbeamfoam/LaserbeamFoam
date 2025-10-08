@@ -737,7 +737,7 @@ volScalarField mu
         IOobject::READ_IF_PRESENT,
         IOobject::AUTO_WRITE
     ),
-      mixture.mu()
+      mixture.mu()+ (1.0 - epsilon1) * dimensionedScalar("huge", dimensionSet(1, -1, -1, -0, 0), 1e6)
 );
 
 

@@ -5,8 +5,8 @@
     rhok = (1.0 - max(epsilon1*(beta)*(T - TSolidus), 0.0));
 
 
-
-     mu = mixture.mu();
+// 
+     mu = mixture.mu() + (1.0 - epsilon1) * dimensionedScalar("huge", dimensionSet(1, -1, -1, -0, 0), 1e6);
      mu.correctBoundaryConditions();
 
     scalarField& alpha1I = alpha1;
