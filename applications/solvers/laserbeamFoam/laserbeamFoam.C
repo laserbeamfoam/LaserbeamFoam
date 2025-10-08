@@ -67,7 +67,15 @@ Authors
 #include "laserHeatSource.H"
 
 // #include "basicKinematicCollidingCloud.H"
+// #include "basicKinematicCloud.H"
+
+// For particles with temperature tracking
 #include "basicKinematicCloud.H"
+#include "basicKinematicParcel.H"
+
+// Add these for particle temperature storage
+#include "IOdictionary.H"
+#include "HashTable.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -185,7 +193,7 @@ int main(int argc, char *argv[])
         
         ++runTime;
 
-        // parcels.storeGlobalPositions();
+     
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
@@ -236,22 +244,7 @@ int main(int argc, char *argv[])
 
 
 
-
-// volScalarField alphaMeltSource
-// (
-//     IOobject
-//     (
-//         "alphaMeltSource",
-//         runTime.timeName(),
-//         mesh,
-//         IOobject::NO_READ,
-//         IOobject::AUTO_WRITE
-//     ),
-//     mesh,
-//     dimensionedScalar("zero", dimless/dimTime, 0.0)
-// );
-
-// Reset sources
+// // Reset sources
 alphaMeltSource *= 0.0;
 particleEnthalpySource *= 0.0;
 massSource *= 0.0;
@@ -287,7 +280,7 @@ forAllIter(basicKinematicCloud, parcels, pIter)
     
     scalar tempP = T[celli];
     
-    if (tempP > 2000.0)
+    if (tempP > particle_Tmelt.value())
     {
         scalar originalMass = p.mass();
         label particleID = p.origId();
@@ -314,7 +307,7 @@ forAllIter(basicKinematicCloud, parcels, pIter)
         }
         
         // Calculate desired melting
-        scalar meltingTimescale = 0.01;
+        scalar meltingTimescale = time_melt.value();
         scalar maxMeltRatePerSecond = originalMass / meltingTimescale;
         scalar maxMeltThisStep = maxMeltRatePerSecond * dt;
         scalar meltedMass = min(remainingMass, maxMeltThisStep);
@@ -332,10 +325,10 @@ forAllIter(basicKinematicCloud, parcels, pIter)
         proposedMassAddition[celli] += meltedMass;
         
         // Energy calculation
-        scalar T_inject = 300.0;
-        scalar Cp_particle = polycp_m.value((tempP + T_inject)/2.0);
+        scalar T_inject = Tinject.value();  // ← From dictionary
+        scalar Cp_particle = CpParticle.value();  // ← From dictionary
         scalar sensibleHeat = meltedMass * Cp_particle * (tempP - T_inject);
-        scalar latentHeat = meltedMass * LatentHeat1.value();
+        scalar latentHeat = meltedMass * LfParticle.value();  // ← From dictionary
         
         proposedEnthalpySink[celli] += (sensibleHeat + latentHeat);
     }
@@ -493,7 +486,7 @@ if (maxAlphaSource > SMALL)
 
 
 
-scalar maxAllowedTempDrop = 100.0;  // Max K drop per timestep
+scalar maxAllowedTempDrop = 200.0;  // Max K drop per timestep
 scalar dt = runTime.deltaTValue();
 
 forAll(particleEnthalpySource, celli)
@@ -518,7 +511,7 @@ forAll(particleEnthalpySource, celli)
     }
 }
 Info<<"min enthalpy source "<<gMin(particleEnthalpySource)<<endl;
-// fvc::smooth(particleEnthalpySource, 2);
+// // fvc::smooth(particleEnthalpySource, 2);
 
 
 

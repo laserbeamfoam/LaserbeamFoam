@@ -26,7 +26,7 @@ EXE_INC = \
     -I$(LIB_SRC)/lagrangian/basic/lnInclude \
     -I$(LIB_SRC)/lagrangian/intermediate/lnInclude \
     -I$(LIB_SRC)/ODE/lnInclude \
-    -I$(LIB_SRC)/combustionModels/lnInclude \
+    -I$(LIB_SRC)/combustionModels/lnInclude
 
 EXE_LIBS = \
     -lfiniteVolume \

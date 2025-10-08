@@ -921,26 +921,76 @@ volScalarField massSource
 
 
 
-// Info<< "Reading kinematicCloudProperties\n" << endl;
 
-// IOdictionary kinematicCloudProperties
+
+
+Info<< "Reading particle melting properties from kinematicCloudProperties\n" << endl;
+
+IOdictionary kinematicCloudDict
+(
+    IOobject
+    (
+        "kinematicCloudProperties",
+        runTime.constant(),
+        mesh,
+        IOobject::MUST_READ,
+        IOobject::NO_WRITE
+    )
+);
+
+
+const dictionary& constProps = kinematicCloudDict.subDict("constantProperties");
+
+// Particle properties
+// const scalar rhoParticle = readScalar(constProps.lookup("rho0"));
+
+// Thermal properties
+const dimensionedScalar particle_Tmelt
+(
+    "Tmelt",
+    dimTemperature,
+    constProps//.lookup("meltingTemperature")
+);
+
+// const dimensionedScalar Tboil
 // (
-//     IOobject
-//     (
-//         "kinematicCloudProperties",
-//         runTime.constant(),
-//         mesh,
-//         IOobject::MUST_READ,
-//         IOobject::NO_WRITE
-//     )
+//     "Tboil",
+//     dimTemperature,
+//     constProps//.lookup("boilingTemperature")
 // );
 
-// // Read particle density
-// const dimensionedScalar rhoParticle
-// (
-//     "rhoParticle",
-//     dimDensity,
-//     kinematicCloudProperties.subDict("constantProperties").lookup("rho0")
-// );
+const dimensionedScalar CpParticle
+(
+    "CpParticle",
+    dimEnergy/dimMass/dimTemperature,
+    constProps//.lookup("specificHeatCapacity")
+);
 
-// Info<< "Particle density (rho0): " << rhoParticle.value() << " kg/m³" << endl;
+const dimensionedScalar LfParticle
+(
+    "LfParticle",
+    dimEnergy/dimMass,
+    constProps//.lookup("latentHeatOfFusion")
+);
+
+const dimensionedScalar time_melt
+(
+    "MeltingTimescale",
+    dimTime,
+    constProps//.lookup("meltingTimescale")
+);
+
+const dimensionedScalar Tinject
+(
+    "Tinject",
+    dimTemperature,
+    constProps//.lookup("injectionTemperature")
+);
+
+Info<< "Particle melting properties:" << nl
+    << "  Melting temp: " << particle_Tmelt.value() << " K" << nl
+    // << "  Boiling temp: " << Tboil.value() << " K" << nl
+    << "  Specific heat: " << CpParticle.value() << " J/kg/K" << nl
+    << "  Latent heat: " << LfParticle.value() << " J/kg" << nl
+    << "  Melting timescale: " << time_melt.value() << " s" << nl
+    << "  Injection temp: " << Tinject.value() << " K" << endl;

@@ -22,17 +22,23 @@ phases          (metal gas);
 metal
 {
     transportModel  Newtonian;
-nu              5e-07;
-
-rho             8000;
-
-	Tsolidus 1658;
-	Tliquidus 1723;
-    LatentHeat 2.7e5;
-    beta    5.0e-6;
-    poly_kappa   (25 0.0 0 0 0 0 0 0);
-    poly_cp   (700 0.0 0 0 0 0 0 0);
-    elec_resistivity	1.0e-6;
+    nu              3.5e-07;  // Kinematic viscosity (liquid metal)
+    
+    rho             4420;     // Density [kg/m³]
+    
+    Tsolidus        1877;     // Solidus temperature [K] (~1604°C)
+    Tliquidus       1933;     // Liquidus temperature [K] (~1660°C)
+    LatentHeat      3.65e5;   // Latent heat of fusion [J/kg]
+    beta            9.0e-6;   // Thermal expansion coefficient [1/K]
+    
+    // Thermal conductivity [W/(m·K)] - temperature dependent
+    // At room temp ~7, increases to ~25 at high temp
+    poly_kappa      (7.0 0.012 0 0 0 0 0 0);  
+    
+    // Specific heat [J/(kg·K)] - temperature dependent
+    poly_cp         (546 0.17 0 0 0 0 0 0);
+    
+    elec_resistivity 1.7e-6;  // Electrical resistivity [Ω·m]
 }
 
 gas
@@ -54,12 +60,12 @@ rho             1;
 
 
 
-sigma            1.2;
-Marangoni_Constant	-5e-4;
-p0	1e5;
-Tvap	3068;
-Mm	0.05;
-LatentHeatVap 7.45e6;
+sigma               1.65;      // Surface tension [N/m]
+Marangoni_Constant  -2.6e-4;   // dσ/dT [N/(m·K)]
+p0                  1e5;       // Reference pressure [Pa]
+Tvap                3560;      // Vaporization temperature [K] (~3287°C)
+Mm                  0.04485;   // Molar mass [kg/mol]
+LatentHeatVap       9.83e6;    // Latent heat of vaporization [J/kg]
 
 
 // ************************************************************************* //
