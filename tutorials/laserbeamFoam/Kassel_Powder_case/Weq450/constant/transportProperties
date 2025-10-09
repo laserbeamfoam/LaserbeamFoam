@@ -1,0 +1,71 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Interface tracking method: isoAdvector or MULES
+interfaceTrackingScheme MULES;//isoAdvector;
+
+phases          (metal gas);
+
+metal
+{
+    transportModel  Newtonian;
+    nu              3.5e-07;  // Kinematic viscosity (liquid metal)
+    
+    rho             4420;     // Density [kg/m³]
+    
+    Tsolidus        1877;     // Solidus temperature [K] (~1604°C)
+    Tliquidus       1933;     // Liquidus temperature [K] (~1660°C)
+    LatentHeat      3.65e5;   // Latent heat of fusion [J/kg]
+    beta            9.0e-6;   // Thermal expansion coefficient [1/K]
+    
+    // Thermal conductivity [W/(m·K)] - temperature dependent
+    // At room temp ~7, increases to ~25 at high temp
+    poly_kappa      (7.0 0.012 0 0 0 0 0 0);  
+    
+    // Specific heat [J/(kg·K)] - temperature dependent
+    poly_cp         (546 0.17 0 0 0 0 0 0);
+    
+    elec_resistivity 1.7e-6;  // Electrical resistivity [Ω·m]
+}
+
+gas
+{
+    transportModel  Newtonian;
+
+nu              1.48e-05;
+
+rho             1;
+
+    poly_kappa   (0.04 0 0 0 0 0 0 0);
+    poly_cp   (520 0.0 0 0 0 0 0 0);
+    
+    Tsolidus    1.0;
+    Tliquidus   10.0;
+    LatentHeat  1;
+    beta    4.0e-5;
+}
+
+
+
+sigma               1.65;      // Surface tension [N/m]
+Marangoni_Constant  -2.6e-4;   // dσ/dT [N/(m·K)]
+p0                  1e5;       // Reference pressure [Pa]
+Tvap                3560;      // Vaporization temperature [K] (~3287°C)
+Mm                  0.04485;   // Molar mass [kg/mol]
+LatentHeatVap       9.83e6;    // Latent heat of vaporization [J/kg]
+
+
+// ************************************************************************* //

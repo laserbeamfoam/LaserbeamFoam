@@ -1,0 +1,226 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      kinematicCloudProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solution
+{
+    active          true;
+    coupled         true;
+    transient       yes;
+    cellValueSourceCorrection off;
+    
+    writeActiveOnly true;  //
+
+    interpolationSchemes
+    {
+        rho             cell;
+        U               cellPoint;
+        mu              cell;
+        DUcDt               cellPoint;
+        nonOrthDeltaCoeffs  cell;
+    }
+
+    integrationSchemes
+    {
+        U               Euler;
+    }
+
+    sourceTerms
+    {
+        schemes
+        {
+            U semiImplicit 1;
+        }
+    }
+}
+
+constantProperties
+{
+    rho0            16650;
+    
+    // Thermal properties
+    Tmelt      3290;   // Melting point [K] (3017°C)
+    boilingTemperature      5731;   // Boiling point [K] (5458°C)
+    CpParticle    140;    // Average Cp [J/kg/K]
+    LfParticle      174000; // Latent heat of melting [J/kg]
+    thermalConductivity     57.5;   // [W/m/K]
+    
+    // Modeling parameters
+    MeltingTimescale        0.005;   // Characteristic melting time [s] - tunable
+    Tinject    300;    // Powder feed temperature [K] (room temp)
+    
+    
+}
+
+subModels
+{
+    particleForces
+    {
+        
+        gravity;
+        
+                sphereDrag
+        {
+            // Can specify drag model here if needed
+            // Default is Schiller-Naumann, good for these Reynolds numbers
+        }
+        
+
+    
+    }
+/*
+    injectionModels
+    {
+        // Manual injection with size distribution
+        model1
+        {
+            type            manualInjection;
+            massTotal       1e-6;  // Total mass to inject [kg]
+            parcelBasisType mass;
+            SOI             0;
+            
+            // Position and time of injection
+            positionsFile   "kinematicCloudPositions";
+            U0              (0 1 0);
+            
+            // Size distribution - different diameters
+            sizeDistribution
+            {
+                type        RosinRammler;
+                RosinRammlerDistribution
+                {
+                    minValue    1e-6;   // 1 micron
+                    maxValue    100e-6; // 100 microns
+                    lambda           50e-6;  // Mean diameter
+                    n           3.5;    // Distribution width parameter
+                }
+            }
+        }
+        
+        }
+*/
+
+injectionModels
+{
+    tantalumPowderFeed
+    {
+        type            coneInjection;
+        
+        // Jet origin and orientation
+       // position        (0 0.01 0);
+                // List of (position, axis) pairs - note the double parentheses
+      
+        positionAxis
+        (
+            ((0 0.001 0) (0 1 0))  // (position vector) (axis vector)
+        );
+
+        
+       // direction       (0 1 0);
+        
+        // Cone geometry
+        thetaInner      0;
+        thetaOuter      8;
+        
+        // Time control
+        duration        1;
+        SOI             0;
+        
+        // Flow rate
+        massTotal       1e-2;
+        nParticle	1;
+        parcelBasisType fixed;//mass;
+        
+        parcelsPerInjector 5000000;    // Required: parcels per injector
+        
+        // Use table format for flowRateProfile
+        flowRateProfile table
+        (
+            (0  500000)
+            (10 500000)
+        );
+        
+        parcelsPerSecond 50000;
+        
+        // Use table format for Umag
+        Umag table
+        (
+            (0  1)
+            (10 1)
+        );
+        
+        // Particle size
+            sizeDistribution
+            {
+                type        RosinRammler;
+                RosinRammlerDistribution
+                {
+                    minValue    60e-6;   // 15 microns (minimum)
+                    maxValue    100e-6;   // 63 microns (maximum)
+                    lambda      75e-6;   // Mean diameter: 45 microns (typical for Ta powder)
+                    n           3.5;     // Distribution parameter (3-4 is typical)
+                }
+            }
+            
+            
+            
+                        // Alternative: Normal distribution
+            // sizeDistribution
+            // {
+            //     type        normal;
+            //     normalDistribution
+            //     {
+            //         minValue    15e-6;
+            //         maxValue    63e-6;
+            //         mu          40e-6;   // Mean
+            //         sigma       10e-6;   // Standard deviation
+            //     }
+            // }
+            
+            
+            
+            
+            
+    }
+}
+  
+  
+  
+        
+
+    dispersionModel none;
+    
+    patchInteractionModel standardWallInteraction;
+    
+    stochasticCollisionModel none;
+    
+    standardWallInteractionCoeffs
+    {
+        type rebound;  // Particles bounce off walls
+        
+        // Restitution coefficients (energy loss on impact)
+        e   0.5;  // Normal restitution (0-1, 1 = perfectly elastic)
+        mu  0.3;  // Tangential restitution/friction
+    }
+
+    surfaceFilmModel none;
+}
+
+cloudFunctions
+{
+}
+
+// ************************************************************************* //
