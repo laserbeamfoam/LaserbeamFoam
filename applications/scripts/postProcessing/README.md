@@ -20,7 +20,7 @@ The tool is designed for batch use and supports reproducible analysis across mul
    ```
 
 4. **Run the main post-processing script** directly from the results directory:
-   ```python
+   ```bash
       python $FOAM_USER_APPBIN/characterise_meltpool.py
    ```
 
@@ -33,12 +33,12 @@ The tool is designed for batch use and supports reproducible analysis across mul
 - **Conda** to create the Python environment from the supplied YAML.
 
 ### Python libraries
-All Python dependencies are provided in the environment file (e.g. `environment.yml`).  
+All required Python dependencies are listed in the environment file automatically installed in `$FOAM_USER_APPBIN`.    
 Create and activate the environment:
 
 ```bash
 # Using conda
-conda env create -f environment.yml
+conda env create -f $FOAM_USER_APPBIN/environment.yml
 conda activate meltpool-postproc
 ```
 
@@ -101,7 +101,7 @@ This process enables rapid, reproducible quantification of melt pool geometry di
 
 ## Example Cross-Sections
 
-To illustrate the output of the tool, the figures below show two representative **cross-sections of the melt pool** obtained from the included LPBF example case.
+To illustrate the output of the tool, the figures below show two representative **cross-sections of the melt pool** obtained from the included lpbf_small example case.
 
 The melt pool geometry is visualised at two y-locations:
 
