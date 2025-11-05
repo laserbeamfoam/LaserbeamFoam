@@ -95,10 +95,15 @@ Authors
 '''
 
 import os
+import sys
+
+sys.path.insert(0, os.getcwd())
+
 from functions import terminal, calculate_geometry_full_meltpool, plotResults
 from input_data import *
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 terminal(
     f'bash -c "source {OF_LOCATION} && pvpython {os.path.join(SCRIPT_DIR, "extract_meltpool.py")}"'

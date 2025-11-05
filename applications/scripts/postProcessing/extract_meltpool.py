@@ -41,6 +41,13 @@ paraview.simple._DisableFirstRenderCameraReset()
 
 from pathlib import Path
 import numpy as np
+
+import os
+import sys
+
+# let pvpython see the case folder (where input_data.py is)
+sys.path.insert(0, os.getcwd())
+
 from input_data import *
 
 current_case = Path.cwd().name
