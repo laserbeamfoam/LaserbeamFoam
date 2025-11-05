@@ -21,7 +21,7 @@ The tool is designed for batch use and supports reproducible analysis across mul
 
 4. **Run the main post-processing script** directly from the results directory:
    ```bash
-      python $FOAM_USER_APPBIN/characterise_meltpool.py
+      python $FOAM_USER_APPBIN/postProcessing/characterise_meltpool.py
    ```
 
 
@@ -38,7 +38,7 @@ Create and activate the environment:
 
 ```bash
 # Using conda
-conda env create -f $FOAM_USER_APPBIN/environment.yml
+conda env create -f $FOAM_USER_APPBIN/postProcessing/environment.yml
 conda activate meltpool-postproc
 ```
 
