@@ -15,8 +15,7 @@ The tool is designed for batch use and supports reproducible analysis across mul
 
 3. **Activate the provided Conda environment** (or ensure that the required Python packages are installed):
    ```bash
-   conda env create -f $FOAM_USER_APPBIN/environment.yml
-   conda activate meltpool
+   conda activate meltpool-postproc
    ```
 
 4. **Run the main post-processing script** directly from the results directory:
