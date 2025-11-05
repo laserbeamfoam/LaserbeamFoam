@@ -2,20 +2,28 @@
 
 ## Description
 
-This utility provides a streamlined post-processing workflow to **calculate the melt pool geometry and porosity** from *laserbeamFoam* simulations.  
+This utility provides a streamlined post-processing workflow to **calculate the melt pool geometry and porosity** from *laserBeamFoam* simulations.  
 It automatically extracts the melt pool region from ParaView output and computes the **width**, **depth**, **height**, and **porosity** for every cross-section along the scanning direction.  
 The tool is designed for batch use and supports reproducible analysis across multiple simulation cases.
 
 ## How to Use It
 
-1. **Copy the Python scripts** from this repository into the folder containing the results of your *laserbeamFoam* simulation (the folder must include the `main.foam` file).  
+1. **Build the laserBeamFoam application** using its `Allwmake` script.  
+   During compilation, the `Allwmake` will automatically copy the Python post-processing tools (and the associated Conda environment file) into your `$FOAM_USER_APPBIN` directory.
 
-2. **Activate the provided Conda environment** (or ensure that the required Python packages are installed).  
+2. **After running a simulation**, navigate to the folder containing your *laserBeamFoam* results (the folder must include the `main.foam` file).
 
-3. **Run the main script** from a terminal:
+3. **Activate the provided Conda environment** (or ensure that the required Python packages are installed):
    ```bash
-   python characterise_meltpool.py
+   conda env create -f $FOAM_USER_APPBIN/environment.yml
+   conda activate meltpool
    ```
+
+4. **Run the main post-processing script** directly from the results directory:
+   ```python
+      python $FOAM_USER_APPBIN/characterise_meltpool.py
+   ```
+
 
 ## Prerequisites
 
