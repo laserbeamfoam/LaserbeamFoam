@@ -23,7 +23,6 @@ License
 #include "findLocalCell.H"
 #include "SortableList.H"
 #include "globalIndex.H"
-#include "Pstream.H"
 #include "processorFvPatch.H"  
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -383,7 +382,7 @@ laserHeatSource::laserHeatSource
     vtkTimes_(),
     globalBB_(mesh.bounds())  // Initialize with local bounds first
 {
-    
+
     laserDir = vector(0,0,0);
     vector localDir(0,0,0);
     word laserPatchName = "none";
