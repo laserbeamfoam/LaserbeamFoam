@@ -1,3 +1,3 @@
 laserbeamFoam.C
 
-EXE = $(FOAM_USER_APPBIN)/laserbeamFoam
+EXE = $(FOAM_USER_APPBIN)/laserbeamFoam_new

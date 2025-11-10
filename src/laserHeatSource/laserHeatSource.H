@@ -143,10 +143,12 @@ class laserHeatSource
 
 public:
 
-    //- Runtime type information
-    TypeName("laserHeatSource");
+        vector laserDir;
 
-    // Constructors
+        //- Runtime type information
+        TypeName("laserHeatSource");
+
+        // Constructors
 
         //- Construct from the mesh
         laserHeatSource
@@ -154,13 +156,12 @@ public:
             const fvMesh& mesh
         );
 
-    // Destructor
+        // Destructor
 
         virtual ~laserHeatSource()
         {}
 
-
-    // Member Functions
+        // Member Functions
 
         //- Const access to the deposition field
         const volScalarField& deposition() const

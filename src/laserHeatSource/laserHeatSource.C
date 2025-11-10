@@ -23,7 +23,8 @@ License
 #include "findLocalCell.H"
 #include "SortableList.H"
 #include "globalIndex.H"
-
+#include "Pstream.H"
+#include "processorFvPatch.H"  
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -151,69 +152,74 @@ void laserHeatSource::createInitialRays
     }
     else // One ray for each boundary patch face within the laser radius
     {
-
-
-        
         const vectorField& CI = mesh.C();
+
+        // Normalize laserDir
+        vector n = laserDir;
+        scalar nMag = mag(n);
+        if (nMag < VSMALL)
+        {
+            FatalErrorIn("createInitialRays")
+                << "Laser direction has zero magnitude: " << n << exit(FatalError);
+        }
+        n /= nMag;
+
+        // finding a reference vector not aligned with n 
+        vector ref(0,0,0);
+        scalar ax = mag(n.x());
+        scalar ay = mag(n.y());
+        scalar az = mag(n.z());
+
+        if (ax <= ay && ax <= az)
+            ref = vector(1, 0, 0);
+        else if (ay <= ax && ay <= az)
+            ref = vector(0, 1, 0);
+        else
+            ref = vector(0, 0, 1);
+
+        // building orthonormal basis 
+        vector u = n ^ ref;
+        scalar uMag = mag(u);
+
+        if (uMag < VSMALL)
+        {
+            FatalErrorIn("createInitialRays")
+            << "Cannot construct orthogonal basis for laserDir " << n
+            << " (cross product nearly zero)" << exit(FatalError);
+        }
+
+        u /= uMag;
+        vector v = n ^ u;
 
         forAll(CI, celli)
         {
-            const scalar x_coord = CI[celli].x();
-            // const scalar y_coord = CI[celli].y();
-            const scalar z_coord = CI[celli].z();
+            const point& cellPt = CI[celli];
 
-            const scalar r =
-                sqrt
-                (
-                    sqr(x_coord - currentLaserPosition.x())
-                  + sqr(z_coord - currentLaserPosition.z())
-                );
+            vector d = cellPt - currentLaserPosition;
+            scalar r = sqrt(sqr(d & u) + sqr(d & v));
 
-            if
-            (
-                r <= (1.5*beam_radius)
-             && laserBoundary_[celli] > SMALL
-            )
-            {
-                for (label Ray_j = 0; Ray_j < N_sub_divisions; Ray_j++)
+            if (r <= 1.5*beam_radius && laserBoundary_[celli] > SMALL)
+            {       
+                for (label j = 0; j < N_sub_divisions; j++)
                 {
-                    for (label Ray_k = 0; Ray_k < N_sub_divisions; Ray_k++)
+                    for (label k = 0; k < N_sub_divisions; k++)
                     {
-                        const point p_1
-                        (
-                            CI[celli].x()
-                          - (yDimI[celli]/2.0)
-                          + ((yDimI[celli]/(N_sub_divisions+1))*(Ray_j+1)),
-                            CI[celli].y(),
-                            CI[celli].z()
-                          - (yDimI[celli]/2.0)
-                          + ((yDimI[celli]/(N_sub_divisions+1))*(Ray_k+1))
-                        );
+                        scalar du = -yDimI[celli]/2.0 + (yDimI[celli]/(N_sub_divisions+1))*(j+1);
+                        scalar dv = -yDimI[celli]/2.0 + (yDimI[celli]/(N_sub_divisions+1))*(k+1);
 
+                        point p_1 = cellPt + du*u + dv*v;
                         initial_points.append(p_1);
 
-                        point_assoc_power.append
-                        (
-                            sqr(yDimI[celli]/N_sub_divisions)
-                           *(
-                                (Radius_Flavour*Q_cond)
-                               /(
-                                    Foam::pow(beam_radius, 2.0)*pi
-                                )
-                            )
-                           *Foam::exp
-                            (
-                              - Radius_Flavour
-                               *(
-                                    Foam::pow(r, 2.0)
-                                   /Foam::pow(beam_radius, 2.0)
-                                )
-                            )
-                        );
+                        scalar power = sqr(yDimI[celli]/N_sub_divisions)
+                            * ((Radius_Flavour*Q_cond)/(pow(beam_radius,2.0)*pi))
+                            * exp(-Radius_Flavour*(pow(r,2.0)/pow(beam_radius,2.0)));
+
+                        point_assoc_power.append(power);
                     }
                 }
             }
         }
+
     }
 
     // List with size equal to number of processors
@@ -377,6 +383,54 @@ laserHeatSource::laserHeatSource
     vtkTimes_(),
     globalBB_(mesh.bounds())  // Initialize with local bounds first
 {
+    
+    laserDir = vector(0,0,0);
+    vector localDir(0,0,0);
+    word laserPatchName = "none";
+    word localLaserPatchName = "none";
+
+    // --- Determine local max per patch ---
+    forAll(laserBoundary_.boundaryField(), patchi)
+    {
+        const fvPatchScalarField& patchField = laserBoundary_.boundaryField()[patchi];
+        const word& patchName = mesh.boundary()[patchi].name();
+
+        if (isA<processorFvPatch>(patchField.patch()))
+            continue;
+
+        scalar localMax = patchField.size() ? max(patchField) : -1e+300;
+
+        if (localMax > 0.9)
+            localLaserPatchName = patchName;
+    }
+
+    // --- Reduce to find a global patch (any rank that has it) ---
+    laserPatchName = localLaserPatchName;
+    reduce(laserPatchName, maxOp<word>());
+
+    // --- Get patch ID safely ---
+    const label laserPatchID = mesh.boundaryMesh().findPatchID(laserPatchName);
+    if (laserPatchID == -1)
+        FatalErrorInFunction << "Cannot find patch " << laserPatchName << exit(FatalError);
+
+    // --- Compute local direction safely ---
+    if (mesh.boundary()[laserPatchID].size() > 0)
+    {
+        const fvPatch& laserPatch = mesh.boundary()[laserPatchID];
+        localDir = sum(laserPatch.nf()) / scalar(laserPatch.size());
+    }
+
+    // --- MPI sum across all ranks ---
+    reduce(localDir, sumOp<vector>());
+
+    // --- Normalize ---
+    if (mag(localDir) > SMALL)
+        laserDir = localDir / mag(localDir);
+    else
+        FatalErrorInFunction << "Problems with laser direction magnitude" << exit(FatalError);
+
+    Info << "Global laser direction = " << laserDir << endl;
+
     Info<< "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
 
     // Calculate global bounding box

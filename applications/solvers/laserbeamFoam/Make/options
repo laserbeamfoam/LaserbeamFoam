@@ -21,7 +21,7 @@ EXE_INC = \
 EXE_LIBS = \
     -lfiniteVolume \
     -L$(FOAM_USER_LIBBIN) \
-    -llaserHeatSource \
+	-llaserHeatSource_new \
     -lfvOptions \
     -lsurfMesh \
     -lmeshTools \
