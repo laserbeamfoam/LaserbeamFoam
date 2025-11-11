@@ -407,14 +407,16 @@ laserHeatSource::laserHeatSource
     globalBB_(mesh.bounds()),
     laserDir_(vector::zero)
 {
+    // Determine the laser direction
     vector localDir(0,0,0);
     word laserPatchName = "none";
     word localLaserPatchName = "none";
 
-    // --- Determine local max per patch ---
+    // Determine local max per patch
     forAll(laserBoundary_.boundaryField(), patchi)
     {
-        const fvPatchScalarField& patchField = laserBoundary_.boundaryField()[patchi];
+        const fvPatchScalarField& patchField =
+            laserBoundary_.boundaryField()[patchi];
         const word& patchName = mesh.boundary()[patchi].name();
 
         if (isA<processorFvPatch>(patchField.patch()))
@@ -422,9 +424,9 @@ laserHeatSource::laserHeatSource
             continue;
         }
 
-        const label localMax = patchField.size() ? max(patchField) : -1e+300;
+        const scalar localMax = patchField.size() ? max(patchField) : -1e+300;
 
-        if (localMax > 0)
+        if (localMax > 0.9)
         {
             localLaserPatchName = patchName;
         }
