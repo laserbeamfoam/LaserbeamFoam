@@ -24,6 +24,7 @@ License
 #include "SortableList.H"
 #include "globalIndex.H"
 #include "processorFvPatch.H"  
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -80,13 +81,21 @@ void laserHeatSource::createInitialRays
             radialPoints[iR] = rMax * pow(fraction,1.0);
         }
 
-        const point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
+        const point P0
+        (
+            currentLaserPosition.x(),
+            currentLaserPosition.y(),
+            currentLaserPosition.z()
+        );
 
         // Normalise vector
         const vector V_i(V_incident/(mag(V_incident) + SMALL));
 
-        // // Generate two orthonormal vectors in the plane
-        const vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
+        // Generate two orthonormal vectors in the plane
+        const vector a
+        (
+            (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0)
+        );
         vector u = (V_i ^ a);
         u = u/mag(u);
         const vector v = (V_i ^ u);
@@ -105,7 +114,7 @@ void laserHeatSource::createInitialRays
 
             // Radial discretization (uniform in radius)
             // const scalar r = rMax*(iR + 0.5)/nRadial;
-            const scalar r = radialPoints[iR];//if using adaptive sampling
+            const scalar r = radialPoints[iR]; // if using adaptive sampling
 
             // Calculate area element
             const scalar deltaTheta = 2.0*pi/nAngular;
@@ -158,8 +167,9 @@ void laserHeatSource::createInitialRays
         scalar nMag = mag(n);
         if (nMag < VSMALL)
         {
-            FatalErrorIn("createInitialRays")
-                << "Laser direction has zero magnitude: " << n << exit(FatalError);
+            FatalErrorInFunction
+                << "Laser direction has zero magnitude: " << n
+                << exit(FatalError);
         }
         n /= nMag;
 
@@ -170,11 +180,17 @@ void laserHeatSource::createInitialRays
         scalar az = mag(n.z());
 
         if (ax <= ay && ax <= az)
+        {
             ref = vector(1, 0, 0);
+        }
         else if (ay <= ax && ay <= az)
+        {
             ref = vector(0, 1, 0);
+        }
         else
+        {
             ref = vector(0, 0, 1);
+        }
 
         // building orthonormal basis 
         vector u = n ^ ref;
@@ -182,9 +198,9 @@ void laserHeatSource::createInitialRays
 
         if (uMag < VSMALL)
         {
-            FatalErrorIn("createInitialRays")
-            << "Cannot construct orthogonal basis for laserDir " << n
-            << " (cross product nearly zero)" << exit(FatalError);
+            FatalErrorInFunction
+                << "Cannot construct orthogonal basis for laserDir " << nl
+                << " (cross product nearly zero)" << exit(FatalError);
         }
 
         u /= uMag;
@@ -203,15 +219,23 @@ void laserHeatSource::createInitialRays
                 {
                     for (label k = 0; k < N_sub_divisions; k++)
                     {
-                        scalar du = -yDimI[celli]/2.0 + (yDimI[celli]/(N_sub_divisions+1))*(j+1);
-                        scalar dv = -yDimI[celli]/2.0 + (yDimI[celli]/(N_sub_divisions+1))*(k+1);
+                        scalar du =
+                            -yDimI[celli]/2.0
+                          + (yDimI[celli]/(N_sub_divisions+1))*(j+1);
+                        scalar dv =
+                            -yDimI[celli]/2.0
+                          + (yDimI[celli]/(N_sub_divisions+1))*(k+1);
 
                         point p_1 = cellPt + du*u + dv*v;
                         initial_points.append(p_1);
 
-                        scalar power = sqr(yDimI[celli]/N_sub_divisions)
-                            * ((Radius_Flavour*Q_cond)/(pow(beam_radius,2.0)*pi))
-                            * exp(-Radius_Flavour*(pow(r,2.0)/pow(beam_radius,2.0)));
+                        scalar power =
+                            sqr(yDimI[celli]/N_sub_divisions)
+                           *((Radius_Flavour*Q_cond)/(pow(beam_radius,2.0)*pi))
+                           *exp
+                            (
+                                -Radius_Flavour*pow(r,2.0)/pow(beam_radius,2.0)
+                            );
 
                         point_assoc_power.append(power);
                     }
