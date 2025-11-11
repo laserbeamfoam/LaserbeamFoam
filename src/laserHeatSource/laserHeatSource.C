@@ -69,8 +69,9 @@ void laserHeatSource::createInitialRays
         const label samplesPerProc = totalSamples/Pstream::nProcs();
         const label remainder = totalSamples % Pstream::nProcs();
         const label myRank = Pstream::myProcNo();
-        const label startIdx = myRank * samplesPerProc + min(myRank, remainder);
-        const label endIdx = startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
+        const label startIdx = myRank*samplesPerProc + min(myRank, remainder);
+        const label endIdx =
+            startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
         const label localSamples = endIdx - startIdx;
 
         List<scalar> radialPoints(nRadial);
@@ -78,7 +79,7 @@ void laserHeatSource::createInitialRays
         {
             // Use sqrt spacing for better Gaussian sampling
             const scalar fraction = scalar(iR + 0.5)/nRadial;
-            radialPoints[iR] = rMax * pow(fraction,1.0);
+            radialPoints[iR] = rMax*pow(fraction,1.0);
         }
 
         const point P0
