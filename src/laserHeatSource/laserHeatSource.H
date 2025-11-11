@@ -112,6 +112,9 @@ class laserHeatSource
         //- Global bounding box of the mesh
         boundBox globalBB_;
 
+        //- Laser direction
+        vector laserDir_;
+
 
     // Private Member Functions
 
@@ -143,12 +146,10 @@ class laserHeatSource
 
 public:
 
-        vector laserDir;
+    //- Runtime type information
+    TypeName("laserHeatSource");
 
-        //- Runtime type information
-        TypeName("laserHeatSource");
-
-        // Constructors
+    // Constructors
 
         //- Construct from the mesh
         laserHeatSource
@@ -156,12 +157,12 @@ public:
             const fvMesh& mesh
         );
 
-        // Destructor
+    // Destructor
 
         virtual ~laserHeatSource()
         {}
 
-        // Member Functions
+    // Member Functions
 
         //- Const access to the deposition field
         const volScalarField& deposition() const

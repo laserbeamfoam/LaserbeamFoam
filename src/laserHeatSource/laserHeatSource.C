@@ -154,7 +154,7 @@ void laserHeatSource::createInitialRays
         const vectorField& CI = mesh.C();
 
         // Normalize laserDir
-        vector n = laserDir;
+        vector n = laserDir_;
         scalar nMag = mag(n);
         if (nMag < VSMALL)
         {
@@ -380,10 +380,9 @@ laserHeatSource::laserHeatSource
     timeVsLaserPower_(0),
     rayPaths_(0),
     vtkTimes_(),
-    globalBB_(mesh.bounds())  // Initialize with local bounds first
+    globalBB_(mesh.bounds()),
+    laserDir_(vector::zero)
 {
-
-    laserDir = vector(0,0,0);
     vector localDir(0,0,0);
     word laserPatchName = "none";
     word localLaserPatchName = "none";
@@ -395,12 +394,16 @@ laserHeatSource::laserHeatSource
         const word& patchName = mesh.boundary()[patchi].name();
 
         if (isA<processorFvPatch>(patchField.patch()))
+        {
             continue;
+        }
 
-        scalar localMax = patchField.size() ? max(patchField) : -1e+300;
+        const label localMax = patchField.size() ? max(patchField) : -1e+300;
 
-        if (localMax > 0.9)
+        if (localMax > 0)
+        {
             localLaserPatchName = patchName;
+        }
     }
 
     // --- Reduce to find a global patch (any rank that has it) ---
@@ -410,13 +413,16 @@ laserHeatSource::laserHeatSource
     // --- Get patch ID safely ---
     const label laserPatchID = mesh.boundaryMesh().findPatchID(laserPatchName);
     if (laserPatchID == -1)
-        FatalErrorInFunction << "Cannot find patch " << laserPatchName << exit(FatalError);
+    {
+        FatalErrorInFunction
+            << "Cannot find patch " << laserPatchName << exit(FatalError);
+    }
 
     // --- Compute local direction safely ---
     if (mesh.boundary()[laserPatchID].size() > 0)
     {
         const fvPatch& laserPatch = mesh.boundary()[laserPatchID];
-        localDir = sum(laserPatch.nf()) / scalar(laserPatch.size());
+        localDir = sum(laserPatch.nf())/scalar(laserPatch.size());
     }
 
     // --- MPI sum across all ranks ---
@@ -424,13 +430,17 @@ laserHeatSource::laserHeatSource
 
     // --- Normalize ---
     if (mag(localDir) > SMALL)
-        laserDir = localDir / mag(localDir);
+    {
+        laserDir_ = localDir / mag(localDir);
+    }
     else
-        FatalErrorInFunction << "Problems with laser direction magnitude" << exit(FatalError);
+    {
+        FatalErrorInFunction
+            << "Problems with laser direction magnitude" << exit(FatalError);
+    }
 
-    Info << "Global laser direction = " << laserDir << endl;
-
-    Info<< "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
+    Info<< "Global laser direction = " << laserDir_ << nl
+        << "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
 
     // Calculate global bounding box
     {
