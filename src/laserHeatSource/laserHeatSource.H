@@ -109,6 +109,33 @@ class laserHeatSource
         //- Record of times when VTK files were written
         HashSet<scalar> vtkTimes_;
 
+        //- Ray tracing algorithm
+        enum cellSearchMode
+        {
+            CSM_LEGACY,
+            CSM_VOXEL,
+            CSM_VOXEL_WITH_FALLBACK
+        };
+        cellSearchMode cellSearchMode_;
+
+        //- Has voxel data been built yet?
+        bool voxelInitialised_;
+
+        //- Voxel-based ray tracing parameter: number of voxels in each direction
+        label nVoxelsX_, nVoxelsY_, nVoxelsZ_;
+
+        //- Voxel-based ray tracing parameter: Voxel edge coordinates
+        scalarField xEdges_, yEdges_, zEdges_;
+
+        //- Voxel-based ray tracing parameter: Flattened voxel
+        //  Cell map: size = nVoxelsX_*nVoxelsY_*nVoxelsZ_
+        labelList voxelCell_;
+
+        //- Voxel-based ray tracing parameter
+        //  Per-cell axis-aligned bounding boxes
+        List<vector> cellMin_;
+        List<vector> cellMax_;
+
         //- Global bounding box of the mesh
         boundBox globalBB_;
 
@@ -133,6 +160,51 @@ class laserHeatSource
             const scalar Radius_Flavour,
             const scalar Q_cond,
             const scalar beam_radius
+        ) const;
+
+        //- Create voxel data for voxel-based ray tracing
+        void initialiseVoxelData
+        (
+            const boundBox& globalBB,
+            const label Nx,
+            const label Ny,
+            const label Nz,
+            const label maxLocalSearch
+        );
+
+        //- Wrapper for ray cell search
+        label findCellForRay
+        (
+            const point& p,
+            const label currentCell,
+            const fvMesh& mesh,
+            const label maxLocalSearch,
+            const bool debug = false
+        ) const;
+
+        //- Voxel-based search
+        label findCellVoxelised
+        (
+            const point& p,
+            const label currentCell,
+            const fvMesh& mesh,
+            const label maxLocalSearch,
+            const bool debug = false
+        ) const;
+
+        //- Helper: map (i,j,k) to flat index
+        inline label voxelIndex
+        (
+            const label i, const label j, const label k
+        ) const
+        {
+            return (k*nVoxelsY_ + j)*nVoxelsX_ + i;
+        }
+
+        //- Helper: compute voxel indices from a point
+        inline bool voxelIndices
+        (
+            const point& p, label& i, label& j, label& k
         ) const;
 
         //- Disallow default bitwise copy construct

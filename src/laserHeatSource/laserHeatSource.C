@@ -263,6 +263,274 @@ void laserHeatSource::createInitialRays
 }
 
 
+void laserHeatSource::initialiseVoxelData
+(
+    const boundBox& globalBB,
+    const label Nx,
+    const label Ny,
+    const label Nz,
+    const label maxLocalSearch
+)
+{
+    if (voxelInitialised_)
+    {
+        return;
+    }
+
+    voxelInitialised_ = true;
+
+    const fvMesh& mesh = deposition_.mesh();
+    const label nCells = mesh.nCells();
+
+    // Store sizes
+    nVoxelsX_ = Nx;
+    nVoxelsY_ = Ny;
+    nVoxelsZ_ = Nz;
+
+    // 1) Build voxel edges (uniform spacing over globalBB)
+    xEdges_.setSize(Nx + 1);
+    yEdges_.setSize(Ny + 1);
+    zEdges_.setSize(Nz + 1);
+
+    const scalar xMin = globalBB.min().x();
+    const scalar yMin = globalBB.min().y();
+    const scalar zMin = globalBB.min().z();
+
+    const scalar xMax = globalBB.max().x();
+    const scalar yMax = globalBB.max().y();
+    const scalar zMax = globalBB.max().z();
+
+    const scalar dx = (xMax - xMin) / scalar(Nx);
+    const scalar dy = (yMax - yMin) / scalar(Ny);
+    const scalar dz = (zMax - zMin) / scalar(Nz);
+
+    for (label i = 0; i <= Nx; ++i)
+    {
+        xEdges_[i] = xMin + dx*scalar(i);
+    }
+    for (label j = 0; j <= Ny; ++j)
+    {
+        yEdges_[j] = yMin + dy*scalar(j);
+    }
+    for (label k = 0; k <= Nz; ++k)
+    {
+        zEdges_[k] = zMin + dz*scalar(k);
+    }
+
+    // 2) Per-cell AABBs (cellMin_/cellMax_) using cellPoints()
+    cellMin_.setSize(nCells);
+    cellMax_.setSize(nCells);
+
+    const pointField& pts = mesh.points();
+    const labelListList& cellPts = mesh.cellPoints();
+
+    forAll(cellPts, cellI)
+    {
+        const labelList& cPts = cellPts[cellI];
+
+        // Initialise with the first point in the cell
+        const point& p0 = pts[cPts[0]];
+        scalar xmin = p0.x(), ymin = p0.y(), zmin = p0.z();
+        scalar xmax = p0.x(), ymax = p0.y(), zmax = p0.z();
+
+        for (label pi = 1; pi < cPts.size(); ++pi)
+        {
+            const point& p = pts[cPts[pi]];
+
+            xmin = Foam::min(xmin, p.x());
+            ymin = Foam::min(ymin, p.y());
+            zmin = Foam::min(zmin, p.z());
+
+            xmax = Foam::max(xmax, p.x());
+            ymax = Foam::max(ymax, p.y());
+            zmax = Foam::max(zmax, p.z());
+        }
+
+        cellMin_[cellI] = vector(xmin, ymin, zmin);
+        cellMax_[cellI] = vector(xmax, ymax, zmax);
+    }
+
+    // 3) Allocate voxel -> cell map and initialise to "no cell"
+    const label nVoxels = Nx*Ny*Nz;
+    voxelCell_.setSize(nVoxels);
+    voxelCell_ = -1;
+
+    auto voxelIndex = [this](const label i, const label j, const label k) -> label
+    {
+        return (k*nVoxelsY_ + j)*nVoxelsX_ + i;
+    };
+
+    // 4) Fill voxelCell_ using findLocalCell once at setup
+    for (label k = 0; k < Nz; ++k)
+    {
+        const scalar zc = 0.5*(zEdges_[k] + zEdges_[k + 1]);
+
+        for (label j = 0; j < Ny; ++j)
+        {
+            const scalar yc = 0.5*(yEdges_[j] + yEdges_[j + 1]);
+
+            for (label i = 0; i < Nx; ++i)
+            {
+                const scalar xc = 0.5*(xEdges_[i] + xEdges_[i + 1]);
+
+                const point c(xc, yc, zc);
+
+                const label cellI =
+                    findLocalCell
+                    (
+                        c,
+                        -1,          // no seed
+                        mesh,
+                        maxLocalSearch,
+                        false        // debug off for precomputation
+                    );
+
+                const label vI = voxelIndex(i, j, k);
+                voxelCell_[vI] = cellI;  // possibly -1
+            }
+        }
+    }
+
+    if (Pstream::master())
+    {
+        Info<< "Initialised voxel data with "
+            << Nx << " x " << Ny << " x " << Nz << " voxels" << nl
+            << "dx = " << dx << ", dy = " << dy << ", dz = " << dz << nl
+            << "nCells (local) = " << nCells << endl;
+    }
+}
+
+
+label laserHeatSource::findCellForRay
+(
+    const point& p,
+    const label currentCell,
+    const fvMesh& mesh,
+    const label maxLocalSearch,
+    const bool debug
+) const
+{
+    switch (cellSearchMode_)
+    {
+        case CSM_VOXEL:
+        case CSM_VOXEL_WITH_FALLBACK:
+            return findCellVoxelised(p, currentCell, mesh, maxLocalSearch, debug);
+
+        case CSM_LEGACY:
+        default:
+            // Call legacy function
+            return findLocalCell(p, currentCell, mesh, maxLocalSearch, debug);
+    }
+}
+
+
+label laserHeatSource::findCellVoxelised
+(
+    const point& p,
+    const label currentCell,
+    const fvMesh& mesh,
+    const label maxLocalSearch,
+    const bool debug
+) const
+{
+    // 1) Try to stay in the same cell with an AABB check
+    if (currentCell >= 0 && currentCell < cellMin_.size())
+    {
+        const vector& cMin = cellMin_[currentCell];
+        const vector& cMax = cellMax_[currentCell];
+
+        if
+        (
+            p.x() >= cMin.x() && p.x() <= cMax.x()
+         && p.y() >= cMin.y() && p.y() <= cMax.y()
+         && p.z() >= cMin.z() && p.z() <= cMax.z()
+        )
+        {
+            // Assume we are still in the same cell; no geometry checks
+            return currentCell;
+        }
+    }
+
+    // 2) Map point to voxel indices
+    label i = -1, j = -1, k = -1;
+    if (!voxelIndices(p, i, j, k))
+    {
+        // Outside globalBB
+        return -1;
+    }
+
+    const label vI = voxelIndex(i, j, k);
+    label cellI = voxelCell_[vI];
+
+    if (cellI != -1)
+    {
+        // Optionally, we could do a very cheap sanity check here using cMin/cMax[cellI]
+        return cellI;
+    }
+
+    // 3) Optional fallback to legacy search
+    if (cellSearchMode_ == CSM_VOXEL_WITH_FALLBACK)
+    {
+        cellI =
+            findLocalCell
+            (
+                p,
+                currentCell,
+                mesh,
+                maxLocalSearch,
+                debug
+            );
+
+        // Optional: "heal" this voxel for future rays if we found a cell
+        // if (cellI != -1) voxelCell_[vI] = cellI;
+
+        return cellI;
+    }
+
+    // Pure voxel mode and no cell found
+    return -1;
+}
+
+
+bool laserHeatSource::voxelIndices
+(
+    const point& p,
+    label& i,
+    label& j,
+    label& k
+) const
+{
+    const scalar x = p.x();
+    const scalar y = p.y();
+    const scalar z = p.z();
+
+    if
+    (
+        x < xEdges_.first() || x > xEdges_.last()
+     || y < yEdges_.first() || y > yEdges_.last()
+     || z < zEdges_.first() || z > zEdges_.last()
+    )
+    {
+        return false;
+    }
+
+    const scalar dx = (xEdges_.last() - xEdges_.first()) / scalar(nVoxelsX_);
+    const scalar dy = (yEdges_.last() - yEdges_.first()) / scalar(nVoxelsY_);
+    const scalar dz = (zEdges_.last() - zEdges_.first()) / scalar(nVoxelsZ_);
+
+    i = label(std::floor((x - xEdges_.first())/dx));
+    j = label(std::floor((y - yEdges_.first())/dy));
+    k = label(std::floor((z - zEdges_.first())/dz));
+
+    // Clamp to valid range
+    i = max(0, min(i, nVoxelsX_ - 1));
+    j = max(0, min(j, nVoxelsY_ - 1));
+    k = max(0, min(k, nVoxelsZ_ - 1));
+
+    return true;
+}
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 laserHeatSource::laserHeatSource
@@ -374,6 +642,17 @@ laserHeatSource::laserHeatSource
     timeVsLaserPower_(0),
     rayPaths_(0),
     vtkTimes_(),
+    cellSearchMode_(),
+    voxelInitialised_(false),
+    nVoxelsX_(-1),
+    nVoxelsY_(-1),
+    nVoxelsZ_(-1),
+    xEdges_(),
+    yEdges_(),
+    zEdges_(),
+    voxelCell_(),
+    cellMin_(),
+    cellMax_(),
     globalBB_(mesh.bounds())  // Initialize with local bounds first
 {
     Info<< "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
@@ -394,7 +673,9 @@ laserHeatSource::laserHeatSource
         // exactly on the boundary
         globalBB_.inflate(0.01);
 
-        Info<< "Scaled global mesh bounding box: " << globalBB_ << endl;
+        Info<< "Scaled global mesh bounding box: " << nl
+            << globalBB_.min() << nl
+            << globalBB_.max() << endl;
     }
 
 
@@ -533,6 +814,51 @@ laserHeatSource::laserHeatSource
             << "'elec_resistivity' is deprecated: resistivity is now "
             << "passed in from the solver as a field"
             << exit(FatalError);
+    }
+
+    // Initialise voxel data
+    const word rayTracingMode
+    (
+        lookupOrDefault<word>("rayTracingMode", "legacy")
+    );
+
+    Info<< "rayTracingMode = " << rayTracingMode << endl;
+    if (rayTracingMode == "voxel")
+    {
+        cellSearchMode_ = CSM_VOXEL;
+    }
+    else if (rayTracingMode == "voxelWithFallback")
+    {
+        cellSearchMode_ = CSM_VOXEL_WITH_FALLBACK;
+    }
+    else if (rayTracingMode == "legacy")
+    {
+        cellSearchMode_ = CSM_LEGACY;
+    }
+    else
+    {
+        FatalErrorInFunction
+            << "Unknown rayTracingMode = " << rayTracingMode << nl
+            << "Options are voxel, voxelWithFallback and legacy"
+            << exit(FatalError);
+    }
+
+    if (cellSearchMode_ != CSM_LEGACY)
+    {
+        // Nx, Ny, Nz: be smarter for 2-D vs 3-D
+        const label maxLocalSearch = 100; // Lookup
+        const label Nx =
+            lookupOrDefault<label>
+            (
+                "voxelResolutionX",
+                Foam::cbrt
+                (
+                    scalar(returnReduce(mesh.nCells(), sumOp<label>()))
+                ) + 1
+            );
+        const label Ny = lookupOrDefault<label>("voxelResolutionY", Nx);
+        const label Nz = lookupOrDefault<label>("voxelResolutionZ", Nx);
+        initialiseVoxelData(globalBB_, Nx, Ny, Nz, maxLocalSearch);
     }
 }
 
@@ -825,7 +1151,7 @@ void laserHeatSource::updateDeposition
             )
             {
                 const label myCellID =
-                    findLocalCell
+                    findCellForRay
                     (
                         curRay.position_,
                         curRay.currentCell_,
@@ -849,7 +1175,7 @@ void laserHeatSource::updateDeposition
 
             // Find the cell the ray is currently in
             label myCellID =
-                findLocalCell
+                findCellForRay
                 (
                     curRay.position_,
                     curRay.currentCell_,
@@ -871,7 +1197,7 @@ void laserHeatSource::updateDeposition
 
                 // Find the new cell
                 myCellID =
-                    findLocalCell
+                    findCellForRay
                     (
                         curRay.position_,
                         curRay.currentCell_,
@@ -1123,6 +1449,8 @@ void laserHeatSource::updateDeposition
                 rayPaths_[laserID][rayID] = curRay.path_;
             }
         }
+        
+        
     }
 
     deposition_.correctBoundaryConditions();
