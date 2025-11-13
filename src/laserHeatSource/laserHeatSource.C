@@ -161,6 +161,7 @@ void laserHeatSource::createInitialRays
     }
     else // One ray for each boundary patch face within the laser radius
     {
+        
         const vectorField& CI = mesh.C();
 
         // Normalize laserDir

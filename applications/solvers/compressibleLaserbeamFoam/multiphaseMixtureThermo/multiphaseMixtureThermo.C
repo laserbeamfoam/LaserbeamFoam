@@ -1762,16 +1762,16 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
         scalar liquidMass = 0.0;
         scalar vaporMass = 0.0;
         
-        volScalarField phaseMassLiq = phase * phase.thermo().rho();
-        liquidMass = gSum(phaseMassLiq.primitiveField() * mesh_.V().field());
+        const volScalarField phaseMassLiq(phase*phase.thermo().rho());
+        liquidMass = gSum(phaseMassLiq.primitiveField()*mesh_.V().field());
         
         for (const phaseModel& phase2 : phases_)
         {
             if (phase2.name() == vaporName)
             {
                 hasVaporPair = true;
-                volScalarField phaseMassVap = phase2 * phase2.thermo().rho();
-                vaporMass = gSum(phaseMassVap.primitiveField() * mesh_.V().field());
+                const volScalarField phaseMassVap(phase2*phase2.thermo().rho());
+                vaporMass = gSum(phaseMassVap.primitiveField()*mesh_.V().field());
                 processedPhases.insert(phase2.name(), true);
                 break;
             }
