@@ -425,9 +425,9 @@ laserHeatSource::laserHeatSource
             continue;
         }
 
-        const scalar localMax = patchField.size() ? max(patchField) : -1e+300;
+        const label localMax = patchField.size() ? max(patchField) : -1e+300;
 
-        if (localMax > 0.9)
+        if (localMax > 0)
         {
             localLaserPatchName = patchName;
         }
