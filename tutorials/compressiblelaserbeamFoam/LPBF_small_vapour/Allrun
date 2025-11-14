@@ -15,6 +15,6 @@ else
 fi
 
 runApplication blockMesh
-runApplication setSolidFraction -subDivisions 1
+runApplication setSolidFraction -compressible -alpha.phase1 "alpha.metal1" -alpha.phase2 "alpha.air"
 runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
-runApplication laserbeamFoam
+runApplication compressibleLaserbeamFoam
