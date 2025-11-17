@@ -1208,11 +1208,18 @@ void laserHeatSource::updateDeposition
                 rayQ_[myCellID] += curRay.power_;
                 rayNumber_[myCellID] = curRay.globalRayIndex_;
 
-                if
+                if (curRay.power_ < SMALL)
+                {
+                    // Update the ray's path
+                    curRay.path_.append(curRay.position_);
+
+                    // End of life for the ray
+                    break;
+                }
+                else if
                 (
                     mag(nFilteredI[myCellID]) > 0.5
                  && alphaFilteredI[myCellID] >= dep_cutoff
-                 && curRay.power_ > SMALL
                 )
                 {
                     // Interface detected
@@ -1263,6 +1270,12 @@ void laserHeatSource::updateDeposition
                     {
                         // Degenerate ray; stop it
                         curRay.power_ = 0.0;
+
+                        // Update the ray's path
+                        curRay.path_.append(curRay.position_);
+
+                        // End of life for the ray
+                        break;
                     }
                     else
                     {
@@ -1405,11 +1418,7 @@ void laserHeatSource::updateDeposition
                         curRay.direction_ = dRef;
                     }
                 }
-                else if
-                (
-                    alphaFilteredI[myCellID] >= dep_cutoff
-                 && curRay.power_ > SMALL
-                )
+                else if (alphaFilteredI[myCellID] >= dep_cutoff)
                 {
                     // Bulk metal
                     // Assume fully absorbing, no further propagation
