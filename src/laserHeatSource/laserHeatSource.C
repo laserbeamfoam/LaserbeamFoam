@@ -23,7 +23,6 @@ License
 #include "findLocalCell.H"
 #include "SortableList.H"
 #include "globalIndex.H"
-#include "processorFvPatch.H"  
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -53,16 +52,44 @@ void laserHeatSource::createInitialRays
     const scalar beam_radius
 ) const
 {
+    Info<< "Creating initial rays" << endl;
+
     DynamicList<vector> initial_points;
     DynamicList<scalar> point_assoc_power;
 
     const scalarField& yDimI = yDim_;
     const scalar pi = constant::mathematical::pi;
 
+    // Normalise laser indicdent direction vector
+    const scalar magVIncident = mag(V_incident);
+    if (magVIncident < SMALL)
+    {
+        FatalErrorInFunction
+            << "V_incident must have a non-zero magnitude!" << exit(FatalError);
+    }
+    const vector V_i(V_incident/magVIncident);
+
+    // Generate two orthonormal vectors in the plane, where the plane normal
+    // points in the laser direction
+    const vector a
+    (
+        (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0)
+    );
+
+    // First orthonormal vector
+    vector u = V_i ^ a;
+    u /= mag(u);
+
+    // Second orthonormal vector
+    vector v = V_i ^ u;
+    v /= mag(v);
+
+    // Create the initial ray locations using either a polar or Cartesian
+    // approach
     if (radialPolarHeatSource())
     {
-        Info<< "nRadial: " << nRadial << nl
-            << "nAngular: "<< nAngular <<endl;
+        Info<< "    nRadial: " << nRadial << nl
+            << "    nAngular: "<< nAngular <<endl;
 
         const scalar rMax = 1.5*beam_radius;
         const label totalSamples = nRadial * nAngular;
@@ -79,28 +106,14 @@ void laserHeatSource::createInitialRays
         {
             // Use sqrt spacing for better Gaussian sampling
             const scalar fraction = scalar(iR + 0.5)/nRadial;
-            radialPoints[iR] = rMax*pow(fraction,1.0);
+            radialPoints[iR] = rMax*fraction;
         }
 
-        const point P0
-        (
-            currentLaserPosition.x(),
-            currentLaserPosition.y(),
-            currentLaserPosition.z()
-        );
+        const point& P0 = currentLaserPosition;
 
-        // Normalise vector
-        const vector V_i(V_incident/(mag(V_incident) + SMALL));
-
-        // Generate two orthonormal vectors in the plane
-        const vector a
-        (
-            (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0)
-        );
-        vector u = (V_i ^ a);
-        u = u/mag(u);
-        const vector v = (V_i ^ u);
-        const vector perturbation (1e-10,1e-10,1e-10);
+        // Add a small (relative) perturbation to each ray point to avoid them
+        // landing exactly on cell faces
+        const vector perturbation(SMALL*globalBB_.mag()*vector::one);
 
         for (label localIdx = 0; localIdx < localSamples; ++localIdx)
         {
@@ -135,26 +148,18 @@ void laserHeatSource::createInitialRays
             // Convert to Cartesian coordinates in local plane system
             const scalar x_local = r*cos(theta);
             const scalar y_local = r*sin(theta);
-
             const vector globalPos = P0 + x_local*u + y_local*v;
 
+            // Add the initial ray coordinate
             initial_points.append(globalPos + perturbation);
 
+            // Add the initial ray power
             point_assoc_power.append
             (
-                area
-               *(
-                    Radius_Flavour*Q_cond
-                   /(
-                        Foam::pow(beam_radius, 2.0)*pi
-                    )
-                )
+                area*Radius_Flavour*Q_cond/(sqr(beam_radius)*pi)
                *Foam::exp
                 (
-                  - Radius_Flavour
-                   *(
-                        Foam::pow(r, 2.0)/Foam::pow(beam_radius, 2.0)
-                    )
+                  - Radius_Flavour*(sqr(r)/sqr(beam_radius))
                 )
             );
         }
@@ -163,81 +168,39 @@ void laserHeatSource::createInitialRays
     {
         const vectorField& CI = mesh.C();
 
-        // Normalize laserDir
-        vector n = laserDir_;
-        scalar nMag = mag(n);
-        if (nMag < VSMALL)
-        {
-            FatalErrorInFunction
-                << "Laser direction has zero magnitude: " << n
-                << exit(FatalError);
-        }
-        n /= nMag;
-
-        // finding a reference vector not aligned with n 
-        vector ref(0,0,0);
-        scalar ax = mag(n.x());
-        scalar ay = mag(n.y());
-        scalar az = mag(n.z());
-
-        if (ax <= ay && ax <= az)
-        {
-            ref = vector(1, 0, 0);
-        }
-        else if (ay <= ax && ay <= az)
-        {
-            ref = vector(0, 1, 0);
-        }
-        else
-        {
-            ref = vector(0, 0, 1);
-        }
-
-        // building orthonormal basis 
-        vector u = n ^ ref;
-        scalar uMag = mag(u);
-
-        if (uMag < VSMALL)
-        {
-            FatalErrorInFunction
-                << "Cannot construct orthogonal basis for laserDir " << nl
-                << " (cross product nearly zero)" << exit(FatalError);
-        }
-
-        u /= uMag;
-        vector v = n ^ u;
-
         forAll(CI, celli)
         {
             const point& cellPt = CI[celli];
 
-            vector d = cellPt - currentLaserPosition;
-            scalar r = sqrt(sqr(d & u) + sqr(d & v));
+            const vector d = cellPt - currentLaserPosition;
+            const scalar r = sqrt(sqr(d & u) + sqr(d & v));
 
             if (r <= 1.5*beam_radius && laserBoundary_[celli] > SMALL)
-            {       
+            {
                 for (label j = 0; j < N_sub_divisions; j++)
                 {
                     for (label k = 0; k < N_sub_divisions; k++)
                     {
-                        scalar du =
+                        const scalar du =
                             -yDimI[celli]/2.0
-                          + (yDimI[celli]/(N_sub_divisions+1))*(j+1);
-                        scalar dv =
+                          + (yDimI[celli]/(N_sub_divisions+1))*(j + 1);
+                        const scalar dv =
                             -yDimI[celli]/2.0
-                          + (yDimI[celli]/(N_sub_divisions+1))*(k+1);
+                          + (yDimI[celli]/(N_sub_divisions+1))*(k + 1);
 
-                        point p_1 = cellPt + du*u + dv*v;
+                        const point p_1 = cellPt + du*u + dv*v;
+
+                        // Add the initial ray coordinate
                         initial_points.append(p_1);
 
-                        scalar power =
+                        // Add the initial ray power
+                        const scalar power =
                             sqr(yDimI[celli]/N_sub_divisions)
-                           *((Radius_Flavour*Q_cond)/(pow(beam_radius,2.0)*pi))
+                           *(Radius_Flavour*Q_cond/(sqr(beam_radius)*pi))
                            *exp
                             (
-                                -Radius_Flavour*pow(r,2.0)/pow(beam_radius,2.0)
+                              - Radius_Flavour*sqr(r)/sqr(beam_radius)
                             );
-
                         point_assoc_power.append(power);
                     }
                 }
@@ -404,69 +367,10 @@ laserHeatSource::laserHeatSource
     timeVsLaserPower_(0),
     rayPaths_(0),
     vtkTimes_(),
-    globalBB_(mesh.bounds()),
-    laserDir_(vector::zero)
+    globalBB_(mesh.bounds())
 {
-    // Determine the laser direction
-    vector localDir(0,0,0);
-    word laserPatchName = "none";
-    word localLaserPatchName = "none";
-
-    // Determine local max per patch
-    forAll(laserBoundary_.boundaryField(), patchi)
-    {
-        const fvPatchScalarField& patchField =
-            laserBoundary_.boundaryField()[patchi];
-        const word& patchName = mesh.boundary()[patchi].name();
-
-        if (isA<processorFvPatch>(patchField.patch()))
-        {
-            continue;
-        }
-
-        const scalar localMax = patchField.size() ? max(patchField) : -1e+300;
-
-        if (localMax > 0.9)
-        {
-            localLaserPatchName = patchName;
-        }
-    }
-
-    // --- Reduce to find a global patch (any rank that has it) ---
-    laserPatchName = localLaserPatchName;
-    reduce(laserPatchName, maxOp<word>());
-
-    // --- Get patch ID safely ---
-    const label laserPatchID = mesh.boundaryMesh().findPatchID(laserPatchName);
-    if (laserPatchID == -1)
-    {
-        FatalErrorInFunction
-            << "Cannot find patch " << laserPatchName << exit(FatalError);
-    }
-
-    // --- Compute local direction safely ---
-    if (mesh.boundary()[laserPatchID].size() > 0)
-    {
-        const fvPatch& laserPatch = mesh.boundary()[laserPatchID];
-        localDir = sum(laserPatch.nf())/scalar(laserPatch.size());
-    }
-
-    // --- MPI sum across all ranks ---
-    reduce(localDir, sumOp<vector>());
-
-    // --- Normalize ---
-    if (mag(localDir) > SMALL)
-    {
-        laserDir_ = localDir / mag(localDir);
-    }
-    else
-    {
-        FatalErrorInFunction
-            << "Problems with laser direction magnitude" << exit(FatalError);
-    }
-
-    Info<< "Global laser direction = " << laserDir_ << nl
-        << "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
+    Info<< typeName
+        << "    radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
 
     // Calculate global bounding box
     {

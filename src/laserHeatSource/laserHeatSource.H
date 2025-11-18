@@ -112,9 +112,6 @@ class laserHeatSource
         //- Global bounding box of the mesh
         boundBox globalBB_;
 
-        //- Laser direction
-        vector laserDir_;
-
 
     // Private Member Functions
 
