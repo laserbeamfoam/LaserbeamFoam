@@ -30,7 +30,7 @@ timeVsLaserPower
 }
 
 // Laser angle (normalised in the code)
-V_incident (0 1 0.25);
+V_incident (0 -1 0.25);
 
 // Laser radius
 laserRadius 0.00025;
