@@ -84,7 +84,7 @@
         // Get references to the patch fields
         scalarField& alpha_filteredPatch = alpha_filteredBf[patchi];
         const scalarField& alpha1Patch = alpha1Bf[patchi];
-        
+
         // Apply the same logic to each face in the patch
         forAll(alpha_filteredPatch, facei)
         {
@@ -106,20 +106,19 @@
     alpha_filtered.correctBoundaryConditions();
 
     alpha_smoothed = fvc::average(alpha1);
-    alpha_smoothed.correctBoundaryConditions();
 
     LatentHeat =
         alpha_filtered*LatentHeat1 + (1.0 - alpha_filtered)*LatentHeat2;
-    LatentHeat.correctBoundaryConditions();  // ADDED
 
     // gradepsilon1 = fvc::grad(epsilon1);
     // gradepsilon1.correctBoundaryConditions();
 
-    n_filtered = fvc::grad(alpha_filtered)/((mag(fvc::grad(alpha_filtered)) + deltaN));
-    n_filtered.correctBoundaryConditions();  // ADDED - IMPORTANT!
+    {
+        const volVectorField gradAlphaFiltered(fvc::grad(alpha_filtered));
+        n_filtered = gradAlphaFiltered/(mag(gradAlphaFiltered) + deltaN);
+    }
 
     e1temp = fvc::average(epsilon1);
-    e1temp.correctBoundaryConditions();
 
     const scalarField& e1tempI = e1temp;
     const scalarField& epsilon1I = epsilon1;
@@ -165,6 +164,6 @@
     }
     else{
         gh = (g & mesh.C());
-        ghf = (g & mesh.Cf());  
+        ghf = (g & mesh.Cf());
     }
 }
