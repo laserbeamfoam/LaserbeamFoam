@@ -68,6 +68,7 @@ void laserHeatSource::createInitialRays
             << "V_incident must have a non-zero magnitude!" << exit(FatalError);
     }
     const vector V_i(V_incident/magVIncident);
+    Info<< "    laser incident direction = " << V_i << endl;
 
     // Generate two orthonormal vectors in the plane, where the plane normal
     // points in the laser direction
@@ -83,6 +84,9 @@ void laserHeatSource::createInitialRays
     // Second orthonormal vector
     vector v = V_i ^ u;
     v /= mag(v);
+
+    Info<< "    first orthonormal direction = " << u << nl
+        << "    second orthonormal direction = " << v << endl;
 
     // Create the initial ray locations using either a polar or Cartesian
     // approach
@@ -232,6 +236,27 @@ void laserHeatSource::createInitialRays
         )
     );
 
+    if (debug)
+    {
+        Info<< "    Ray coordinates = " << rayCoords << endl;
+    }
+
+    // Check that at least one ray starts inside the global bounding box
+    label nRaysInBB = 0;
+    forAll(rayCoords, rayI)
+    {
+        if (globalBB_.contains(rayCoords[rayI]))
+        {
+            nRaysInBB++;
+        }
+    }
+    if (nRaysInBB == 0)
+    {
+        FatalErrorInFunction
+            << "None of the starting rays are inside the global bounding box!"
+            << "Please check the position of the laser" << exit(FatalError);
+    }
+
     scalarField rayPowers
     (
         ListListOps::combine<Field<scalar> >
@@ -240,6 +265,11 @@ void laserHeatSource::createInitialRays
             accessOp<Field<scalar> >()
         )
     );
+
+    if (debug)
+    {
+        Info<< "    Ray powers = " << rayPowers << endl;
+    }
 
     // Create a list of compactRay objects
     rays.setSize(rayCoords.size());
@@ -369,7 +399,7 @@ laserHeatSource::laserHeatSource
     vtkTimes_(),
     globalBB_(mesh.bounds())
 {
-    Info<< typeName
+    Info<< typeName << nl
         << "    radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
 
     // Calculate global bounding box
@@ -388,7 +418,9 @@ laserHeatSource::laserHeatSource
         // exactly on the boundary
         globalBB_.inflate(0.01);
 
-        Info<< "Scaled global mesh bounding box: " << globalBB_ << endl;
+        Info<< "    Scaled global mesh bounding box: "
+            << globalBB_.min() << nl
+            << globalBB_.max() << endl;
     }
 
 
