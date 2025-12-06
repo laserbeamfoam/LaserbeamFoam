@@ -52,6 +52,8 @@ void laserHeatSource::createInitialRays
     const scalar beam_radius
 ) const
 {
+    Info<< "Creating initial rays" << endl;
+
     DynamicList<vector> initial_points;
     DynamicList<scalar> point_assoc_power;
 
@@ -60,16 +62,17 @@ void laserHeatSource::createInitialRays
 
     if (radialPolarHeatSource())
     {
-        Info<< "nRadial: " << nRadial << nl
-            << "nAngular: "<< nAngular <<endl;
+        Info<< "    nRadial: " << nRadial << nl
+            << "    nAngular: "<< nAngular <<endl;
 
         const scalar rMax = 1.5*beam_radius;
         const label totalSamples = nRadial * nAngular;
         const label samplesPerProc = totalSamples/Pstream::nProcs();
         const label remainder = totalSamples % Pstream::nProcs();
         const label myRank = Pstream::myProcNo();
-        const label startIdx = myRank * samplesPerProc + min(myRank, remainder);
-        const label endIdx = startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
+        const label startIdx = myRank*samplesPerProc + min(myRank, remainder);
+        const label endIdx =
+            startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
         const label localSamples = endIdx - startIdx;
 
         List<scalar> radialPoints(nRadial);
@@ -77,20 +80,21 @@ void laserHeatSource::createInitialRays
         {
             // Use sqrt spacing for better Gaussian sampling
             const scalar fraction = scalar(iR + 0.5)/nRadial;
-            radialPoints[iR] = rMax * pow(fraction,1.0);
+            radialPoints[iR] = rMax*pow(fraction, 1.0);
         }
 
-        const point P0 (currentLaserPosition.x(),currentLaserPosition.y(),currentLaserPosition.z());
+        const point& P0 = currentLaserPosition;
 
         // Normalise vector
         const vector V_i(V_incident/(mag(V_incident) + SMALL));
 
-        // // Generate two orthonormal vectors in the plane
-        const vector a = (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
-        vector u = (V_i ^ a);
+        // Generate two orthonormal vectors in the plane
+        const vector a =
+            (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
+        vector u = V_i ^ a;
         u = u/mag(u);
-        const vector v = (V_i ^ u);
-        const vector perturbation (1e-10,1e-10,1e-10);
+        const vector v = V_i ^ u;
+        const vector perturbation(1e-10, 1e-10, 1e-10);
 
         for (label localIdx = 0; localIdx < localSamples; ++localIdx)
         {
@@ -227,7 +231,7 @@ void laserHeatSource::createInitialRays
     Pstream::broadcastList(gatheredData);
     Pstream::broadcastList(gatheredData_powers);
 
-    // List of initial points
+    // Sync the ray initial coordinates
     pointField rayCoords
     (
         ListListOps::combine<Field<vector> >
@@ -237,6 +241,28 @@ void laserHeatSource::createInitialRays
         )
     );
 
+    if (debug)
+    {
+        Info<< "    Ray coordinates = " << rayCoords << endl;
+    }
+
+    // Check that at least one ray starts inside the global bounding box
+    label nRaysInBB = 0;
+    forAll(rayCoords, rayI)
+    {
+        if (globalBB_.contains(rayCoords[rayI]))
+        {
+            nRaysInBB++;
+        }
+    }
+    if (nRaysInBB == 0)
+    {
+        FatalErrorInFunction
+            << "None of the starting rays are inside the global bounding box!"
+            << "Please check the position of the laser" << exit(FatalError);
+    }
+
+    // Sync the ray powers
     scalarField rayPowers
     (
         ListListOps::combine<Field<scalar> >
@@ -245,6 +271,11 @@ void laserHeatSource::createInitialRays
             accessOp<Field<scalar> >()
         )
     );
+
+    if (debug)
+    {
+        Info<< "    Ray powers = " << rayPowers << endl;
+    }
 
     // Create a list of compactRay objects
     rays.setSize(rayCoords.size());
@@ -672,8 +703,8 @@ laserHeatSource::laserHeatSource
         globalBB_.inflate(0.01);
 
         Info<< "Scaled global mesh bounding box: " << nl
-            << globalBB_.min() << nl
-            << globalBB_.max() << endl;
+            << "    " << globalBB_.min() << nl
+            << "    " << globalBB_.max() << endl;
     }
 
 
@@ -1280,7 +1311,7 @@ void laserHeatSource::updateDeposition
                     else
                     {
                         d /= dMag;              // unit propagation direction
-                        vector kin = -d;        // direction of incoming wave
+                        const vector kin = -d;  // direction of incoming wave
 
                         scalar cosTheta = kin & n;
 
@@ -1382,7 +1413,7 @@ void laserHeatSource::updateDeposition
                         R_p =
                             Foam::max(Foam::min(R_p, scalar(1.0)), scalar(0.0));
 
-                        scalar R = 0.5*(R_s + R_p);
+                        const scalar R = 0.5*(R_s + R_p);
                         scalar absorptivity = 1.0 - R;
 
                         absorptivity =
