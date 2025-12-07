@@ -17,8 +17,8 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-// laserHeatSourceKernels.cu
 #include <cuda_runtime.h>
+#include <math.h>
 
 // This must match the layout of DeviceRay in laserHeatSourceGpu.C
 struct DeviceRay
@@ -31,30 +31,92 @@ struct DeviceRay
     double  step;
 };
 
-// A tiny no-op kernel: just proves we can launch something.
-__global__ void noopRayKernel(DeviceRay* rays, int nRays)
+
+// GPU ray kernal
+__global__ void gpuRayStepKernel
+(
+    DeviceRay* rays,
+    int nRays,
+    const double* VI,
+    int nCells,
+    double3 bbMin,
+    double3 bbMax,
+    double rayPowerAbsTol
+)
 {
     const int i = blockIdx.x*blockDim.x + threadIdx.x;
     if (i >= nRays) return;
 
-    const double step = rays[i].step;
+    DeviceRay& r = rays[i];
 
-    rays[i].pos.x += step * rays[i].dir.x;
-    rays[i].pos.y += step * rays[i].dir.y;
-    rays[i].pos.z += step * rays[i].dir.z;
+    // Cull by power first
+    if (r.power <= rayPowerAbsTol)
+    {
+        r.power = 0.0;
+        return;
+    }
+
+    const int c = r.currentCell;
+    if (c < 0 || c >= nCells) return;
+
+    const double V = VI[c];
+    if (V <= 0.0) return;
+
+    const double pi = 3.14159265358979323846;
+    const double h  = cbrt(V);
+    const double iterator_distance = (0.5/pi)*h;
+
+    // Step along the ray direction
+    r.pos.x += iterator_distance * r.dir.x;
+    r.pos.y += iterator_distance * r.dir.y;
+    r.pos.z += iterator_distance * r.dir.z;
+
+    // Cull if we’ve left the global bounding box
+    if
+    (
+        r.pos.x < bbMin.x || r.pos.x > bbMax.x ||
+        r.pos.y < bbMin.y || r.pos.y > bbMax.y ||
+        r.pos.z < bbMin.z || r.pos.z > bbMax.z
+    )
+    {
+        r.power = 0.0;
+    }
 }
+
 
 // C-linkage wrapper we can call from C++ code
 extern "C"
-void launchNoopRayKernel(DeviceRay* dRays, int nRays)
+void launchGpuRayStepKernel
+(
+    DeviceRay* dRays,
+    int nRays,
+    const double* dVI,
+    int nCells,
+    double bbMinX, double bbMinY, double bbMinZ,
+    double bbMaxX, double bbMaxY, double bbMaxZ,
+    double rayPowerAbsTol
+)
 {
-    if (!dRays || nRays <= 0) return;
+    if (!dRays || nRays <= 0 || !dVI || nCells <= 0) return;
 
     const int blockSize = 128;
     const int gridSize  = (nRays + blockSize - 1)/blockSize;
 
-    noopRayKernel<<<gridSize, blockSize>>>(dRays, nRays);
+    double3 bbMin = make_double3(bbMinX, bbMinY, bbMinZ);
+    double3 bbMax = make_double3(bbMaxX, bbMaxY, bbMaxZ);
+
+    gpuRayStepKernel<<<gridSize, blockSize>>>
+    (
+        dRays,
+        nRays,
+        dVI,
+        nCells,
+        bbMin,
+        bbMax,
+        rayPowerAbsTol
+    );
     cudaDeviceSynchronize();
 }
+
 
 // ************************************************************************* //

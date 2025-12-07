@@ -47,7 +47,16 @@ struct DeviceRay
 
 // C-linkage function implemented in liblaserHeatSourceCuda.so
 extern "C"
-void launchNoopRayKernel(DeviceRay* dRays, int nRays);
+void launchGpuRayStepKernel
+(
+    DeviceRay* dRays,
+    int nRays,
+    const double* dVI,
+    int nCells,
+    double bbMinX, double bbMinY, double bbMinZ,
+    double bbMaxX, double bbMaxY, double bbMaxZ,
+    double rayPowerAbsTol
+);
 
 #endif
 
@@ -122,15 +131,10 @@ void Foam::laserHeatSource::propagateRaysGPU
     const label laserID
 )
 {
-#ifdef FOAM_USE_CUDA
-    Info<< "propagateRaysGPU: stub implementation -> using CPU propagation."
-        << endl;
-#else
+#ifndef FOAM_USE_CUDA
     Info<< "propagateRaysGPU: compiled without CUDA support -> "
         << "using CPU propagation." << endl;
-#endif
 
-    // For now just forward to the CPU implementation
     propagateRaysCPU
     (
         remainingGlobalRays,
@@ -147,6 +151,317 @@ void Foam::laserHeatSource::propagateRaysGPU
         maxLocalSearch,
         laserID
     );
+    return;
+#else
+    Info<< "propagateRaysGPU: using GPU stepping for iterator distance, "
+        << "CPU for cell search and deposition." << endl;
+
+    const volScalarField& alphaFilteredI = alphaFiltered;
+    const volVectorField& nFilteredI     = nFiltered;
+
+    // This is a GPU-aware variant of propagateRaysCPU:
+    //  - outer while and deposition logic are the same
+    //  - the actual "step along ray direction" is done on the GPU.
+
+    while (remainingGlobalRays.size() > 0)
+    {
+        // Find all rays on the current processor
+        DynamicList<compactRay> localRays;
+
+        forAll(remainingGlobalRays, rayI)
+        {
+            compactRay& curRay = remainingGlobalRays[rayI];
+
+            if
+            (
+                globalBB.contains(curRay.position_)
+             && curRay.power_ > rayPowerAbsTol
+            )
+            {
+                const label myCellID =
+                    findCellForRay
+                    (
+                        curRay.position_,
+                        curRay.currentCell_,
+                        mesh,
+                        maxLocalSearch,
+                        debug
+                    );
+
+                if (myCellID != -1)
+                {
+                    // Initialise current cell if needed
+                    curRay.currentCell_ = myCellID;
+                    localRays.append(curRay);
+                }
+            }
+        }
+
+        if (localRays.size() == 0)
+        {
+            // No rays left on this processor with sufficient power
+            remainingGlobalRays.clear();
+            Pstream::combineGather(remainingGlobalRays, combineRayLists());
+            Pstream::broadcast(remainingGlobalRays);
+            break;
+        }
+
+        // Perform one iterator-distance step + culling on the GPU
+        applyGpuRayTransform(localRays, VI, globalBB, rayPowerAbsTol);
+
+        // Now do the "physics" part on the CPU, starting from the new positions
+        forAll(localRays, rayI)
+        {
+            compactRay& curRay = localRays[rayI];
+
+            // Find the cell the ray is now in (after GPU step)
+            label myCellID =
+                findCellForRay
+                (
+                    curRay.position_,
+                    curRay.currentCell_,
+                    mesh,
+                    maxLocalSearch,
+                    debug
+                );
+
+            while (myCellID != -1)
+            {
+                // Update the ray's cellID
+                curRay.currentCell_ = myCellID;
+
+                // Update visualisation fields
+                rayQ_[myCellID]      += curRay.power_;
+                rayNumber_[myCellID]  = curRay.globalRayIndex_;
+
+                if (curRay.power_ < SMALL)
+                {
+                    curRay.path_.append(curRay.position_);
+                    break;
+                }
+                else if
+                (
+                    mag(nFilteredI[myCellID]) > 0.5
+                 && alphaFilteredI[myCellID] >= dep_cutoff
+                )
+                {
+                    // --- Interface: deposit + reflect (same as CPU) ---
+
+                    const scalar damping_frequency =
+                        plasma_frequency*plasma_frequency
+                       *constant::electromagnetic::epsilon0.value()
+                       *resistivity_in[myCellID];
+
+                    const scalar e_r =
+                        1.0
+                      - (
+                            sqr(plasma_frequency)
+                           /(sqr(angular_frequency) + sqr(damping_frequency))
+                        );
+
+                    const scalar e_i =
+                        (damping_frequency/angular_frequency)
+                       *(
+                            sqr(plasma_frequency)
+                           /(sqr(angular_frequency) + sqr(damping_frequency))
+                        );
+
+                    const scalar ref_index =
+                        Foam::sqrt
+                        (
+                            (Foam::sqrt(e_r*e_r + e_i*e_i) + e_r)/2.0
+                        );
+
+                    const scalar ext_coefficient =
+                        Foam::sqrt
+                        (
+                            (Foam::sqrt(e_r*e_r + e_i*e_i) - e_r)/2.0
+                        );
+
+                    vector n = nFilteredI[myCellID];
+                    n /= mag(n);
+
+                    vector d   = curRay.direction_;
+                    const scalar dMag = mag(d);
+
+                    if (dMag <= SMALL)
+                    {
+                        curRay.power_ = 0.0;
+                        curRay.path_.append(curRay.position_);
+                        break;
+                    }
+
+                    d /= dMag;
+                    const vector kin = -d;
+
+                    scalar cosTheta = kin & n;
+
+                    if (cosTheta < 0.0)
+                    {
+                        n        = -n;
+                        cosTheta = -cosTheta;
+                    }
+
+                    cosTheta =
+                        Foam::max
+                        (
+                            Foam::min(cosTheta, scalar(1.0)),
+                            scalar(0.0)
+                        );
+
+                    const scalar theta_in = std::acos(cosTheta);
+                    const scalar sinTheta = Foam::sin(theta_in);
+
+                    const scalar alpha_laser =
+                        Foam::sqrt
+                        (
+                            Foam::sqrt
+                            (
+                                sqr
+                                (
+                                    sqr(ref_index)
+                                  - sqr(ext_coefficient)
+                                  - sqr(sinTheta)
+                                )
+                              + 4.0*sqr(ref_index)*sqr(ext_coefficient)
+                            )
+                          + sqr(ref_index)
+                          - sqr(ext_coefficient)
+                          - sqr(sinTheta)/2.0
+                        );
+
+                    const scalar beta_laser =
+                        Foam::sqrt
+                        (
+                            (
+                                Foam::sqrt
+                                (
+                                    sqr
+                                    (
+                                        sqr(ref_index)
+                                      - sqr(ext_coefficient)
+                                      - sqr(sinTheta)
+                                    )
+                                  + 4.0*sqr(ref_index)*sqr(ext_coefficient)
+                                )
+                              - sqr(ref_index)
+                              + sqr(ext_coefficient)
+                              + sqr(sinTheta)
+                            )/2.0
+                        );
+
+                    const scalar cosTheta_in = Foam::cos(theta_in);
+
+                    scalar R_s =
+                        (
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          - 2.0*alpha_laser*cosTheta_in
+                          + sqr(cosTheta_in)
+                        )
+                       /(
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          + 2.0*alpha_laser*cosTheta_in
+                          + sqr(cosTheta_in)
+                        );
+
+                    scalar R_p =
+                        R_s
+                       *(
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          - 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
+                          + sqr(sinTheta)*sqr(Foam::tan(theta_in))
+                        )
+                       /(
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          + 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
+                          + sqr(sinTheta)*sqr(Foam::tan(theta_in))
+                        );
+
+                    R_s =
+                        Foam::max
+                        (
+                            Foam::min(R_s, scalar(1.0)), scalar(0.0)
+                        );
+                    R_p =
+                        Foam::max
+                        (
+                            Foam::min(R_p, scalar(1.0)), scalar(0.0)
+                        );
+
+                    const scalar R      = 0.5*(R_s + R_p);
+                    scalar absorptivity = 1.0 - R;
+                    absorptivity =
+                        Foam::max
+                        (
+                            Foam::min(absorptivity, scalar(1.0)),
+                            scalar(0.0)
+                        );
+
+                    if (debug)
+                    {
+                        Info<< "ray " << curRay.globalRayIndex_
+                            << ", cell " << myCellID
+                            << ", theta_in = " << theta_in
+                            << ", R_s = " << R_s
+                            << ", R_p = " << R_p
+                            << ", absorptivity = " << absorptivity << endl;
+                    }
+
+                    deposition_[myCellID] +=
+                        absorptivity*curRay.power_/VI[myCellID];
+
+                    curRay.power_ *= (1.0 - absorptivity);
+
+                    const vector dRef =
+                        curRay.direction_ - 2.0*(curRay.direction_ & n)*n;
+
+                    curRay.direction_ = dRef;
+                }
+                else if (alphaFilteredI[myCellID] >= dep_cutoff)
+                {
+                    if (debug)
+                    {
+                        Info<< "Bulk absorption at cell " << myCellID
+                            << ", alpha = " << alphaFilteredI[myCellID]
+                            << ", |n| = " << mag(nFilteredI[myCellID])
+                            << ", power = " << curRay.power_ << endl;
+                    }
+
+                    deposition_[myCellID] += curRay.power_/VI[myCellID];
+                    curRay.power_ = 0.0;
+                    curRay.path_.append(curRay.position_);
+                    break;
+                }
+
+                curRay.path_.append(curRay.position_);
+
+                // After handling this cell, we break the inner while so that
+                // the *next* iterator-distance step (and position update) is
+                // again handled on the GPU in the next outer iteration.
+                break;
+            }
+        }
+
+        // Sync remaining rays globally
+        remainingGlobalRays = localRays;
+        Pstream::combineGather(remainingGlobalRays, combineRayLists());
+        Pstream::broadcast(remainingGlobalRays);
+
+        if (Pstream::master())
+        {
+            forAll(remainingGlobalRays, rI)
+            {
+                const compactRay& curRay = remainingGlobalRays[rI];
+                const label rayID        = curRay.globalRayIndex_;
+                rayPaths_[laserID][rayID] = curRay.path_;
+            }
+        }
+    }
+#endif
 }
 
 
@@ -262,170 +577,6 @@ void Foam::laserHeatSource::updateDepositionGPU
 
     Info<< "    Number of rays: "<< remainingGlobalRays.size() << endl;
 
-    // Compute a conservative step length (min cell dimension)
-    scalar minCellH = GREAT;
-    for (label cellI = 0; cellI < VI.size(); ++cellI)
-    {
-        scalar h = cbrt(VI[cellI]);
-        minCellH = min(minCellH, h);
-    }
-
-    // Take a fraction of the min cell size
-    scalar stepSize = 0.2 * minCellH;
-
-    Info<< "laserHeatSource::updateDepositionGPU: stepSize = "
-        << stepSize << endl;
-
-    // ---------------------------------------------------------------------
-    // GPU STEP (stub): copy the *actual* physical rays to/from the device
-    // ---------------------------------------------------------------------
-    {
-        const label nRays = remainingGlobalRays.size();
-
-        if (nRays > 0)
-        {
-            Info<< "laserHeatSource::updateDepositionGPU: transferring "
-                << nRays << " rays to device and back." << endl;
-
-            // Host-side flattened representation
-            List<DeviceRay> hRays(nRays);
-
-            for (label i = 0; i < nRays; ++i)
-            {
-                const compactRay& r = remainingGlobalRays[i];
-                DeviceRay dr;
-
-                dr.pos = make_double3
-                (
-                    r.position_.x(),
-                    r.position_.y(),
-                    r.position_.z()
-                );
-                dr.dir = make_double3
-                (
-                    r.direction_.x(),
-                    r.direction_.y(),
-                    r.direction_.z()
-                );
-                dr.power       = r.power_;
-                dr.currentCell = r.currentCell_;
-                dr.globalIndex = r.globalRayIndex_;
-                dr.step = stepSize;
-
-                hRays[i] = dr;
-            }
-
-            // Device buffer
-            DeviceRay* dRays = nullptr;
-
-            cudaError_t err =
-                cudaMalloc(reinterpret_cast<void**>(&dRays),
-                           nRays*sizeof(DeviceRay));
-
-            if (err != cudaSuccess)
-            {
-                Info<< "laserHeatSource::updateDepositionGPU: cudaMalloc(dRays) failed: "
-                    << cudaGetErrorString(err)
-                    << ". Skipping ray device transfer." << endl;
-            }
-            else
-            {
-                // Copy host -> device
-                err = cudaMemcpy
-                (
-                    dRays,
-                    hRays.begin(),
-                    nRays*sizeof(DeviceRay),
-                    cudaMemcpyHostToDevice
-                );
-
-                if (err != cudaSuccess)
-                {
-                    Info<< "laserHeatSource::updateDepositionGPU: cudaMemcpy H2D(rays) failed: "
-                        << cudaGetErrorString(err) << endl;
-                }
-                else
-                {
-                    // --- NEW: launch trivial CUDA kernel on the device rays ---
-                    Info<< "laserHeatSource::updateDepositionGPU: launching noop "
-                        << "ray kernel on " << nRays << " rays." << endl;
-
-                    launchNoopRayKernel(dRays, nRays);
-
-                    // Optionally check for errors
-                    cudaError_t kerr = cudaGetLastError();
-                    if (kerr != cudaSuccess)
-                    {
-                        Info<< "laserHeatSource::updateDepositionGPU: kernel launch error: "
-                            << cudaGetErrorString(kerr) << endl;
-                    }
-
-                    // Copy back into a second host buffer
-                    List<DeviceRay> hRaysCopy(nRays);
-                    err = cudaMemcpy
-                    (
-                        hRaysCopy.begin(),
-                        dRays,
-                        nRays*sizeof(DeviceRay),
-                        cudaMemcpyDeviceToHost
-                    );
-
-                    if (err != cudaSuccess)
-                    {
-                        Info<< "laserHeatSource::updateDepositionGPU: cudaMemcpy D2H(rays) failed: "
-                            << cudaGetErrorString(err) << endl;
-                    }
-                    else
-                    {
-                        const DeviceRay& r0  = hRays[0];
-                        const DeviceRay& r0c = hRaysCopy[0];
-
-                        Info<< "laserHeatSource::updateDepositionGPU: ray[0].pos = ("
-                            << r0.pos.x << ", " << r0.pos.y << ", " << r0.pos.z
-                            << "), copy = ("
-                            << r0c.pos.x << ", " << r0c.pos.y << ", " << r0c.pos.z
-                            << ")" << endl;
-
-                        Info<< "laserHeatSource::updateDepositionGPU: ray[0].power = "
-                            << r0.power << ", copy = " << r0c.power << endl;
-
-                        // Write the device-updated rays back into
-                        // remainingGlobalRays
-                        const label nRemaining = remainingGlobalRays.size();
-                        const label nToMap = min(nRays, nRemaining);
-
-                        for (label i = 0; i < nToMap; ++i)
-                        {
-                            compactRay& r = remainingGlobalRays[i];
-                            const DeviceRay& dr = hRaysCopy[i];
-
-                            r.position_.x() = dr.pos.x;
-                            r.position_.y() = dr.pos.y;
-                            r.position_.z() = dr.pos.z;
-
-                            r.direction_.x() = dr.dir.x;
-                            r.direction_.y() = dr.dir.y;
-                            r.direction_.z() = dr.dir.z;
-
-                            r.power_       = dr.power;
-                            r.currentCell_ = dr.currentCell;
-                            r.globalRayIndex_ = dr.globalIndex;
-                        }
-
-                        Info<< "laserHeatSource::updateDepositionGPU: mapped "
-                            << nToMap << " device rays back to remainingGlobalRays."
-                            << endl;
-                    }
-                }
-            }
-        }
-        else
-        {
-            Info<< "laserHeatSource::updateDepositionGPU: no rays to transfer."
-                << endl;
-        }
-    }
-
     // Propagation entry point: currently calls CPU implementation,
     // but separated so we can later switch to a real GPU kernel.
     propagateRaysGPU
@@ -480,6 +631,212 @@ void Foam::laserHeatSource::updateDepositionGPU
     );
 #endif
 }
+
+
+void Foam::laserHeatSource::applyGpuRayTransform
+(
+    DynamicList<compactRay>& remainingGlobalRays,
+    const scalarField& VI,
+    const boundBox& globalBB,
+    const scalar rayPowerAbsTol
+)
+{
+#ifdef FOAM_USE_CUDA
+    const label nRays  = remainingGlobalRays.size();
+    const label nCells = VI.size();
+
+    Info<< "laserHeatSource::applyGpuRayTransform: transferring "
+        << nRays << " rays to device and back." << endl;
+
+    if (nRays == 0 || nCells == 0)
+    {
+        return;
+    }
+
+    // Host-side flattened representation
+    List<DeviceRay> hRays(nRays);
+
+    for (label i = 0; i < nRays; ++i)
+    {
+        const compactRay& r = remainingGlobalRays[i];
+        DeviceRay dr;
+
+        dr.pos = make_double3
+        (
+            r.position_.x(),
+            r.position_.y(),
+            r.position_.z()
+        );
+        dr.dir = make_double3
+        (
+            r.direction_.x(),
+            r.direction_.y(),
+            r.direction_.z()
+        );
+        dr.power       = r.power_;
+        dr.currentCell = r.currentCell_;
+        dr.globalIndex = r.globalRayIndex_;
+        dr.step        = 0.0; // currently unused in kernel
+
+        hRays[i] = dr;
+    }
+
+    // Device arrays
+    DeviceRay* dRays = nullptr;
+    double* dVI      = nullptr;
+
+    cudaError_t err =
+        cudaMalloc(reinterpret_cast<void**>(&dRays),
+                   nRays*sizeof(DeviceRay));
+
+    if (err != cudaSuccess)
+    {
+        Info<< "laserHeatSource::applyGpuRayTransform: cudaMalloc(dRays) failed: "
+            << cudaGetErrorString(err)
+            << ". Skipping GPU transform." << endl;
+        return;
+    }
+
+    err = cudaMalloc(reinterpret_cast<void**>(&dVI),
+                     nCells*sizeof(double));
+
+    if (err != cudaSuccess)
+    {
+        Info<< "laserHeatSource::applyGpuRayTransform: cudaMalloc(dVI) failed: "
+            << cudaGetErrorString(err) << endl;
+        cudaFree(dRays);
+        return;
+    }
+
+    // Copy host -> device
+    err = cudaMemcpy
+    (
+        dRays,
+        hRays.begin(),
+        nRays*sizeof(DeviceRay),
+        cudaMemcpyHostToDevice
+    );
+
+    if (err != cudaSuccess)
+    {
+        Info<< "laserHeatSource::applyGpuRayTransform: cudaMemcpy H2D(rays) failed: "
+            << cudaGetErrorString(err) << endl;
+        cudaFree(dRays);
+        cudaFree(dVI);
+        return;
+    }
+
+    // VI is a scalarField (double in DP build)
+    err = cudaMemcpy
+    (
+        dVI,
+        VI.begin(),
+        nCells*sizeof(double),
+        cudaMemcpyHostToDevice
+    );
+
+    if (err != cudaSuccess)
+    {
+        Info<< "laserHeatSource::applyGpuRayTransform: cudaMemcpy H2D(VI) failed: "
+            << cudaGetErrorString(err) << endl;
+        cudaFree(dRays);
+        cudaFree(dVI);
+        return;
+    }
+
+    // Launch kernel
+    Info<< "laserHeatSource::applyGpuRayTransform: launching GPU iterator "
+        << "step kernel on " << nRays << " rays." << endl;
+
+    const point& bbMin = globalBB.min();
+    const point& bbMax = globalBB.max();
+
+    launchGpuRayStepKernel
+    (
+        dRays,
+        nRays,
+        dVI,
+        nCells,
+        bbMin.x(), bbMin.y(), bbMin.z(),
+        bbMax.x(), bbMax.y(), bbMax.z(),
+        rayPowerAbsTol
+    );
+
+    cudaError_t kerr = cudaGetLastError();
+    if (kerr != cudaSuccess)
+    {
+        Info<< "laserHeatSource::applyGpuRayTransform: kernel launch error: "
+            << cudaGetErrorString(kerr) << endl;
+    }
+
+    // Device -> host
+    List<DeviceRay> hRaysCopy(nRays);
+    err = cudaMemcpy
+    (
+        hRaysCopy.begin(),
+        dRays,
+        nRays*sizeof(DeviceRay),
+        cudaMemcpyDeviceToHost
+    );
+
+    if (err != cudaSuccess)
+    {
+        Info<< "laserHeatSource::applyGpuRayTransform: cudaMemcpy D2H(rays) failed: "
+            << cudaGetErrorString(err) << endl;
+        cudaFree(dRays);
+        cudaFree(dVI);
+        return;
+    }
+
+    // Simple debug for the first ray
+    {
+        const DeviceRay& r0  = hRays[0];
+        const DeviceRay& r0c = hRaysCopy[0];
+
+        Info<< "laserHeatSource::applyGpuRayTransform: ray[0].pos before = ("
+            << r0.pos.x << ", " << r0.pos.y << ", " << r0.pos.z
+            << "), after = ("
+            << r0c.pos.x << ", " << r0c.pos.y << ", " << r0c.pos.z
+            << ")" << endl;
+
+        Info<< "laserHeatSource::applyGpuRayTransform: ray[0].power before = "
+            << r0.power << ", after = " << r0c.power << endl;
+    }
+
+    // Map back into remainingGlobalRays
+    const label nRemaining = remainingGlobalRays.size();
+    const label nToMap     = min(nRays, nRemaining);
+
+    for (label i = 0; i < nToMap; ++i)
+    {
+        compactRay& r       = remainingGlobalRays[i];
+        const DeviceRay& dr = hRaysCopy[i];
+
+        r.position_.x()      = dr.pos.x;
+        r.position_.y()      = dr.pos.y;
+        r.position_.z()      = dr.pos.z;
+
+        r.direction_.x()     = dr.dir.x;
+        r.direction_.y()     = dr.dir.y;
+        r.direction_.z()     = dr.dir.z;
+
+        r.power_             = dr.power;
+        r.currentCell_       = dr.currentCell;
+        r.globalRayIndex_    = dr.globalIndex;
+    }
+
+    Info<< "laserHeatSource::applyGpuRayTransform: mapped "
+        << nToMap << " device rays back to remainingGlobalRays." << endl;
+
+    cudaFree(dRays);
+    cudaFree(dVI);
+
+#else
+    (void)remainingGlobalRays;
+    (void)VI;
+#endif
+}
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

@@ -329,21 +329,22 @@ void laserHeatSource::initialiseVoxelData
     const scalar yMax = globalBB.max().y();
     const scalar zMax = globalBB.max().z();
 
-    const scalar dx = (xMax - xMin) / scalar(Nx);
-    const scalar dy = (yMax - yMin) / scalar(Ny);
-    const scalar dz = (zMax - zMin) / scalar(Nz);
+    // Calculate and store dx, dy and dz
+    dx_ = (xMax - xMin) / scalar(Nx);
+    dy_ = (yMax - yMin) / scalar(Ny);
+    dz_ = (zMax - zMin) / scalar(Nz);
 
     for (label i = 0; i <= Nx; ++i)
     {
-        xEdges_[i] = xMin + dx*scalar(i);
+        xEdges_[i] = xMin + dx_*scalar(i);
     }
     for (label j = 0; j <= Ny; ++j)
     {
-        yEdges_[j] = yMin + dy*scalar(j);
+        yEdges_[j] = yMin + dy_*scalar(j);
     }
     for (label k = 0; k <= Nz; ++k)
     {
-        zEdges_[k] = zMin + dz*scalar(k);
+        zEdges_[k] = zMin + dz_*scalar(k);
     }
 
     // 2) Per-cell AABBs (cellMin_/cellMax_) using cellPoints()
@@ -424,7 +425,7 @@ void laserHeatSource::initialiseVoxelData
     {
         Info<< "Initialised voxel data with "
             << Nx << " x " << Ny << " x " << Nz << " voxels" << nl
-            << "dx = " << dx << ", dy = " << dy << ", dz = " << dz << nl
+            << "dx = " << dx_ << ", dy = " << dy_ << ", dz = " << dz_ << nl
             << "nCells (local) = " << nCells << endl;
     }
 }
@@ -543,13 +544,9 @@ bool laserHeatSource::voxelIndices
         return false;
     }
 
-    const scalar dx = (xEdges_.last() - xEdges_.first()) / scalar(nVoxelsX_);
-    const scalar dy = (yEdges_.last() - yEdges_.first()) / scalar(nVoxelsY_);
-    const scalar dz = (zEdges_.last() - zEdges_.first()) / scalar(nVoxelsZ_);
-
-    i = label(std::floor((x - xEdges_.first())/dx));
-    j = label(std::floor((y - yEdges_.first())/dy));
-    k = label(std::floor((z - zEdges_.first())/dz));
+    i = label(std::floor((x - xEdges_.first())/dx_));
+    j = label(std::floor((y - yEdges_.first())/dy_));
+    k = label(std::floor((z - zEdges_.first())/dz_));
 
     // Clamp to valid range
     i = max(0, min(i, nVoxelsX_ - 1));
@@ -1021,6 +1018,9 @@ laserHeatSource::laserHeatSource
     voxelCell_(),
     cellMin_(),
     cellMax_(),
+    dx_(0.0),
+    dy_(0.0),
+    dz_(0.0),
     globalBB_(mesh.bounds())  // Initialize with local bounds first
 {
     Info<< "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;

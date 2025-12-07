@@ -148,6 +148,11 @@ class laserHeatSource
         List<vector> cellMin_;
         List<vector> cellMax_;
 
+        //- Uniform voxel spacing (computed once in initialiseVoxelData)
+        scalar dx_;
+        scalar dy_;
+        scalar dz_;
+
         //- Global bounding box of the mesh
         boundBox globalBB_;
 
@@ -256,6 +261,16 @@ class laserHeatSource
             const boundBox& globalBB,
             const label maxLocalSearch,
             const label laserID
+        );
+
+        //- Apply a GPU-based transform to the remaining rays
+        //  Host-to-device (H2D) -> kernel -> Device-to-host (D2H).
+        void applyGpuRayTransform
+        (
+            DynamicList<compactRay>& remainingGlobalRays,
+            const scalarField& VI,
+            const boundBox& globalBB,
+            const scalar rayPowerAbsTol
         );
 
         //- Disallow default bitwise copy construct
