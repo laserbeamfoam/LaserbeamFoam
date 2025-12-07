@@ -269,6 +269,8 @@ class laserHeatSource
         (
             DynamicList<compactRay>& remainingGlobalRays,
             const scalarField& VI,
+	    const volScalarField& alphaFiltered,
+            const volVectorField& nFiltered,
             const boundBox& globalBB,
             const scalar rayPowerAbsTol
         );

@@ -23,6 +23,10 @@ License
 
 #ifdef FOAM_USE_CUDA
     #include "cuda_runtime.h"
+    #include <thrust/device_vector.h>
+    #include <thrust/device_ptr.h>
+    #include <thrust/copy.h>
+    #include "deviceRayConversion.H"
 #endif
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -34,29 +38,33 @@ namespace Foam
 
 #ifdef FOAM_USE_CUDA
 
-// Simple representation of a ray for device transfers
-struct DeviceRay
-{
-    double3 pos;
-    double3 dir;
-    double  power;
-    int     currentCell;
-    int     globalIndex;
-    double  step;
-};
 
 // C-linkage function implemented in liblaserHeatSourceCuda.so
 extern "C"
-void launchGpuRayStepKernel
+void launchGpuTraceRayKernel
 (
-    DeviceRay* dRays,
-    int nRays,
-    const double* dVI,
-    int nCells,
-    double bbMinX, double bbMinY, double bbMinZ,
-    double bbMaxX, double bbMaxY, double bbMaxZ,
-    double rayPowerAbsTol
+    DeviceRay*       dRays,
+    int              nRays,
+    const double*    dVI,
+    const double*    dAlpha,
+    const double3*   dN,
+    const double*    dResistivity,
+    int              nCells,
+    double3          bbMin,
+    double3          bbMax,
+    int3             voxelDims,
+    double3          voxelSize,
+    const int*       dVoxelCell,
+    const double3*   dCellMin,
+    const double3*   dCellMax,
+    double           plasmaFreq,
+    double           omega,
+    double           dep_cutoff,
+    double           rayPowerAbsTol,
+    double*          dDeposition,
+    int              maxSteps
 );
+
 
 #endif
 
@@ -127,13 +135,14 @@ void Foam::laserHeatSource::propagateRaysGPU
     const scalar dep_cutoff,
     const scalar rayPowerAbsTol,
     const boundBox& globalBB,
-    const label maxLocalSearch,
+    const label maxLocalSearch, // unused in GPU path
     const label laserID
 )
 {
 #ifndef FOAM_USE_CUDA
-    Info<< "propagateRaysGPU: compiled without CUDA support -> "
-        << "using CPU propagation." << endl;
+
+    Info<< "propagateRaysGPU: CUDA not enabled (FOAM_USE_CUDA not defined); "
+        << "falling back to CPU implementation." << nl;
 
     propagateRaysCPU
     (
@@ -152,315 +161,595 @@ void Foam::laserHeatSource::propagateRaysGPU
         laserID
     );
     return;
+
 #else
-    Info<< "propagateRaysGPU: using GPU stepping for iterator distance, "
-        << "CPU for cell search and deposition." << endl;
 
-    const volScalarField& alphaFilteredI = alphaFiltered;
-    const volVectorField& nFilteredI     = nFiltered;
-
-    // This is a GPU-aware variant of propagateRaysCPU:
-    //  - outer while and deposition logic are the same
-    //  - the actual "step along ray direction" is done on the GPU.
-
-    while (remainingGlobalRays.size() > 0)
+    // For now, only support single-rank + voxel mode on GPU
+    if (!voxelInitialised_ || cellSearchMode_ == CSM_LEGACY)
     {
-        // Find all rays on the current processor
-        DynamicList<compactRay> localRays;
+        Info<< "propagateRaysGPU: voxel data not initialised or legacy "
+            << "cell search in use; falling back to CPU." << nl;
 
-        forAll(remainingGlobalRays, rayI)
+        propagateRaysCPU
+        (
+            remainingGlobalRays,
+            mesh,
+            VI,
+            alphaFiltered,
+            nFiltered,
+            resistivity_in,
+            plasma_frequency,
+            angular_frequency,
+            dep_cutoff,
+            rayPowerAbsTol,
+            globalBB,
+            maxLocalSearch,
+            laserID
+        );
+        return;
+    }
+
+    if (Pstream::nProcs() > 1)
+    {
+        Info<< "propagateRaysGPU: MPI run detected (nProcs = "
+            << Pstream::nProcs()
+            << "): GPU ray transfer across ranks not implemented yet; "
+            << "falling back to CPU." << nl;
+
+        propagateRaysCPU
+        (
+            remainingGlobalRays,
+            mesh,
+            VI,
+            alphaFiltered,
+            nFiltered,
+            resistivity_in,
+            plasma_frequency,
+            angular_frequency,
+            dep_cutoff,
+            rayPowerAbsTol,
+            globalBB,
+            maxLocalSearch,
+            laserID
+        );
+        return;
+    }
+
+    const label nRays = remainingGlobalRays.size();
+    if (nRays == 0)
+    {
+        Info<< "propagateRaysGPU: no rays to trace; returning." << nl;
+        return;
+    }
+
+    Info<< "propagateRaysGPU: tracing " << nRays
+        << " rays on GPU (single kernel)." << nl;
+
+    const label nCells = VI.size();
+
+    // --------------------------
+    // 1) Host-side packing
+    // --------------------------
+
+    // Rays -> DeviceRay array
+    List<DeviceRay> hRays(nRays);
+    forAll(remainingGlobalRays, i)
+    {
+        hRays[i] = toDeviceRay(remainingGlobalRays[i]);
+    }
+
+    // Cell fields
+    const scalarField& alphaI = alphaFiltered.internalField();
+    const vectorField& nI     = nFiltered.internalField();
+    const scalarField& resI   = resistivity_in.internalField();
+
+    // Pack normals into double3
+    List<double3> hN(nCells);
+    forAll(nI, cellI)
+    {
+        const vector& nv = nI[cellI];
+        hN[cellI] = make_double3(nv.x(), nv.y(), nv.z());
+    }
+
+    // Pack cell AABBs into double3
+    const label nCellsLocal = cellMin_.size();
+    List<double3> hCellMin(nCellsLocal);
+    List<double3> hCellMax(nCellsLocal);
+    forAll(cellMin_, cellI)
+    {
+        const vector& cMin = cellMin_[cellI];
+        const vector& cMax = cellMax_[cellI];
+        hCellMin[cellI] = make_double3(cMin.x(), cMin.y(), cMin.z());
+        hCellMax[cellI] = make_double3(cMax.x(), cMax.y(), cMax.z());
+    }
+
+    // Deposition accumulator on host (from GPU)
+    scalarField gpuDeposition(nCells, 0.0);
+
+    // Voxel info
+    const int3 voxelDims = make_int3
+    (
+        static_cast<int>(nVoxelsX_),
+        static_cast<int>(nVoxelsY_),
+        static_cast<int>(nVoxelsZ_)
+    );
+
+    // Compute voxel sizes from edges (safer than relying on stored dx_/dy_/dz_)
+    const scalar dx =
+        (xEdges_.last() - xEdges_.first())/scalar(nVoxelsX_);
+    const scalar dy =
+        (yEdges_.last() - yEdges_.first())/scalar(nVoxelsY_);
+    const scalar dz =
+        (zEdges_.last() - zEdges_.first())/scalar(nVoxelsZ_);
+
+    const double3 voxelSize = make_double3(dx, dy, dz);
+
+    // --------------------------
+    // 2) Device allocations
+    // --------------------------
+
+    DeviceRay* dRays = nullptr;
+    double* dVI = nullptr;
+    double* dAlpha = nullptr;
+    double3* dN = nullptr;
+    double* dRes = nullptr;
+    int* dVoxelCell = nullptr;
+    double3* dCellMin = nullptr;
+    double3* dCellMax = nullptr;
+    double* dDeposition = nullptr;
+
+    auto checkCuda = [&](cudaError_t err, const char* what) -> bool
+    {
+        if (err != cudaSuccess)
         {
-            compactRay& curRay = remainingGlobalRays[rayI];
+            Info<< "propagateRaysGPU: CUDA error in " << what << ": "
+                << cudaGetErrorString(err) << nl;
+            return false;
+        }
+        return true;
+    };
 
+    // Rays
+    if
+    (
+        !checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dRays),
+                       nRays*sizeof(DeviceRay)),
+            "cudaMalloc(dRays)"
+        )
+    )
+    {
+        return;
+    }
+
+    if
+    (
+        !checkCuda
+        (
+            cudaMemcpy
+            (
+                dRays,
+                hRays.begin(),
+                nRays*sizeof(DeviceRay),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dRays)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        return;
+    }
+
+    // VI
+    if
+    (
+        !checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dVI),
+                       nCells*sizeof(double)),
+            "cudaMalloc(dVI)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        return;
+    }
+
+    if
+    (
+        !checkCuda
+        (
+            cudaMemcpy
+            (
+                dVI,
+                VI.begin(),
+                nCells*sizeof(double),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dVI)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        return;
+    }
+
+    // alpha
+    if
+    (
+        !checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dAlpha),
+                       nCells*sizeof(double)),
+            "cudaMalloc(dAlpha)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        return;
+    }
+
+    if
+    (
+        !checkCuda
+        (
+            cudaMemcpy
+            (
+                dAlpha,
+                alphaI.begin(),
+                nCells*sizeof(double),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dAlpha)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        return;
+    }
+
+    // normals
+    if
+    (
+        !checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dN),
+                       nCells*sizeof(double3)),
+            "cudaMalloc(dN)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        return;
+    }
+
+    if
+    (
+        !checkCuda
+        (
+            cudaMemcpy
+            (
+                dN,
+                hN.begin(),
+                nCells*sizeof(double3),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dN)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        return;
+    }
+
+    // resistivity
+    if
+    (
+        !checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dRes),
+                       nCells*sizeof(double)),
+            "cudaMalloc(dRes)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        return;
+    }
+
+    if
+    (
+        !checkCuda
+        (
+            cudaMemcpy
+            (
+                dRes,
+                resI.begin(),
+                nCells*sizeof(double),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dRes)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        return;
+    }
+
+    // voxelCell
+    const label nVoxels = voxelCell_.size();
+    if
+    (
+        !checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dVoxelCell),
+                       nVoxels*sizeof(int)),
+            "cudaMalloc(dVoxelCell)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        return;
+    }
+
+    if
+    (
+        !checkCuda
+        (
+            cudaMemcpy
+            (
+                dVoxelCell,
+                voxelCell_.begin(),
+                nVoxels*sizeof(int),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dVoxelCell)"
+        )
+    )
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        cudaFree(dVoxelCell);
+        return;
+    }
+
+    // cellMin / cellMax
+    if (!checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dCellMin),
+                       nCellsLocal*sizeof(double3)),
+            "cudaMalloc(dCellMin)"
+        ))
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        cudaFree(dVoxelCell);
+        return;
+    }
+
+    if (!checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dCellMax),
+                       nCellsLocal*sizeof(double3)),
+            "cudaMalloc(dCellMax)"
+        ))
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        cudaFree(dVoxelCell);
+        cudaFree(dCellMin);
+        return;
+    }
+
+    if (!checkCuda
+        (
+            cudaMemcpy
+            (
+                dCellMin,
+                hCellMin.begin(),
+                nCellsLocal*sizeof(double3),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dCellMin)"
+        ))
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        cudaFree(dVoxelCell);
+        cudaFree(dCellMin);
+        cudaFree(dCellMax);
+        return;
+    }
+
+    if (!checkCuda
+        (
+            cudaMemcpy
+            (
+                dCellMax,
+                hCellMax.begin(),
+                nCellsLocal*sizeof(double3),
+                cudaMemcpyHostToDevice
+            ),
+            "cudaMemcpy(dCellMax)"
+        ))
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        cudaFree(dVoxelCell);
+        cudaFree(dCellMin);
+        cudaFree(dCellMax);
+        return;
+    }
+
+    // deposition
+    if (!checkCuda
+        (
+            cudaMalloc(reinterpret_cast<void**>(&dDeposition),
+                       nCells*sizeof(double)),
+            "cudaMalloc(dDeposition)"
+        ))
+    {
+        cudaFree(dRays);
+        cudaFree(dVI);
+        cudaFree(dAlpha);
+        cudaFree(dN);
+        cudaFree(dRes);
+        cudaFree(dVoxelCell);
+        cudaFree(dCellMin);
+        cudaFree(dCellMax);
+        return;
+    }
+
+    cudaMemset(dDeposition, 0, nCells*sizeof(double));
+
+    // --------------------------
+    // 3) Launch kernel
+    // --------------------------
+
+    const point& bbMinP = globalBB.min();
+    const point& bbMaxP = globalBB.max();
+
+    const double3 bbMin = make_double3(bbMinP.x(), bbMinP.y(), bbMinP.z());
+    const double3 bbMax = make_double3(bbMaxP.x(), bbMaxP.y(), bbMaxP.z());
+
+    const int maxSteps = 10000; // safety cap; adjust later if needed
+
+    Info<< "propagateRaysGPU: launching gpuTraceRayKernel (nRays = "
+        << nRays << ", maxSteps = " << maxSteps << ")." << nl;
+
+    launchGpuTraceRayKernel
+    (
+        dRays,
+        static_cast<int>(nRays),
+        dVI,
+        dAlpha,
+        dN,
+        dRes,
+        static_cast<int>(nCells),
+        bbMin,
+        bbMax,
+        voxelDims,
+        voxelSize,
+        dVoxelCell,
+        dCellMin,
+        dCellMax,
+        plasma_frequency,
+        angular_frequency,
+        dep_cutoff,
+        rayPowerAbsTol,
+        dDeposition,
+        maxSteps
+    );
+
+    // --------------------------
+    // 4) Copy results back
+    // --------------------------
+
+    // Deposition
+    if (!checkCuda
+        (
+            cudaMemcpy
+            (
+                gpuDeposition.begin(),
+                dDeposition,
+                nCells*sizeof(double),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy(dDeposition -> host)"
+        ))
+    {
+        // Even if this fails, free memory below
+    }
+    else
+    {
+        forAll(gpuDeposition, cellI)
+        {
+            deposition_[cellI] += gpuDeposition[cellI];
+        }
+    }
+
+    // Rays (optional – may all be dead)
+    if (checkCuda
+        (
+            cudaMemcpy
+            (
+                hRays.begin(),
+                dRays,
+                nRays*sizeof(DeviceRay),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy(dRays -> host)"
+        ))
+    {
+        remainingGlobalRays.clear();
+        forAll(hRays, i)
+        {
+            const DeviceRay& dR = hRays[i];
+
+            // Keep only rays still alive and inside globalBB
             if
             (
-                globalBB.contains(curRay.position_)
-             && curRay.power_ > rayPowerAbsTol
+                dR.power > rayPowerAbsTol
+             && globalBB.contains(point(dR.pos.x, dR.pos.y, dR.pos.z))
             )
             {
-                const label myCellID =
-                    findCellForRay
-                    (
-                        curRay.position_,
-                        curRay.currentCell_,
-                        mesh,
-                        maxLocalSearch,
-                        debug
-                    );
-
-                if (myCellID != -1)
-                {
-                    // Initialise current cell if needed
-                    curRay.currentCell_ = myCellID;
-                    localRays.append(curRay);
-                }
-            }
-        }
-
-        if (localRays.size() == 0)
-        {
-            // No rays left on this processor with sufficient power
-            remainingGlobalRays.clear();
-            Pstream::combineGather(remainingGlobalRays, combineRayLists());
-            Pstream::broadcast(remainingGlobalRays);
-            break;
-        }
-
-        // Perform one iterator-distance step + culling on the GPU
-        applyGpuRayTransform(localRays, VI, globalBB, rayPowerAbsTol);
-
-        // Now do the "physics" part on the CPU, starting from the new positions
-        forAll(localRays, rayI)
-        {
-            compactRay& curRay = localRays[rayI];
-
-            // Find the cell the ray is now in (after GPU step)
-            label myCellID =
-                findCellForRay
-                (
-                    curRay.position_,
-                    curRay.currentCell_,
-                    mesh,
-                    maxLocalSearch,
-                    debug
-                );
-
-            while (myCellID != -1)
-            {
-                // Update the ray's cellID
-                curRay.currentCell_ = myCellID;
-
-                // Update visualisation fields
-                rayQ_[myCellID]      += curRay.power_;
-                rayNumber_[myCellID]  = curRay.globalRayIndex_;
-
-                if (curRay.power_ < SMALL)
-                {
-                    curRay.path_.append(curRay.position_);
-                    break;
-                }
-                else if
-                (
-                    mag(nFilteredI[myCellID]) > 0.5
-                 && alphaFilteredI[myCellID] >= dep_cutoff
-                )
-                {
-                    // --- Interface: deposit + reflect (same as CPU) ---
-
-                    const scalar damping_frequency =
-                        plasma_frequency*plasma_frequency
-                       *constant::electromagnetic::epsilon0.value()
-                       *resistivity_in[myCellID];
-
-                    const scalar e_r =
-                        1.0
-                      - (
-                            sqr(plasma_frequency)
-                           /(sqr(angular_frequency) + sqr(damping_frequency))
-                        );
-
-                    const scalar e_i =
-                        (damping_frequency/angular_frequency)
-                       *(
-                            sqr(plasma_frequency)
-                           /(sqr(angular_frequency) + sqr(damping_frequency))
-                        );
-
-                    const scalar ref_index =
-                        Foam::sqrt
-                        (
-                            (Foam::sqrt(e_r*e_r + e_i*e_i) + e_r)/2.0
-                        );
-
-                    const scalar ext_coefficient =
-                        Foam::sqrt
-                        (
-                            (Foam::sqrt(e_r*e_r + e_i*e_i) - e_r)/2.0
-                        );
-
-                    vector n = nFilteredI[myCellID];
-                    n /= mag(n);
-
-                    vector d   = curRay.direction_;
-                    const scalar dMag = mag(d);
-
-                    if (dMag <= SMALL)
-                    {
-                        curRay.power_ = 0.0;
-                        curRay.path_.append(curRay.position_);
-                        break;
-                    }
-
-                    d /= dMag;
-                    const vector kin = -d;
-
-                    scalar cosTheta = kin & n;
-
-                    if (cosTheta < 0.0)
-                    {
-                        n        = -n;
-                        cosTheta = -cosTheta;
-                    }
-
-                    cosTheta =
-                        Foam::max
-                        (
-                            Foam::min(cosTheta, scalar(1.0)),
-                            scalar(0.0)
-                        );
-
-                    const scalar theta_in = std::acos(cosTheta);
-                    const scalar sinTheta = Foam::sin(theta_in);
-
-                    const scalar alpha_laser =
-                        Foam::sqrt
-                        (
-                            Foam::sqrt
-                            (
-                                sqr
-                                (
-                                    sqr(ref_index)
-                                  - sqr(ext_coefficient)
-                                  - sqr(sinTheta)
-                                )
-                              + 4.0*sqr(ref_index)*sqr(ext_coefficient)
-                            )
-                          + sqr(ref_index)
-                          - sqr(ext_coefficient)
-                          - sqr(sinTheta)/2.0
-                        );
-
-                    const scalar beta_laser =
-                        Foam::sqrt
-                        (
-                            (
-                                Foam::sqrt
-                                (
-                                    sqr
-                                    (
-                                        sqr(ref_index)
-                                      - sqr(ext_coefficient)
-                                      - sqr(sinTheta)
-                                    )
-                                  + 4.0*sqr(ref_index)*sqr(ext_coefficient)
-                                )
-                              - sqr(ref_index)
-                              + sqr(ext_coefficient)
-                              + sqr(sinTheta)
-                            )/2.0
-                        );
-
-                    const scalar cosTheta_in = Foam::cos(theta_in);
-
-                    scalar R_s =
-                        (
-                            sqr(alpha_laser)
-                          + sqr(beta_laser)
-                          - 2.0*alpha_laser*cosTheta_in
-                          + sqr(cosTheta_in)
-                        )
-                       /(
-                            sqr(alpha_laser)
-                          + sqr(beta_laser)
-                          + 2.0*alpha_laser*cosTheta_in
-                          + sqr(cosTheta_in)
-                        );
-
-                    scalar R_p =
-                        R_s
-                       *(
-                            sqr(alpha_laser)
-                          + sqr(beta_laser)
-                          - 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
-                          + sqr(sinTheta)*sqr(Foam::tan(theta_in))
-                        )
-                       /(
-                            sqr(alpha_laser)
-                          + sqr(beta_laser)
-                          + 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
-                          + sqr(sinTheta)*sqr(Foam::tan(theta_in))
-                        );
-
-                    R_s =
-                        Foam::max
-                        (
-                            Foam::min(R_s, scalar(1.0)), scalar(0.0)
-                        );
-                    R_p =
-                        Foam::max
-                        (
-                            Foam::min(R_p, scalar(1.0)), scalar(0.0)
-                        );
-
-                    const scalar R      = 0.5*(R_s + R_p);
-                    scalar absorptivity = 1.0 - R;
-                    absorptivity =
-                        Foam::max
-                        (
-                            Foam::min(absorptivity, scalar(1.0)),
-                            scalar(0.0)
-                        );
-
-                    if (debug)
-                    {
-                        Info<< "ray " << curRay.globalRayIndex_
-                            << ", cell " << myCellID
-                            << ", theta_in = " << theta_in
-                            << ", R_s = " << R_s
-                            << ", R_p = " << R_p
-                            << ", absorptivity = " << absorptivity << endl;
-                    }
-
-                    deposition_[myCellID] +=
-                        absorptivity*curRay.power_/VI[myCellID];
-
-                    curRay.power_ *= (1.0 - absorptivity);
-
-                    const vector dRef =
-                        curRay.direction_ - 2.0*(curRay.direction_ & n)*n;
-
-                    curRay.direction_ = dRef;
-                }
-                else if (alphaFilteredI[myCellID] >= dep_cutoff)
-                {
-                    if (debug)
-                    {
-                        Info<< "Bulk absorption at cell " << myCellID
-                            << ", alpha = " << alphaFilteredI[myCellID]
-                            << ", |n| = " << mag(nFilteredI[myCellID])
-                            << ", power = " << curRay.power_ << endl;
-                    }
-
-                    deposition_[myCellID] += curRay.power_/VI[myCellID];
-                    curRay.power_ = 0.0;
-                    curRay.path_.append(curRay.position_);
-                    break;
-                }
-
-                curRay.path_.append(curRay.position_);
-
-                // After handling this cell, we break the inner while so that
-                // the *next* iterator-distance step (and position update) is
-                // again handled on the GPU in the next outer iteration.
-                break;
-            }
-        }
-
-        // Sync remaining rays globally
-        remainingGlobalRays = localRays;
-        Pstream::combineGather(remainingGlobalRays, combineRayLists());
-        Pstream::broadcast(remainingGlobalRays);
-
-        if (Pstream::master())
-        {
-            forAll(remainingGlobalRays, rI)
-            {
-                const compactRay& curRay = remainingGlobalRays[rI];
-                const label rayID        = curRay.globalRayIndex_;
-                rayPaths_[laserID][rayID] = curRay.path_;
+                remainingGlobalRays.append(toCompactRay(dR));
             }
         }
     }
+
+    // --------------------------
+    // 5) Free device memory
+    // --------------------------
+    cudaFree(dRays);
+    cudaFree(dVI);
+    cudaFree(dAlpha);
+    cudaFree(dN);
+    cudaFree(dRes);
+    cudaFree(dVoxelCell);
+    cudaFree(dCellMin);
+    cudaFree(dCellMax);
+    cudaFree(dDeposition);
+
+    // Note: rayPaths_ are not updated here yet, since we do not track
+    // full paths on the GPU. That can be added later if needed.
 #endif
 }
 
@@ -489,8 +778,8 @@ void Foam::laserHeatSource::updateDepositionGPU
 )
 {
 #ifdef FOAM_USE_CUDA
-    Info<< "laserHeatSource::updateDepositionGPU: using GPU backend stub "
-        << "(rays copied to device, propagation still on CPU)." << endl;
+    Info<< "laserHeatSource::updateDepositionGPU: using GPU backend"
+        << endl;
 
     const fvMesh& mesh  = deposition_.mesh();
     //const Time& runTime = mesh.time();
@@ -599,8 +888,7 @@ void Foam::laserHeatSource::updateDepositionGPU
     deposition_.correctBoundaryConditions();
 
     const scalar TotalQ = fvc::domainIntegrate(deposition_).value();
-    Info<< "    Total Q deposited (GPU backend, CPU propagation): "
-        << TotalQ << endl;
+    Info<< "    Total Q deposited (GPU backend): " << TotalQ << endl;
 
 #else
     Info<< "laserHeatSource::updateDepositionGPU: compiled without CUDA "
@@ -629,211 +917,6 @@ void Foam::laserHeatSource::updateDepositionGPU
         rayPowerRelTol,
         globalBB
     );
-#endif
-}
-
-
-void Foam::laserHeatSource::applyGpuRayTransform
-(
-    DynamicList<compactRay>& remainingGlobalRays,
-    const scalarField& VI,
-    const boundBox& globalBB,
-    const scalar rayPowerAbsTol
-)
-{
-#ifdef FOAM_USE_CUDA
-    const label nRays  = remainingGlobalRays.size();
-    const label nCells = VI.size();
-
-    Info<< "laserHeatSource::applyGpuRayTransform: transferring "
-        << nRays << " rays to device and back." << endl;
-
-    if (nRays == 0 || nCells == 0)
-    {
-        return;
-    }
-
-    // Host-side flattened representation
-    List<DeviceRay> hRays(nRays);
-
-    for (label i = 0; i < nRays; ++i)
-    {
-        const compactRay& r = remainingGlobalRays[i];
-        DeviceRay dr;
-
-        dr.pos = make_double3
-        (
-            r.position_.x(),
-            r.position_.y(),
-            r.position_.z()
-        );
-        dr.dir = make_double3
-        (
-            r.direction_.x(),
-            r.direction_.y(),
-            r.direction_.z()
-        );
-        dr.power       = r.power_;
-        dr.currentCell = r.currentCell_;
-        dr.globalIndex = r.globalRayIndex_;
-        dr.step        = 0.0; // currently unused in kernel
-
-        hRays[i] = dr;
-    }
-
-    // Device arrays
-    DeviceRay* dRays = nullptr;
-    double* dVI      = nullptr;
-
-    cudaError_t err =
-        cudaMalloc(reinterpret_cast<void**>(&dRays),
-                   nRays*sizeof(DeviceRay));
-
-    if (err != cudaSuccess)
-    {
-        Info<< "laserHeatSource::applyGpuRayTransform: cudaMalloc(dRays) failed: "
-            << cudaGetErrorString(err)
-            << ". Skipping GPU transform." << endl;
-        return;
-    }
-
-    err = cudaMalloc(reinterpret_cast<void**>(&dVI),
-                     nCells*sizeof(double));
-
-    if (err != cudaSuccess)
-    {
-        Info<< "laserHeatSource::applyGpuRayTransform: cudaMalloc(dVI) failed: "
-            << cudaGetErrorString(err) << endl;
-        cudaFree(dRays);
-        return;
-    }
-
-    // Copy host -> device
-    err = cudaMemcpy
-    (
-        dRays,
-        hRays.begin(),
-        nRays*sizeof(DeviceRay),
-        cudaMemcpyHostToDevice
-    );
-
-    if (err != cudaSuccess)
-    {
-        Info<< "laserHeatSource::applyGpuRayTransform: cudaMemcpy H2D(rays) failed: "
-            << cudaGetErrorString(err) << endl;
-        cudaFree(dRays);
-        cudaFree(dVI);
-        return;
-    }
-
-    // VI is a scalarField (double in DP build)
-    err = cudaMemcpy
-    (
-        dVI,
-        VI.begin(),
-        nCells*sizeof(double),
-        cudaMemcpyHostToDevice
-    );
-
-    if (err != cudaSuccess)
-    {
-        Info<< "laserHeatSource::applyGpuRayTransform: cudaMemcpy H2D(VI) failed: "
-            << cudaGetErrorString(err) << endl;
-        cudaFree(dRays);
-        cudaFree(dVI);
-        return;
-    }
-
-    // Launch kernel
-    Info<< "laserHeatSource::applyGpuRayTransform: launching GPU iterator "
-        << "step kernel on " << nRays << " rays." << endl;
-
-    const point& bbMin = globalBB.min();
-    const point& bbMax = globalBB.max();
-
-    launchGpuRayStepKernel
-    (
-        dRays,
-        nRays,
-        dVI,
-        nCells,
-        bbMin.x(), bbMin.y(), bbMin.z(),
-        bbMax.x(), bbMax.y(), bbMax.z(),
-        rayPowerAbsTol
-    );
-
-    cudaError_t kerr = cudaGetLastError();
-    if (kerr != cudaSuccess)
-    {
-        Info<< "laserHeatSource::applyGpuRayTransform: kernel launch error: "
-            << cudaGetErrorString(kerr) << endl;
-    }
-
-    // Device -> host
-    List<DeviceRay> hRaysCopy(nRays);
-    err = cudaMemcpy
-    (
-        hRaysCopy.begin(),
-        dRays,
-        nRays*sizeof(DeviceRay),
-        cudaMemcpyDeviceToHost
-    );
-
-    if (err != cudaSuccess)
-    {
-        Info<< "laserHeatSource::applyGpuRayTransform: cudaMemcpy D2H(rays) failed: "
-            << cudaGetErrorString(err) << endl;
-        cudaFree(dRays);
-        cudaFree(dVI);
-        return;
-    }
-
-    // Simple debug for the first ray
-    {
-        const DeviceRay& r0  = hRays[0];
-        const DeviceRay& r0c = hRaysCopy[0];
-
-        Info<< "laserHeatSource::applyGpuRayTransform: ray[0].pos before = ("
-            << r0.pos.x << ", " << r0.pos.y << ", " << r0.pos.z
-            << "), after = ("
-            << r0c.pos.x << ", " << r0c.pos.y << ", " << r0c.pos.z
-            << ")" << endl;
-
-        Info<< "laserHeatSource::applyGpuRayTransform: ray[0].power before = "
-            << r0.power << ", after = " << r0c.power << endl;
-    }
-
-    // Map back into remainingGlobalRays
-    const label nRemaining = remainingGlobalRays.size();
-    const label nToMap     = min(nRays, nRemaining);
-
-    for (label i = 0; i < nToMap; ++i)
-    {
-        compactRay& r       = remainingGlobalRays[i];
-        const DeviceRay& dr = hRaysCopy[i];
-
-        r.position_.x()      = dr.pos.x;
-        r.position_.y()      = dr.pos.y;
-        r.position_.z()      = dr.pos.z;
-
-        r.direction_.x()     = dr.dir.x;
-        r.direction_.y()     = dr.dir.y;
-        r.direction_.z()     = dr.dir.z;
-
-        r.power_             = dr.power;
-        r.currentCell_       = dr.currentCell;
-        r.globalRayIndex_    = dr.globalIndex;
-    }
-
-    Info<< "laserHeatSource::applyGpuRayTransform: mapped "
-        << nToMap << " device rays back to remainingGlobalRays." << endl;
-
-    cudaFree(dRays);
-    cudaFree(dVI);
-
-#else
-    (void)remainingGlobalRays;
-    (void)VI;
 #endif
 }
 

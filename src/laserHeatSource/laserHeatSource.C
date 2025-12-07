@@ -581,6 +581,8 @@ void Foam::laserHeatSource::propagateRaysCPU
     // Propagate the rays through the domain
     while (remainingGlobalRays.size() > 0)
     {
+        Info<< "remainingGlobalRays = " << remainingGlobalRays.size() << endl;
+
         // Find all rays on the current processor
         DynamicList<compactRay> localRays;
 
@@ -610,7 +612,15 @@ void Foam::laserHeatSource::propagateRaysCPU
                     localRays.append(curRay);
                 }
             }
+            else
+            {
+                Info<< "curRay.position_ = " << curRay.position_
+                    << " has power = " << curRay.power_
+                    << " and globalBB = " << globalBB.contains(curRay.position_)
+                    << endl;
+            }
         }
+        Info<< "    localRays.size() = " << localRays.size() << endl;
 
         // Propagate the rays through the domain
         forAll(localRays, rayI)
@@ -674,6 +684,9 @@ void Foam::laserHeatSource::propagateRaysCPU
                  && alphaFilteredI[myCellID] >= dep_cutoff
                 )
                 {
+                    Info<< "        Deposit ray " << rayI << " at cell "
+                        << myCellID << " with p = " << curRay.power_ << endl;
+
                     // Interface detected: deposit + reflect
 
                     const scalar damping_frequency =
@@ -842,6 +855,8 @@ void Foam::laserHeatSource::propagateRaysCPU
                             << ", absorptivity = " << absorptivity << endl;
                     }
 
+                    Info<< "        deposit " << absorptivity*curRay.power_/VI[myCellID]
+                        << " at cell " << myCellID << endl;
                     // Deposit and reflect
                     deposition_[myCellID] +=
                         absorptivity*curRay.power_/VI[myCellID];

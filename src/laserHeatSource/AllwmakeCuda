@@ -9,8 +9,9 @@ echo "  CUDA_DIR=${CUDA_DIR}"
 echo "  FOAM_USER_LIBBIN=${FOAM_USER_LIBBIN}"
 
 nvcc -O3 -Xcompiler "-fPIC" -arch=sm_86 \
-    -I"${CUDA_DIR}/include" \
-    -shared laserHeatSourceKernels.cu \
-    -o "${FOAM_USER_LIBBIN}/liblaserHeatSourceCuda.so"
+     -I. \
+     -I"${CUDA_DIR}/include" \
+     -shared laserHeatSourceKernels.cu \
+     -o "${FOAM_USER_LIBBIN}/liblaserHeatSourceCuda.so"
 
 echo "nvcc build complete: ${FOAM_USER_LIBBIN}/liblaserHeatSourceCuda.so"
