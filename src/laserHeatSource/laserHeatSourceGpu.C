@@ -18,6 +18,8 @@ License
 \*---------------------------------------------------------------------------*/
 
 #include "laserHeatSource.H"
+#include "fvc.H"
+#include "constants.H"
 
 #ifdef FOAM_USE_CUDA
     #include "cuda_runtime.h"
@@ -32,7 +34,7 @@ namespace Foam
 
 #ifdef FOAM_USE_CUDA
 
-// Simple POD representation of a ray for device transfers
+// Simple representation of a ray for device transfers
 struct DeviceRay
 {
     double3 pos;
@@ -40,10 +42,14 @@ struct DeviceRay
     double  power;
     int     currentCell;
     int     globalIndex;
+    double  step;
 };
 
-#endif
+// C-linkage function implemented in liblaserHeatSourceCuda.so
+extern "C"
+void launchNoopRayKernel(DeviceRay* dRays, int nRays);
 
+#endif
 
 
 // * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * * //
@@ -99,11 +105,52 @@ bool laserHeatSource::detectGPU()
 }
 
 
-// -------------------------------------------------------------------------
-// Stub GPU implementation: just call the CPU backend
-// -------------------------------------------------------------------------
+void Foam::laserHeatSource::propagateRaysGPU
+(
+    DynamicList<compactRay>& remainingGlobalRays,
+    const fvMesh& mesh,
+    const scalarField& VI,
+    const volScalarField& alphaFiltered,
+    const volVectorField& nFiltered,
+    const volScalarField& resistivity_in,
+    const scalar plasma_frequency,
+    const scalar angular_frequency,
+    const scalar dep_cutoff,
+    const scalar rayPowerAbsTol,
+    const boundBox& globalBB,
+    const label maxLocalSearch,
+    const label laserID
+)
+{
+#ifdef FOAM_USE_CUDA
+    Info<< "propagateRaysGPU: stub implementation -> using CPU propagation."
+        << endl;
+#else
+    Info<< "propagateRaysGPU: compiled without CUDA support -> "
+        << "using CPU propagation." << endl;
+#endif
 
-void laserHeatSource::updateDepositionGPU
+    // For now just forward to the CPU implementation
+    propagateRaysCPU
+    (
+        remainingGlobalRays,
+        mesh,
+        VI,
+        alphaFiltered,
+        nFiltered,
+        resistivity_in,
+        plasma_frequency,
+        angular_frequency,
+        dep_cutoff,
+        rayPowerAbsTol,
+        globalBB,
+        maxLocalSearch,
+        laserID
+    );
+}
+
+
+void Foam::laserHeatSource::updateDepositionGPU
 (
     const volScalarField& alphaFiltered,
     const volVectorField& nFiltered,
@@ -127,133 +174,125 @@ void laserHeatSource::updateDepositionGPU
 )
 {
 #ifdef FOAM_USE_CUDA
-    // --- 1) Access the mesh and cell volumes ---
-    const fvMesh& mesh = deposition_.mesh();
-    const scalarField& VI = mesh.V();
-    const label nCells = VI.size();
+    Info<< "laserHeatSource::updateDepositionGPU: using GPU backend stub "
+        << "(rays copied to device, propagation still on CPU)." << endl;
 
-    Info<< "laserHeatSource::updateDepositionGPU: nCells = "
-        << nCells << endl;
+    const fvMesh& mesh  = deposition_.mesh();
+    //const Time& runTime = mesh.time();
+    const scalarField VI = mesh.V();
+    const scalar pi = constant::mathematical::pi;
 
-    if (nCells > 0)
-    {
-        // Host-side buffer to receive data back
-        List<scalar> VIcopy(nCells, scalar(0));
+    const dimensionedScalar a_cond
+    (
+        "a_cond", dimensionSet(0, 1, 0, 0, 0), laserRadius
+    );
+    const dimensionedScalar Q_cond
+    (
+        "Q_cond", dimensionSet(1, 2, -3, 0, 0), currentLaserPower
+    );
 
-        // Device pointer
-        scalar* dVI = nullptr;
-
-        // --- 2) Allocate on device ---
-        cudaError_t err =
-            cudaMalloc(reinterpret_cast<void**>(&dVI),
-                       nCells*sizeof(scalar));
-
-        if (err != cudaSuccess)
-        {
-            Info<< "laserHeatSource::updateDepositionGPU: cudaMalloc(VI) failed: "
-                << cudaGetErrorString(err)
-                << ". Falling back to CPU backend." << endl;
-        }
-        else
-        {
-            // --- 3) Copy VI -> device ---
-            err = cudaMemcpy
-            (
-                dVI,
-                VI.begin(),
-                nCells*sizeof(scalar),
-                cudaMemcpyHostToDevice
-            );
-
-            if (err != cudaSuccess)
-            {
-                Info<< "laserHeatSource::updateDepositionGPU: cudaMemcpy H2D(VI) failed: "
-                    << cudaGetErrorString(err)
-                    << endl;
-            }
-            else
-            {
-                // --- 4) Copy VI back to host (device -> VIcopy) ---
-                err = cudaMemcpy
-                (
-                    VIcopy.begin(),
-                    dVI,
-                    nCells*sizeof(scalar),
-                    cudaMemcpyDeviceToHost
-                );
-
-                if (err != cudaSuccess)
-                {
-                    Info<< "laserHeatSource::updateDepositionGPU: cudaMemcpy D2H(VI) failed: "
-                        << cudaGetErrorString(err)
-                        << endl;
-                }
-                else
-                {
-                    // Simple sanity check: compare the first element
-                    if (nCells > 0)
-                    {
-                        Info<< "laserHeatSource::updateDepositionGPU: VI[0] = "
-                            << VI[0]
-                            << ", VIcopy[0] = " << VIcopy[0]
-                            << endl;
-                    }
-                }
-            }
-
-            // --- 5) Free device memory ---
-            cudaError_t freeErr = cudaFree(dVI);
-            if (freeErr != cudaSuccess)
-            {
-                Info<< "laserHeatSource::updateDepositionGPU: cudaFree(VI) failed: "
-                    << cudaGetErrorString(freeErr)
-                    << endl;
-            }
-        }
-    }
-    else
-    {
-        Info<< "laserHeatSource::updateDepositionGPU: nCells = 0, "
-            << "skipping VI copy test." << endl;
-    }
-
-
-    // ------------------------------
-    // 2) Ray creation + copy test
-    // ------------------------------
-    {
-        Info<< "laserHeatSource::updateDepositionGPU: creating test rays "
-            << "for device transfer." << endl;
-
-        // Reuse existing ray initialisation
-        List<compactRay> rays;
-        createInitialRays
+    const scalar plasma_frequency = Foam::sqrt
+    (
         (
-            rays,
-            mesh,
-            currentLaserPosition,
-            laserRadius,
-            N_sub_divisions,
-            nRadial,
-            nAngular,
-            V_incident,
-            Radius_Flavour,
-            currentLaserPower,  // Q_cond value
-            laserRadius         // beam_radius (a_cond.value())
-        );
+            e_num_density
+           *constant::electromagnetic::e.value()
+           *constant::electromagnetic::e.value()
+        )
+       /(
+           constant::atomic::me.value()
+          *constant::electromagnetic::epsilon0.value()
+       )
+    );
+    const scalar angular_frequency =
+        2.0*pi*constant::universal::c.value()/wavelength;
 
-        const label nRays = rays.size();
-        Info<< "laserHeatSource::updateDepositionGPU: nRays = "
-            << nRays << endl;
+    if (debug)
+    {
+        Info<< "useLocalSearch: " << useLocalSearch << nl << nl << endl;
+    }
+
+    const scalar beam_radius = a_cond.value();
+
+    // Take references for brevity
+    const volVectorField& nFilteredV = nFiltered;
+    const volScalarField& alphaFilteredV = alphaFiltered;
+
+    // Create the initial rays (same as CPU path)
+    List<compactRay> rays;
+    createInitialRays
+    (
+        rays,
+        mesh,
+        currentLaserPosition,
+        laserRadius,
+        N_sub_divisions,
+        nRadial,
+        nAngular,
+        V_incident,
+        Radius_Flavour,
+        Q_cond.value(),
+        beam_radius
+    );
+
+    // remainingGlobalRays will store the rays that have yet to propagate
+    DynamicList<compactRay> remainingGlobalRays(rays);
+
+    // Reset the ray paths list
+    if (Pstream::master())
+    {
+        rayPaths_[laserID].clear();
+        rayPaths_[laserID].setSize(rays.size());
+    }
+
+    // Calculate the ray power tolerance as a fraction of the max ray power
+    scalar rayPowerAbsTol = 0;
+    {
+        scalar maxRayPower = 0.0;
+        forAll(remainingGlobalRays, rayI)
+        {
+            maxRayPower = max(maxRayPower, remainingGlobalRays[rayI].power_);
+        }
+
+        rayPowerAbsTol = rayPowerRelTol*maxRayPower;
+
+        Info<< "    Max ray power = " << maxRayPower << nl
+            << "    Ray power relative tolerance = " << rayPowerRelTol << nl
+            << "    Ray power absolute tolerance = " << rayPowerAbsTol << endl;
+    }
+
+    Info<< "    Number of rays: "<< remainingGlobalRays.size() << endl;
+
+    // Compute a conservative step length (min cell dimension)
+    scalar minCellH = GREAT;
+    for (label cellI = 0; cellI < VI.size(); ++cellI)
+    {
+        scalar h = cbrt(VI[cellI]);
+        minCellH = min(minCellH, h);
+    }
+
+    // Take a fraction of the min cell size
+    scalar stepSize = 0.2 * minCellH;
+
+    Info<< "laserHeatSource::updateDepositionGPU: stepSize = "
+        << stepSize << endl;
+
+    // ---------------------------------------------------------------------
+    // GPU STEP (stub): copy the *actual* physical rays to/from the device
+    // ---------------------------------------------------------------------
+    {
+        const label nRays = remainingGlobalRays.size();
 
         if (nRays > 0)
         {
+            Info<< "laserHeatSource::updateDepositionGPU: transferring "
+                << nRays << " rays to device and back." << endl;
+
             // Host-side flattened representation
             List<DeviceRay> hRays(nRays);
 
             for (label i = 0; i < nRays; ++i)
             {
-                const compactRay& r = rays[i];
+                const compactRay& r = remainingGlobalRays[i];
                 DeviceRay dr;
 
                 dr.pos = make_double3
@@ -271,6 +310,7 @@ void laserHeatSource::updateDepositionGPU
                 dr.power       = r.power_;
                 dr.currentCell = r.currentCell_;
                 dr.globalIndex = r.globalRayIndex_;
+                dr.step = stepSize;
 
                 hRays[i] = dr;
             }
@@ -286,7 +326,7 @@ void laserHeatSource::updateDepositionGPU
             {
                 Info<< "laserHeatSource::updateDepositionGPU: cudaMalloc(dRays) failed: "
                     << cudaGetErrorString(err)
-                    << ". Skipping ray copy test." << endl;
+                    << ". Skipping ray device transfer." << endl;
             }
             else
             {
@@ -306,6 +346,20 @@ void laserHeatSource::updateDepositionGPU
                 }
                 else
                 {
+                    // --- NEW: launch trivial CUDA kernel on the device rays ---
+                    Info<< "laserHeatSource::updateDepositionGPU: launching noop "
+                        << "ray kernel on " << nRays << " rays." << endl;
+
+                    launchNoopRayKernel(dRays, nRays);
+
+                    // Optionally check for errors
+                    cudaError_t kerr = cudaGetLastError();
+                    if (kerr != cudaSuccess)
+                    {
+                        Info<< "laserHeatSource::updateDepositionGPU: kernel launch error: "
+                            << cudaGetErrorString(kerr) << endl;
+                    }
+
                     // Copy back into a second host buffer
                     List<DeviceRay> hRaysCopy(nRays);
                     err = cudaMemcpy
@@ -334,29 +388,74 @@ void laserHeatSource::updateDepositionGPU
 
                         Info<< "laserHeatSource::updateDepositionGPU: ray[0].power = "
                             << r0.power << ", copy = " << r0c.power << endl;
-                    }
-                }
 
-                cudaError_t freeErr = cudaFree(dRays);
-                if (freeErr != cudaSuccess)
-                {
-                    Info<< "laserHeatSource::updateDepositionGPU: cudaFree(dRays) failed: "
-                        << cudaGetErrorString(freeErr) << endl;
+                        // Write the device-updated rays back into
+                        // remainingGlobalRays
+                        const label nRemaining = remainingGlobalRays.size();
+                        const label nToMap = min(nRays, nRemaining);
+
+                        for (label i = 0; i < nToMap; ++i)
+                        {
+                            compactRay& r = remainingGlobalRays[i];
+                            const DeviceRay& dr = hRaysCopy[i];
+
+                            r.position_.x() = dr.pos.x;
+                            r.position_.y() = dr.pos.y;
+                            r.position_.z() = dr.pos.z;
+
+                            r.direction_.x() = dr.dir.x;
+                            r.direction_.y() = dr.dir.y;
+                            r.direction_.z() = dr.dir.z;
+
+                            r.power_       = dr.power;
+                            r.currentCell_ = dr.currentCell;
+                            r.globalRayIndex_ = dr.globalIndex;
+                        }
+
+                        Info<< "laserHeatSource::updateDepositionGPU: mapped "
+                            << nToMap << " device rays back to remainingGlobalRays."
+                            << endl;
+                    }
                 }
             }
         }
         else
         {
-            Info<< "laserHeatSource::updateDepositionGPU: no rays created; "
-                << "skipping ray copy test." << endl;
+            Info<< "laserHeatSource::updateDepositionGPU: no rays to transfer."
+                << endl;
         }
     }
+
+    // Propagation entry point: currently calls CPU implementation,
+    // but separated so we can later switch to a real GPU kernel.
+    propagateRaysGPU
+    (
+        remainingGlobalRays,
+        mesh,
+        VI,
+        alphaFilteredV,
+        nFilteredV,
+        resistivity_in,
+        plasma_frequency,
+        angular_frequency,
+        dep_cutoff,
+        rayPowerAbsTol,
+        globalBB,
+        maxLocalSearch,
+        laserID
+    );
+
+    deposition_.correctBoundaryConditions();
+
+    const scalar TotalQ = fvc::domainIntegrate(deposition_).value();
+    Info<< "    Total Q deposited (GPU backend, CPU propagation): "
+        << TotalQ << endl;
+
 #else
     Info<< "laserHeatSource::updateDepositionGPU: compiled without CUDA "
-        << "support -> using CPU backend." << endl;
-#endif
+        << "support -> using pure CPU implementation." << endl;
 
-    // For now, always call the CPU implementation
+    // Fallback: just use the CPU path
     updateDepositionCPU
     (
         alphaFiltered,
@@ -379,6 +478,11 @@ void laserHeatSource::updateDepositionGPU
         rayPowerRelTol,
         globalBB
     );
+#endif
 }
 
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
 } // End namespace Foam
+
+// ************************************************************************* //

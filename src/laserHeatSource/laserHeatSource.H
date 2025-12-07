@@ -222,6 +222,42 @@ class laserHeatSource
         //- Detech if a GPU is available
         bool detectGPU();
 
+        //- Propagate rays on CPU
+        void propagateRaysCPU
+        (
+            DynamicList<compactRay>& remainingGlobalRays,
+            const fvMesh& mesh,
+            const scalarField& VI,
+            const volScalarField& alphaFiltered,
+            const volVectorField& nFiltered,
+            const volScalarField& resistivity_in,
+            const scalar plasma_frequency,
+            const scalar angular_frequency,
+            const scalar dep_cutoff,
+            const scalar rayPowerAbsTol,
+            const boundBox& globalBB,
+            const label maxLocalSearch,
+            const label laserID
+        );
+
+        //- Propagate rays on CPU
+        void propagateRaysGPU
+        (
+            DynamicList<compactRay>& remainingGlobalRays,
+            const fvMesh& mesh,
+            const scalarField& VI,
+            const volScalarField& alphaFiltered,
+            const volVectorField& nFiltered,
+            const volScalarField& resistivity_in,
+            const scalar plasma_frequency,
+            const scalar angular_frequency,
+            const scalar dep_cutoff,
+            const scalar rayPowerAbsTol,
+            const boundBox& globalBB,
+            const label maxLocalSearch,
+            const label laserID
+        );
+
         //- Disallow default bitwise copy construct
         laserHeatSource(const laserHeatSource&);
 

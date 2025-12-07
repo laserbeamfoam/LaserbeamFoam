@@ -560,11 +560,341 @@ bool laserHeatSource::voxelIndices
 }
 
 
-// bool Foam::laserHeatSource::detectGPU()
-// {
-//     // Default implementation if CUDA is not compiled in
-//     return false;
-// }
+void Foam::laserHeatSource::propagateRaysCPU
+(
+    DynamicList<compactRay>& remainingGlobalRays,
+    const fvMesh& mesh,
+    const scalarField& VI,
+    const volScalarField& alphaFiltered,
+    const volVectorField& nFiltered,
+    const volScalarField& resistivity_in,
+    const scalar plasma_frequency,
+    const scalar angular_frequency,
+    const scalar dep_cutoff,
+    const scalar rayPowerAbsTol,
+    const boundBox& globalBB,
+    const label maxLocalSearch,
+    const label laserID
+)
+{
+    // Aliases for brevity
+    const scalarField& alphaFilteredI = alphaFiltered;
+    const vectorField& nFilteredI = nFiltered;
+
+    // Propagate the rays through the domain
+    while (remainingGlobalRays.size() > 0)
+    {
+        // Find all rays on the current processor
+        DynamicList<compactRay> localRays;
+
+        forAll(remainingGlobalRays, rayI)
+        {
+            compactRay& curRay = remainingGlobalRays[rayI];
+
+            // Check if the ray is within the global bound box and has enough power
+            if
+            (
+                globalBB.contains(curRay.position_)
+             && curRay.power_ > rayPowerAbsTol
+            )
+            {
+                const label myCellID =
+                    findCellForRay
+                    (
+                        curRay.position_,
+                        curRay.currentCell_,
+                        mesh,
+                        maxLocalSearch,
+                        debug
+                    );
+
+                if (myCellID != -1)
+                {
+                    localRays.append(curRay);
+                }
+            }
+        }
+
+        // Propagate the rays through the domain
+        forAll(localRays, rayI)
+        {
+            compactRay& curRay = localRays[rayI];
+
+            // Find the cell the ray is currently in
+            label myCellID =
+                findCellForRay
+                (
+                    curRay.position_,
+                    curRay.currentCell_,
+                    mesh,
+                    maxLocalSearch,
+                    debug
+                );
+
+            while (myCellID != -1)
+            {
+                // Iterator distance as a fraction of the cell size
+                const scalar iterator_distance =
+                    (0.5/constant::mathematical::pi)
+                   *pow(VI[myCellID], 1.0/3.0);
+
+                // Move the ray by the iterator distance
+                curRay.position_ += iterator_distance*curRay.direction_;
+
+                // Find the new cell
+                myCellID =
+                    findCellForRay
+                    (
+                        curRay.position_,
+                        curRay.currentCell_,
+                        mesh,
+                        maxLocalSearch,
+                        debug
+                    );
+
+                // Update the ray's cellID
+                curRay.currentCell_ = myCellID;
+
+                if (myCellID == -1)
+                {
+                    break;
+                }
+
+                // Update the rayQ and rayNumber visualisation fields
+                rayQ_[myCellID]     += curRay.power_;
+                rayNumber_[myCellID] = curRay.globalRayIndex_;
+
+                if (curRay.power_ < SMALL)
+                {
+                    // Update the ray's path
+                    curRay.path_.append(curRay.position_);
+                    // End of life for the ray
+                    break;
+                }
+                else if
+                (
+                    mag(nFilteredI[myCellID]) > 0.5
+                 && alphaFilteredI[myCellID] >= dep_cutoff
+                )
+                {
+                    // Interface detected: deposit + reflect
+
+                    const scalar damping_frequency =
+                        plasma_frequency*plasma_frequency
+                       *constant::electromagnetic::epsilon0.value()
+                       *resistivity_in[myCellID];
+
+                    const scalar e_r =
+                        1.0
+                      - (
+                            sqr(plasma_frequency)
+                           /(sqr(angular_frequency) + sqr(damping_frequency))
+                        );
+
+                    const scalar e_i =
+                        (damping_frequency/angular_frequency)
+                       *(
+                            sqr(plasma_frequency)
+                           /(sqr(angular_frequency) + sqr(damping_frequency))
+                        );
+
+                    const scalar ref_index =
+                        Foam::sqrt
+                        (
+                            (Foam::sqrt(e_r*e_r + e_i*e_i) + e_r)/2.0
+                        );
+
+                    const scalar ext_coefficient =
+                        Foam::sqrt
+                        (
+                            (Foam::sqrt(e_r*e_r + e_i*e_i) - e_r)/2.0
+                        );
+
+                    // Unit surface normal
+                    vector n = nFilteredI[myCellID];
+                    n /= mag(n);
+
+                    // Incoming direction
+                    vector d   = curRay.direction_;
+                    const scalar dMag = mag(d);
+
+                    if (dMag <= SMALL)
+                    {
+                        curRay.power_ = 0.0;
+                        curRay.path_.append(curRay.position_);
+                        break;
+                    }
+
+                    d /= dMag;
+                    const vector kin = -d;
+
+                    scalar cosTheta = kin & n;
+
+                    if (cosTheta < 0.0)
+                    {
+                        n        = -n;
+                        cosTheta = -cosTheta;
+                    }
+
+                    cosTheta =
+                        Foam::max
+                        (
+                            Foam::min(cosTheta, scalar(1.0)),
+                            scalar(0.0)
+                        );
+
+                    const scalar theta_in = std::acos(cosTheta);
+                    const scalar sinTheta = Foam::sin(theta_in);
+
+                    const scalar alpha_laser =
+                        Foam::sqrt
+                        (
+                            Foam::sqrt
+                            (
+                                sqr
+                                (
+                                    sqr(ref_index)
+                                  - sqr(ext_coefficient)
+                                  - sqr(sinTheta)
+                                )
+                              + 4.0*sqr(ref_index)*sqr(ext_coefficient)
+                            )
+                          + sqr(ref_index)
+                          - sqr(ext_coefficient)
+                          - sqr(sinTheta)/2.0
+                        );
+
+                    const scalar beta_laser =
+                        Foam::sqrt
+                        (
+                            (
+                                Foam::sqrt
+                                (
+                                    sqr
+                                    (
+                                        sqr(ref_index)
+                                      - sqr(ext_coefficient)
+                                      - sqr(sinTheta)
+                                    )
+                                  + 4.0*sqr(ref_index)*sqr(ext_coefficient)
+                                )
+                              - sqr(ref_index)
+                              + sqr(ext_coefficient)
+                              + sqr(sinTheta)
+                            )/2.0
+                        );
+
+                    const scalar cosTheta_in = Foam::cos(theta_in);
+
+                    scalar R_s =
+                        (
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          - 2.0*alpha_laser*cosTheta_in
+                          + sqr(cosTheta_in)
+                        )
+                       /(
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          + 2.0*alpha_laser*cosTheta_in
+                          + sqr(cosTheta_in)
+                        );
+
+                    scalar R_p =
+                        R_s
+                       *(
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          - 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
+                          + sqr(sinTheta)*sqr(Foam::tan(theta_in))
+                        )
+                       /(
+                            sqr(alpha_laser)
+                          + sqr(beta_laser)
+                          + 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
+                          + sqr(sinTheta)*sqr(Foam::tan(theta_in))
+                        );
+
+                    R_s =
+                        Foam::max
+                        (
+                            Foam::min(R_s, scalar(1.0)), scalar(0.0)
+                        );
+                    R_p =
+                        Foam::max
+                        (
+                            Foam::min(R_p, scalar(1.0)), scalar(0.0)
+                        );
+
+                    const scalar R         = 0.5*(R_s + R_p);
+                    scalar absorptivity    = 1.0 - R;
+                    absorptivity =
+                        Foam::max
+                        (
+                            Foam::min(absorptivity, scalar(1.0)),
+                            scalar(0.0)
+                        );
+
+                    if (debug)
+                    {
+                        Info<< "ray " << curRay.globalRayIndex_
+                            << ", cell " << myCellID
+                            << ", theta_in = " << theta_in
+                            << ", R_s = " << R_s
+                            << ", R_p = " << R_p
+                            << ", absorptivity = " << absorptivity << endl;
+                    }
+
+                    // Deposit and reflect
+                    deposition_[myCellID] +=
+                        absorptivity*curRay.power_/VI[myCellID];
+
+                    curRay.power_ *= (1.0 - absorptivity);
+
+                    const vector dRef =
+                        curRay.direction_ - 2.0*(curRay.direction_ & n)*n;
+
+                    curRay.direction_ = dRef;
+                }
+                else if (alphaFilteredI[myCellID] >= dep_cutoff)
+                {
+                    // Bulk metal: fully absorbing
+                    if (debug)
+                    {
+                        Info<< "Bulk absorption at cell " << myCellID
+                            << ", alpha = " << alphaFilteredI[myCellID]
+                            << ", |n| = " << mag(nFilteredI[myCellID])
+                            << ", power = " << curRay.power_ << endl;
+                    }
+
+                    deposition_[myCellID] += curRay.power_/VI[myCellID];
+                    curRay.power_ = 0.0;
+                    curRay.path_.append(curRay.position_);
+                    break;
+                }
+
+                // Update the ray's path
+                curRay.path_.append(curRay.position_);
+            }
+        }
+
+        // Sync remaining rays globally
+        remainingGlobalRays = localRays;
+        Pstream::combineGather(remainingGlobalRays, combineRayLists());
+        Pstream::broadcast(remainingGlobalRays);
+
+        // Record ray paths
+        if (Pstream::master())
+        {
+            forAll(remainingGlobalRays, rI)
+            {
+                const compactRay& curRay = remainingGlobalRays[rI];
+                const label rayID        = curRay.globalRayIndex_;
+                rayPaths_[laserID][rayID] = curRay.path_;
+            }
+        }
+    }
+}
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
@@ -1245,10 +1575,6 @@ void laserHeatSource::updateDepositionCPU
     const vector normal_interface(0, 1, 0);
     const scalar beam_radius = a_cond.value();
 
-    // Take a references for efficiency and brevity
-    const vectorField& nFilteredI = nFiltered;
-    const scalarField& alphaFilteredI = alphaFiltered;
-
     // Create the initial rays
     List<compactRay> rays;
     createInitialRays
@@ -1296,351 +1622,24 @@ void laserHeatSource::updateDepositionCPU
 
     Info<< "    Number of rays: "<< remainingGlobalRays.size() << endl;
 
-    // Propagate the rays through the domain
-    while (remainingGlobalRays.size() > 0)
-    {
-        // Find all rays on the current processor
-        // localRays will store the remaining rays on this processor
-        DynamicList<compactRay> localRays;
-        forAll(remainingGlobalRays, rayI)
-        {
-            // Take a reference to the current ray
-            compactRay& curRay = remainingGlobalRays[rayI];
-
-            // Check if the ray is within the global bound box and its power is
-            // greater than a small fraction of the laser power
-            if
-            (
-                globalBB.contains(curRay.position_)
-             && curRay.power_ > rayPowerAbsTol
-            )
-            {
-                const label myCellID =
-                    findCellForRay
-                    (
-                        curRay.position_,
-                        curRay.currentCell_,
-                        mesh,
-                        maxLocalSearch,
-                        debug
-                    );
-
-                if (myCellID != -1)
-                {
-                    localRays.append(curRay);
-                }
-            }
-        }
-
-        // Propagate the rays through the domain
-        forAll(localRays, rayI)
-        {
-            // Take a reference to the current ray
-            compactRay& curRay = localRays[rayI];
-
-            // Find the cell the ray is currently in
-            label myCellID =
-                findCellForRay
-                (
-                    curRay.position_,
-                    curRay.currentCell_,
-                    mesh,
-                    maxLocalSearch,
-                    debug
-                );
-
-            while (myCellID != -1)
-            {
-                // Calculate the iterator distance as a fraction of the cell size
-                const scalar iterator_distance =
-                    (0.5/pi)*pow(VI[myCellID], 1.0/3.0);
-
-                // Move the ray by the iterator distance
-                curRay.position_ += iterator_distance*curRay.direction_;
-
-                // Find the new cell
-                myCellID =
-                    findCellForRay
-                    (
-                        curRay.position_,
-                        curRay.currentCell_,
-                        mesh,
-                        maxLocalSearch,
-                        debug
-                    );
-
-                // Update the ray's cellID
-                curRay.currentCell_ = myCellID;
-
-                if (myCellID == -1)
-                {
-                    break;
-                }
-
-                // Update the rayQ and rayNumber visualisation fields
-                rayQ_[myCellID] += curRay.power_;
-                rayNumber_[myCellID] = curRay.globalRayIndex_;
-
-                if (curRay.power_ < SMALL)
-                {
-                    // Update the ray's path
-                    curRay.path_.append(curRay.position_);
-
-                    // End of life for the ray
-                    break;
-                }
-                else if
-                (
-                    mag(nFilteredI[myCellID]) > 0.5
-                 && alphaFilteredI[myCellID] >= dep_cutoff
-                )
-                {
-                    // Interface detected
-                    // Deposit a fraction of the power and calculate the reflection
-
-                    // Material / dielectric properties
-                    const scalar damping_frequency =
-                        plasma_frequency*plasma_frequency
-                       *constant::electromagnetic::epsilon0.value()
-                       *resistivity_in[myCellID];
-
-                    const scalar e_r =
-                        1.0
-                      - (
-                            sqr(plasma_frequency)
-                           /(sqr(angular_frequency) + sqr(damping_frequency))
-                        );
-
-                    const scalar e_i =
-                        (damping_frequency/angular_frequency)
-                       *(
-                            sqr(plasma_frequency)
-                           /(sqr(angular_frequency) + sqr(damping_frequency))
-                        );
-
-                    const scalar ref_index =
-                        Foam::sqrt
-                        (
-                            (Foam::sqrt(e_r*e_r + e_i*e_i) + e_r)/2.0
-                        );
-
-                    const scalar ext_coefficient =
-                        Foam::sqrt
-                        (
-                            (Foam::sqrt(e_r*e_r + e_i*e_i) - e_r)/2.0
-                        );
-
-                    // Incidence angle with consistent normal orientation
-
-                    // Unit surface normal
-                    vector n = nFilteredI[myCellID];
-                    n /= mag(n);
-
-                    // Incoming direction (towards the interface)
-                    vector d = curRay.direction_;
-                    const scalar dMag = mag(d);
-                    if (dMag <= SMALL)
-                    {
-                        // Degenerate ray; stop it
-                        curRay.power_ = 0.0;
-
-                        // Update the ray's path
-                        curRay.path_.append(curRay.position_);
-
-                        // End of life for the ray
-                        break;
-                    }
-                    else
-                    {
-                        d /= dMag;              // unit propagation direction
-                        const vector kin = -d;  // direction of incoming wave
-
-                        scalar cosTheta = kin & n;
-
-                        // Flip normal to ensure cosTheta >= 0 (normal into
-                        // incident medium)
-                        if (cosTheta < 0.0)
-                        {
-                            n = -n;
-                            cosTheta = -cosTheta;
-                        }
-
-                        // Clamp to [0,1] to avoid NaN from acos
-                        cosTheta =
-                            Foam::max
-                            (
-                                Foam::min(cosTheta, scalar(1.0)),
-                                scalar(0.0)
-                            );
-
-                        const scalar theta_in = std::acos(cosTheta);
-
-                        // Fresnel-like optics
-
-                        const scalar sinTheta = Foam::sin(theta_in);
-
-                        const scalar alpha_laser =
-                            Foam::sqrt
-                            (
-                                Foam::sqrt
-                                (
-                                    sqr
-                                    (
-                                        sqr(ref_index)
-                                      - sqr(ext_coefficient)
-                                      - sqr(sinTheta)
-                                    )
-                                  + 4.0*sqr(ref_index)*sqr(ext_coefficient)
-                                )
-                              + sqr(ref_index)
-                              - sqr(ext_coefficient)
-                              - sqr(sinTheta)/2.0
-                            );
-
-                        const scalar beta_laser =
-                            Foam::sqrt
-                            (
-                                (
-                                    Foam::sqrt
-                                    (
-                                        sqr
-                                        (
-                                            sqr(ref_index)
-                                          - sqr(ext_coefficient)
-                                          - sqr(sinTheta)
-                                        )
-                                      + 4.0*sqr(ref_index)*sqr(ext_coefficient)
-                                    )
-                                  - sqr(ref_index)
-                                  + sqr(ext_coefficient)
-                                  + sqr(sinTheta)
-                                )/2.0
-                            );
-
-                        const scalar cosTheta_in = Foam::cos(theta_in);
-
-                        scalar R_s =
-                            (
-                                sqr(alpha_laser)
-                              + sqr(beta_laser)
-                              - 2.0*alpha_laser*cosTheta_in
-                              + sqr(cosTheta_in)
-                            )
-                           /(
-                                sqr(alpha_laser)
-                              + sqr(beta_laser)
-                              + 2.0*alpha_laser*cosTheta_in
-                              + sqr(cosTheta_in)
-                            );
-
-                        scalar R_p =
-                            R_s
-                           *(
-                                sqr(alpha_laser)
-                              + sqr(beta_laser)
-                              - 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
-                              + sqr(sinTheta)*sqr(Foam::tan(theta_in))
-                            )
-                           /(
-                                sqr(alpha_laser)
-                              + sqr(beta_laser)
-                              + 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
-                              + sqr(sinTheta)*sqr(Foam::tan(theta_in))
-                            );
-
-                        // Clamp reflectivities and absorptivity to [0,1]
-
-                        R_s =
-                            Foam::max(Foam::min(R_s, scalar(1.0)), scalar(0.0));
-                        R_p =
-                            Foam::max(Foam::min(R_p, scalar(1.0)), scalar(0.0));
-
-                        const scalar R = 0.5*(R_s + R_p);
-                        scalar absorptivity = 1.0 - R;
-
-                        absorptivity =
-                            Foam::max
-                            (
-                                Foam::min(absorptivity, scalar(1.0)),
-                                scalar(0.0)
-                            );
-
-                        if (debug)
-                        {
-                            Info<< "ray " << curRay.globalRayIndex_
-                                << ", cell " << myCellID
-                                << ", theta_in = " << theta_in
-                                << ", R_s = " << R_s
-                                << ", R_p = " << R_p
-                                << ", absorptivity = " << absorptivity << endl;
-                        }
-
-                        // Deposit and reflect
-
-                        deposition_[myCellID] +=
-                            absorptivity*curRay.power_/VI[myCellID];
-
-                        curRay.power_ *= (1.0 - absorptivity);
-
-                        // Specular reflection
-                        // reflect original direction about n
-                        // n points into incident medium
-                        const vector dRef =
-                            curRay.direction_ - 2.0*(curRay.direction_ & n)*n;
-
-                        curRay.direction_ = dRef;
-                    }
-                }
-                else if (alphaFilteredI[myCellID] >= dep_cutoff)
-                {
-                    // Bulk metal
-                    // Assume fully absorbing, no further propagation
-
-                    if (debug)
-                    {
-                        Info<< "Bulk absorption at cell " << myCellID
-                            << ", alpha = " << alphaFilteredI[myCellID]
-                            << ", |n| = " << mag(nFilteredI[myCellID])
-                            << ", power = " << curRay.power_ << endl;
-                    }
-
-                    // Deposit all remaining ray power in this cell
-                    deposition_[myCellID] += curRay.power_/VI[myCellID];
-
-                    // Kill the ray
-                    curRay.power_ = 0.0;
-
-                    // Update the ray's path
-                    curRay.path_.append(curRay.position_);
-
-                    // End of life for the ray
-                    break;
-                }
-
-                // Update the ray's path
-                curRay.path_.append(curRay.position_);
-            }
-        }
-
-        // Sync all remaining local rays globally so remainingGlobalRays will
-        // be the same on all processors
-        remainingGlobalRays = localRays;
-        Pstream::combineGather(remainingGlobalRays, combineRayLists());
-        Pstream::broadcast(remainingGlobalRays);
-
-        // Record the latest ray paths
-        // Note that once a ray has left the domain then its global path is no
-        // longer updated so its path will be the final full path
-        if (Pstream::master())
-        {
-            forAll(remainingGlobalRays, rI)
-            {
-                const compactRay& curRay = remainingGlobalRays[rI];
-                const label rayID = curRay.globalRayIndex_;
-                rayPaths_[laserID][rayID] = curRay.path_;
-            }
-        }
-    }
+    // Propagate the rays through the domain and update the energy deposition
+    // field
+    propagateRaysCPU
+    (
+        remainingGlobalRays,
+        mesh,
+        VI,
+        alphaFiltered,
+        nFiltered,
+        resistivity_in,
+        plasma_frequency,
+        angular_frequency,
+        dep_cutoff,
+        rayPowerAbsTol,
+        globalBB,
+        maxLocalSearch,
+        laserID
+    );
 
     deposition_.correctBoundaryConditions();
 

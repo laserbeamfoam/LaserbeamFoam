@@ -1,0 +1,16 @@
+#!/bin/bash
+set -e
+
+: "${FOAM_USER_LIBBIN:?Need FOAM_USER_LIBBIN set (source OpenFOAM etc/bashrc)}"
+: "${CUDA_DIR:?Need CUDA_DIR set, e.g. /usr or /usr/local/cuda}"
+
+echo "Building liblaserHeatSourceCuda.so with nvcc"
+echo "  CUDA_DIR=${CUDA_DIR}"
+echo "  FOAM_USER_LIBBIN=${FOAM_USER_LIBBIN}"
+
+nvcc -O3 -Xcompiler "-fPIC" -arch=sm_86 \
+    -I"${CUDA_DIR}/include" \
+    -shared laserHeatSourceKernels.cu \
+    -o "${FOAM_USER_LIBBIN}/liblaserHeatSourceCuda.so"
+
+echo "nvcc build complete: ${FOAM_USER_LIBBIN}/liblaserHeatSourceCuda.so"
