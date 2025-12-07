@@ -109,6 +109,18 @@ class laserHeatSource
         //- Record of times when VTK files were written
         HashSet<scalar> vtkTimes_;
 
+        //- CPU or GPU ray tracing
+        enum rayTracingBackend
+        {
+            RT_CPU,
+            RT_GPU,
+            RT_AUTO
+        };
+        rayTracingBackend rayBackend_;
+
+        //- Is a GPU available?
+        bool gpuAvailable_;
+
         //- Ray tracing algorithm
         enum cellSearchMode
         {
@@ -207,6 +219,9 @@ class laserHeatSource
             const point& p, label& i, label& j, label& k
         ) const;
 
+        //- Detech if a GPU is available
+        bool detectGPU();
+
         //- Disallow default bitwise copy construct
         laserHeatSource(const laserHeatSource&);
 
@@ -295,7 +310,57 @@ public:
             const Switch useLocalSearch,
             const label maxLocalSearch,
             const scalar rayPowerRelTol,
-            const boundBox& globalBB  // FOR ACCESS TO BOUNDING BOX GLOBALLY
+            const boundBox& globalBB
+        );
+
+        //- Update the deposition for the given laser parameters using the CPU
+        //  implementation
+        void updateDepositionCPU
+        (
+            const volScalarField& alphaFiltered,
+            const volVectorField& nFiltered,
+            const volScalarField& resistivity_in,
+            const label laserID,
+            const vector& currentLaserPosition,
+            const scalar currentLaserPower,
+            const scalar laserRadius,
+            const label N_sub_divisions,
+            const label nRadial,
+            const label nAngular,
+            const vector& V_incident,
+            const scalar wavelength,
+            const scalar e_num_density,
+            const scalar dep_cutoff,
+            const scalar Radius_Flavour,
+            const Switch useLocalSearch,
+            const label maxLocalSearch,
+            const scalar rayPowerRelTol,
+            const boundBox& globalBB
+        );
+
+        //- Update the deposition for the given laser parameters using the GPU
+        //  implementation
+        void updateDepositionGPU
+        (
+            const volScalarField& alphaFiltered,
+            const volVectorField& nFiltered,
+            const volScalarField& resistivity_in,
+            const label laserID,
+            const vector& currentLaserPosition,
+            const scalar currentLaserPower,
+            const scalar laserRadius,
+            const label N_sub_divisions,
+            const label nRadial,
+            const label nAngular,
+            const vector& V_incident,
+            const scalar wavelength,
+            const scalar e_num_density,
+            const scalar dep_cutoff,
+            const scalar Radius_Flavour,
+            const Switch useLocalSearch,
+            const label maxLocalSearch,
+            const scalar rayPowerRelTol,
+            const boundBox& globalBB
         );
 
         //- Const access to the global bounding box

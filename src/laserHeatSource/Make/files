@@ -1,5 +1,6 @@
 compactRay.C
 laserHeatSource.C
+laserHeatSourceGpu.C
 
 
 LIB = $(FOAM_USER_LIBBIN)/liblaserHeatSource

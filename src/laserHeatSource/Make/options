@@ -1,4 +1,13 @@
+ifdef CUDA_DIR
+    VERSION_SPECIFIC_INC += \
+        -I$(CUDA_DIR)/include \
+        -DFOAM_USE_CUDA
+    VERSION_SPECIFIC_LIBS += \
+        -L$(CUDA_DIR)/lib/x86_64-linux-gnu -lcudart
+endif
+
 EXE_INC = \
+    $(VERSION_SPECIFIC_INC) \
     -I$(LIB_SRC)/physicalProperties/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/basic/lnInclude \
     -I$(LIB_SRC)/thermophysicalModels/specie/lnInclude \
@@ -9,6 +18,7 @@ EXE_INC = \
     -I$(LIB_SRC)/meshTools/lnInclude
 
 LIB_LIBS = \
+    $(VERSION_SPECIFIC_LIBS) \
     -lfluidThermophysicalModels \
     -lspecie \
     -lsolidThermo \

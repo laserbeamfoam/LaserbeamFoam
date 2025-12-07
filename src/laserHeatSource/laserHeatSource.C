@@ -560,6 +560,13 @@ bool laserHeatSource::voxelIndices
 }
 
 
+// bool Foam::laserHeatSource::detectGPU()
+// {
+//     // Default implementation if CUDA is not compiled in
+//     return false;
+// }
+
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 laserHeatSource::laserHeatSource
@@ -671,6 +678,8 @@ laserHeatSource::laserHeatSource
     timeVsLaserPower_(0),
     rayPaths_(0),
     vtkTimes_(),
+    rayBackend_(),
+    gpuAvailable_(false),
     cellSearchMode_(),
     voxelInitialised_(false),
     nVoxelsX_(-1),
@@ -843,6 +852,59 @@ laserHeatSource::laserHeatSource
             << "'elec_resistivity' is deprecated: resistivity is now "
             << "passed in from the solver as a field"
             << exit(FatalError);
+    }
+
+    // Choose ray-tracing backend
+    {
+        const word backendWord
+        (
+            lookupOrDefault<word>("rayTracingBackend", "cpu")
+        );
+
+        if (backendWord == "cpu")
+        {
+            rayBackend_ = RT_CPU;
+        }
+        else if (backendWord == "gpu")
+        {
+            rayBackend_ = RT_GPU;
+        }
+        else if (backendWord == "auto")
+        {
+            rayBackend_ = RT_AUTO;
+        }
+        else
+        {
+            FatalErrorInFunction
+                << "Unknown rayTracingBackend = " << backendWord << nl
+                << "Options are cpu, gpu, auto"
+                << exit(FatalError);
+        }
+
+        gpuAvailable_ = detectGPU();
+
+        if (rayBackend_ == RT_GPU && !gpuAvailable_)
+        {
+            Info<< "Requested GPU backend but no CUDA device available; "
+                << "falling back to CPU." << endl;
+        }
+        else if (rayBackend_ == RT_AUTO)
+        {
+            if (gpuAvailable_)
+            {
+                Info<< "rayTracingBackend = auto: GPU device detected, "
+                    << "using GPU backend" << endl;
+            }
+            else
+            {
+                Info<< "rayTracingBackend = auto: no GPU device detected, "
+                    << "using CPU backend" << endl;
+            }
+        }
+        else if (rayBackend_ == RT_CPU)
+        {
+            Info<< "rayTracingBackend = cpu" << endl;
+        }
     }
 
     // Initialise voxel data
@@ -1043,6 +1105,86 @@ void laserHeatSource::updateDeposition
 
 
 void laserHeatSource::updateDeposition
+(
+    const volScalarField& alphaFiltered,
+    const volVectorField& nFiltered,
+    const volScalarField& resistivity_in,
+    const label laserID,
+    const vector& currentLaserPosition,
+    const scalar currentLaserPower,
+    const scalar laserRadius,
+    const label N_sub_divisions,
+    const label nRadial,
+    const label nAngular,
+    const vector& V_incident,
+    const scalar wavelength,
+    const scalar e_num_density,
+    const scalar dep_cutoff,
+    const scalar Radius_Flavour,
+    const Switch useLocalSearch,
+    const label maxLocalSearch,
+    const scalar rayPowerRelTol,
+    const boundBox& globalBB
+)
+{
+    const bool useGPU =
+        (rayBackend_ == RT_GPU && gpuAvailable_)
+     || (rayBackend_ == RT_AUTO && gpuAvailable_);
+
+    if (useGPU)
+    {
+        updateDepositionGPU
+        (
+            alphaFiltered,
+            nFiltered,
+            resistivity_in,
+            laserID,
+            currentLaserPosition,
+            currentLaserPower,
+            laserRadius,
+            N_sub_divisions,
+            nRadial,
+            nAngular,
+            V_incident,
+            wavelength,
+            e_num_density,
+            dep_cutoff,
+            Radius_Flavour,
+            useLocalSearch,
+            maxLocalSearch,
+            rayPowerRelTol,
+            globalBB
+        );
+    }
+    else
+    {
+        updateDepositionCPU
+        (
+            alphaFiltered,
+            nFiltered,
+            resistivity_in,
+            laserID,
+            currentLaserPosition,
+            currentLaserPower,
+            laserRadius,
+            N_sub_divisions,
+            nRadial,
+            nAngular,
+            V_incident,
+            wavelength,
+            e_num_density,
+            dep_cutoff,
+            Radius_Flavour,
+            useLocalSearch,
+            maxLocalSearch,
+            rayPowerRelTol,
+            globalBB
+        );
+    }
+}
+
+
+void laserHeatSource::updateDepositionCPU
 (
     const volScalarField& alphaFiltered,
     const volVectorField& nFiltered,
