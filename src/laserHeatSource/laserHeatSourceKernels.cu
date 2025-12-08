@@ -163,31 +163,75 @@ __global__ void gpuTraceRayKernel
 
         const double VIc    = VI[cellI];
         const double alphac = alpha[cellI];
+        const double3 nval  = n[cellI];
 
         // iterator distance like CPU
         const double step = (0.5/M_PI)*cbrt(VIc);
 
-        // ---- bulk absorption only (no Fresnel yet) ----
-        if (alphac >= dep_cutoff)
+        // ------------------------------
+        // Interface detection + reflection (no Fresnel yet)
+        // ------------------------------
+        const double nmag =
+            sqrt(nval.x*nval.x + nval.y*nval.y + nval.z*nval.z);
+
+        const bool atInterface = (nmag > 0.5 && alphac >= dep_cutoff);
+
+        if (atInterface)
         {
-            // CPU bulk branch:
-            // deposition_[myCellID] += curRay.power_/VI[myCellID];
-            // curRay.power_ = 0.0; break;
+            // normalised normal
+            double3 nhat = { nval.x/nmag, nval.y/nmag, nval.z/nmag };
+
+            // normalise direction
+            double dmag = sqrt(r.dir.x*r.dir.x + r.dir.y*r.dir.y + r.dir.z*r.dir.z);
+            if (dmag < 1e-12)
+            {
+                r.power = 0.0;
+                break;  // degenerate ray
+            }
+
+            double3 dhat = { r.dir.x/dmag, r.dir.y/dmag, r.dir.z/dmag };
+
+            // reflect: d_ref = d - 2 (d·n) n
+            double dot = dhat.x*nhat.x + dhat.y*nhat.y + dhat.z*nhat.z;
+
+            double3 dref = {
+                dhat.x - 2.0*dot*nhat.x,
+                dhat.y - 2.0*dot*nhat.y,
+                dhat.z - 2.0*dot*nhat.z
+            };
+
+            // store reflected direction
+            r.dir = dref;
+
+            // small nudge to avoid re-detection at exact same point
+            const double eps = 0.01*step;
+            r.pos.x += eps * dref.x;
+            r.pos.y += eps * dref.y;
+            r.pos.z += eps * dref.z;
+        }
+
+        // ------------------------------
+        // Bulk absorption (only if NOT interface)
+        // ------------------------------
+        if (!atInterface && alphac >= dep_cutoff)
+        {
             const double volSrc = (VIc > 0.0 ? r.power/VIc : 0.0);
 
             atomicAdd(&deposition[cellI], volSrc);
-
             r.power = 0.0;
-            break;  // ray is fully absorbed in this cell
+            break;  // ray is finished
         }
 
-        // otherwise: just move the ray, no deposition yet
-        r.pos.x += step*r.dir.x;
-        r.pos.y += step*r.dir.y;
-        r.pos.z += step*r.dir.z;
+        // ------------------------------
+        // Step the ray in its current direction (possibly reflected)
+        // ------------------------------
+        r.pos.x += step * r.dir.x;
+        r.pos.y += step * r.dir.y;
+        r.pos.z += step * r.dir.z;
 
-
+        // count this iteration
         ++steps;
+
     }
 
     // after maxSteps or termination, the ray is done
