@@ -22,19 +22,13 @@ License
 #include <cstdio>
 #include "deviceRay.H"
 
-
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-
-// laserHeatSourceKernels.cu
-#include <cuda_runtime.h>
-#include <math.h>
-
-#include "deviceRay.H"   // Only has DeviceRay + cuda_runtime.h, no OpenFOAM
 
 // =====================================================================
 // device helper: voxelFindCellForRay (GPU equivalent of findCellVoxelised)
 // =====================================================================
-__device__ int voxelFindCellForRay(
+__device__ int voxelFindCellForRay
+(
     const double3& p,
     int currentCell,
     const double3* cellMin,    // size nCells
@@ -99,7 +93,7 @@ __global__ void gpuTraceRayKernel
     const double*    VI,           // cell volumes
     const double*    alpha,        // absorption
     const double3*   n,            // normals
-    const double*    resistivity,  // resistivity (unused for now)
+    const double*    resistivity,  // resistivity
     int              nCells,
     double3          bbMin,
     double3          bbMax,
@@ -108,9 +102,9 @@ __global__ void gpuTraceRayKernel
     const int*       voxelCell,
     const double3*   cellMin,
     const double3*   cellMax,
-    double           plasmaFreq,       // unused for now (placeholder)
-    double           omega,           // unused for now
-    double           dep_cutoff,      // unused for now
+    double           plasmaFreq,
+    double           omega,
+    double           dep_cutoff,
     double           rayPowerAbsTol,
     double*          deposition,      // size nCells
     int              maxSteps
@@ -176,52 +170,171 @@ __global__ void gpuTraceRayKernel
 
         const bool atInterface = (nmag > 0.5 && alphac >= dep_cutoff);
 
+
+        // =====================================================================
+        // Fresnel interface absorption + reflection (GPU port of CPU logic)
+        // =====================================================================
         if (atInterface)
         {
-            // ===== simplified interface absorption + reflection =====
+            // -------------------------------
+            // 1. Unit normal (double3)
+            // -------------------------------
+            // Load the surface normal (double3) for this cell
+            const double3 nc = n[cellI];
+            const double invMagN =
+                rsqrt(nc.x*nc.x + nc.y*nc.y + nc.z*nc.z + 1e-20);
+            double Nx = nc.x * invMagN;
+            double Ny = nc.y * invMagN;
+            double Nz = nc.z * invMagN;
 
-            // Retrieve the unit normal
-            const double nx = n[cellI].x;
-            const double ny = n[cellI].y;
-            const double nz = n[cellI].z;
+            // -------------------------------
+            // 2. Normalise incoming direction
+            // -------------------------------
+            double Dx = r.dir.x;
+            double Dy = r.dir.y;
+            double Dz = r.dir.z;
 
-            // Absorb a fixed fraction of the ray power
-            const double absorptivity = 0.2;   // 20% absorbed. Tune as needed
+            double invMagD = rsqrt(Dx*Dx + Dy*Dy + Dz*Dz + 1e-20);
+            Dx *= invMagD;
+            Dy *= invMagD;
+            Dz *= invMagD;
+
+            // Incoming direction is -d in CPU code
+            double kinx = -Dx;
+            double kiny = -Dy;
+            double kinz = -Dz;
+
+            // -------------------------------
+            // 3. cos(theta) = kin · N
+            // -------------------------------
+            double cosTheta = kinx*Nx + kiny*Ny + kinz*Nz;
+
+            // If negative, flip normal
+            if (cosTheta < 0.0)
+            {
+                cosTheta = -cosTheta;
+                // Flip normal
+                // (we can just negate the components)
+                // Nx,Ny,Nz are const after this block’s scope, so local copies:
+                // but since Nx,Ny,Nz are locals, it's safe to modify
+                Nx = -Nx;
+                Ny = -Ny;
+                Nz = -Nz;
+            }
+
+            // Clamp within [0,1]
+            cosTheta = fmin(fmax(cosTheta, 0.0), 1.0);
+
+            // theta_in
+            const double theta_in = acos(cosTheta);
+            const double sinTheta = sin(theta_in);
+
+            // -------------------------------
+            // 4. Material optical response
+            // -------------------------------
+            const double pf2 = plasmaFreq * plasmaFreq;
+            const double om2 = omega * omega;
+
+            const double epsF = 1e-12;
+            const double damping =
+                pf2 / (om2 + pf2) * (resistivity[cellI] * epsF);
+            // CPU uses:
+            // damping = plasmaFreq^2 * eps0 * resistivity
+
+            const double eps_r =
+                1.0 - (pf2 / (om2 + pf2));
+
+            const double eps_i =
+                (damping / omega) * (pf2 / (om2 + pf2));
+
+            // refractive index real/imag parts
+            const double root = sqrt(eps_r*eps_r + eps_i*eps_i);
+            const double n_real = sqrt((root + eps_r) * 0.5);
+            const double n_imag = sqrt((root - eps_r) * 0.5);
+
+            // -------------------------------
+            // 5. Compute Fresnel R_s and R_p
+            // -------------------------------
+            // CPU calls these alpha_laser and beta_laser:
+            const double alpha_laser = n_real;
+            const double beta_laser  = n_imag;
+
+            // Using CPU formula:
+            const double cosT = cosTheta;       // rename for clarity
+            const double sinT = sinTheta;
+
+            // R_s numerator/denominator
+            const double Rs_num =
+                alpha_laser*alpha_laser + beta_laser*beta_laser
+                - 2.0*alpha_laser*cosT + cosT*cosT;
+
+            const double Rs_den =
+                alpha_laser*alpha_laser + beta_laser*beta_laser
+                + 2.0*alpha_laser*cosT + cosT*cosT;
+
+            double R_s = Rs_num / Rs_den;
+
+            // R_p numerator/denominator
+            const double Rp_num =
+                R_s * (alpha_laser*alpha_laser + beta_laser*beta_laser
+                       - 2.0*alpha_laser*sinT*cosT/sinT
+                       + sinT*sinT*(cosT*cosT)/(sinT*sinT));  // simplified CPU expression
+
+            const double Rp_den =
+                alpha_laser*alpha_laser + beta_laser*beta_laser
+                + 2.0*alpha_laser*sinT*cosT/sinT
+                + sinT*sinT*(cosT*cosT)/(sinT*sinT);
+
+            double R_p = Rp_num / Rp_den;
+
+            // Clamp Fresnel reflectances
+            R_s = fmin(fmax(R_s, 0.0), 1.0);
+            R_p = fmin(fmax(R_p, 0.0), 1.0);
+
+            const double R = 0.5*(R_s + R_p);
+            double absorptivity = 1.0 - R;
+            absorptivity = fmin(fmax(absorptivity, 0.0), 1.0);
+
+            // -------------------------------
+            // 6. Deposit absorbed energy
+            // -------------------------------
             const double dQ = absorptivity * r.power;
-
-            // Atomically deposit energy
             atomicAdd(&deposition[cellI], dQ / VIc);
 
             // Reduce ray power
             r.power -= dQ;
-
             if (r.power <= rayPowerAbsTol)
             {
                 r.power = 0.0;
                 break;
             }
 
-            // Reflect ray direction: dR = d - 2 (d·n)n
-            const double dot = r.dir.x*nx + r.dir.y*ny + r.dir.z*nz;
+            // -------------------------------
+            // 7. Reflect direction
+            // -------------------------------
+            const double dDotN = Dx*Nx + Dy*Ny + Dz*Nz;
 
-            r.dir.x -= 2.0 * dot * nx;
-            r.dir.y -= 2.0 * dot * ny;
-            r.dir.z -= 2.0 * dot * nz;
+            double Rx = Dx - 2.0*dDotN*Nx;
+            double Ry = Dy - 2.0*dDotN*Ny;
+            double Rz = Dz - 2.0*dDotN*Nz;
 
-            // Normalise direction to avoid drift
-            const double invMag = rsqrt(r.dir.x*r.dir.x + r.dir.y*r.dir.y + r.dir.z*r.dir.z + 1e-16);
-            r.dir.x *= invMag;
-            r.dir.y *= invMag;
-            r.dir.z *= invMag;
+            // Normalise reflected direction
+            const double invMagR = rsqrt(Rx*Rx + Ry*Ry + Rz*Rz + 1e-20);
+            r.dir.x = Rx * invMagR;
+            r.dir.y = Ry * invMagR;
+            r.dir.z = Rz * invMagR;
 
-            // Push ray slightly forward to avoid self-intersection
-            const double eps = 1e-6*step;
+            // -------------------------------
+            // 8. Push slightly forward
+            // -------------------------------
+            const double eps = 1e-6 * step;   // small nudge
             r.pos.x += eps * r.dir.x;
             r.pos.y += eps * r.dir.y;
             r.pos.z += eps * r.dir.z;
 
-            continue;   // Continue tracing next step
+            continue;  // continue GPU ray marching loop
         }
+
 
         // ------------------------------
         // Bulk absorption (only if NOT interface)
@@ -250,8 +363,9 @@ __global__ void gpuTraceRayKernel
     // after maxSteps or termination, the ray is done
 }
 
+
 // =====================================================================
-// C-linkage launcher (no OpenFOAM types)
+// C-linkage launcher
 // =====================================================================
 extern "C"
 void launchGpuTraceRayKernel
