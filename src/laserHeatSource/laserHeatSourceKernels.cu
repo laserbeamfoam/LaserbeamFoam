@@ -91,9 +91,6 @@ __device__ int voxelFindCellForRay(
 
 // =====================================================================
 // global kernel: gpuTraceRayKernel
-//  - THIS VERSION IS A SIMPLE PLACEHOLDER
-//  - one thread per ray
-//  - moves each ray with a crude absorption model then kills it
 // =====================================================================
 __global__ void gpuTraceRayKernel
 (
@@ -167,24 +164,28 @@ __global__ void gpuTraceRayKernel
         const double VIc    = VI[cellI];
         const double alphac = alpha[cellI];
 
-        // simple iterator distance: like CPU (0.5/pi)*cbrt(VI)
+        // iterator distance like CPU
         const double step = (0.5/M_PI)*cbrt(VIc);
 
-        // simple absorption model: deposit a small fraction proportional to alpha
-        const double depositFrac = fmin(fmax(alphac, 0.0), 1.0)*0.1; // placeholder
-        const double dQ = depositFrac*r.power;
-
-        if (dQ > 0.0)
+        // ---- bulk absorption only (no Fresnel yet) ----
+        if (alphac >= dep_cutoff)
         {
-            atomicAdd(&deposition[cellI], dQ);
-            r.power -= dQ;
-            if (r.power < 0.0) r.power = 0.0;
+            // CPU bulk branch:
+            // deposition_[myCellID] += curRay.power_/VI[myCellID];
+            // curRay.power_ = 0.0; break;
+            const double volSrc = (VIc > 0.0 ? r.power/VIc : 0.0);
+
+            atomicAdd(&deposition[cellI], volSrc);
+
+            r.power = 0.0;
+            break;  // ray is fully absorbed in this cell
         }
 
-        // move the ray
+        // otherwise: just move the ray, no deposition yet
         r.pos.x += step*r.dir.x;
         r.pos.y += step*r.dir.y;
         r.pos.z += step*r.dir.z;
+
 
         ++steps;
     }
