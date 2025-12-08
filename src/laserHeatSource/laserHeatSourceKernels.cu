@@ -178,36 +178,49 @@ __global__ void gpuTraceRayKernel
 
         if (atInterface)
         {
-            // normalised normal
-            double3 nhat = { nval.x/nmag, nval.y/nmag, nval.z/nmag };
+            // ===== simplified interface absorption + reflection =====
 
-            // normalise direction
-            double dmag = sqrt(r.dir.x*r.dir.x + r.dir.y*r.dir.y + r.dir.z*r.dir.z);
-            if (dmag < 1e-12)
+            // Retrieve the unit normal
+            const double nx = n[cellI].x;
+            const double ny = n[cellI].y;
+            const double nz = n[cellI].z;
+
+            // Absorb a fixed fraction of the ray power
+            const double absorptivity = 0.2;   // 20% absorbed. Tune as needed
+            const double dQ = absorptivity * r.power;
+
+            // Atomically deposit energy
+            atomicAdd(&deposition[cellI], dQ / VIc);
+
+            // Reduce ray power
+            r.power -= dQ;
+
+            if (r.power <= rayPowerAbsTol)
             {
                 r.power = 0.0;
-                break;  // degenerate ray
+                break;
             }
 
-            double3 dhat = { r.dir.x/dmag, r.dir.y/dmag, r.dir.z/dmag };
+            // Reflect ray direction: dR = d - 2 (d·n)n
+            const double dot = r.dir.x*nx + r.dir.y*ny + r.dir.z*nz;
 
-            // reflect: d_ref = d - 2 (d·n) n
-            double dot = dhat.x*nhat.x + dhat.y*nhat.y + dhat.z*nhat.z;
+            r.dir.x -= 2.0 * dot * nx;
+            r.dir.y -= 2.0 * dot * ny;
+            r.dir.z -= 2.0 * dot * nz;
 
-            double3 dref = {
-                dhat.x - 2.0*dot*nhat.x,
-                dhat.y - 2.0*dot*nhat.y,
-                dhat.z - 2.0*dot*nhat.z
-            };
+            // Normalise direction to avoid drift
+            const double invMag = rsqrt(r.dir.x*r.dir.x + r.dir.y*r.dir.y + r.dir.z*r.dir.z + 1e-16);
+            r.dir.x *= invMag;
+            r.dir.y *= invMag;
+            r.dir.z *= invMag;
 
-            // store reflected direction
-            r.dir = dref;
+            // Push ray slightly forward to avoid self-intersection
+            const double eps = 1e-6*step;
+            r.pos.x += eps * r.dir.x;
+            r.pos.y += eps * r.dir.y;
+            r.pos.z += eps * r.dir.z;
 
-            // small nudge to avoid re-detection at exact same point
-            const double eps = 0.01*step;
-            r.pos.x += eps * dref.x;
-            r.pos.y += eps * dref.y;
-            r.pos.z += eps * dref.z;
+            continue;   // Continue tracing next step
         }
 
         // ------------------------------
