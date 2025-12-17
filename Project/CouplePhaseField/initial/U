@@ -1,0 +1,92 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  3.0.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    location    "0";
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+/* boundaryField
+{
+	frontAndBack{
+        type            slip;
+	}
+    lowerWall
+    {
+        type            slip;
+
+    }
+    atmosphere
+    {
+type pressureInletOutletVelocity;
+phi phi;
+rho rho;
+tangentialVelocity uniform (0 0 0);
+value uniform (0 0 0.5);
+    }
+rightWall
+    {
+        type            slip;
+    }
+    leftWall
+    {
+        type            slip;
+    }
+    defaultFaces
+    {
+        type            empty;
+    }
+} */
+
+
+boundaryField
+{
+    leftWall
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+    rightWall
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+    bottomWall
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+    topWall
+    {
+        type            pressureInletOutletVelocity;
+        phi		phi;
+        rho		rho;
+        value           uniform (0 0 0);
+    }
+    front
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+    back
+    {
+        type            fixedValue;
+        value           uniform (0 0 0);
+    }
+}
+
+
+// ************************************************************************* //

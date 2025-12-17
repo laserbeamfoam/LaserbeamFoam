@@ -109,8 +109,16 @@ terminal(
     f'bash -c "source {OF_LOCATION} && pvpython {os.path.join(SCRIPT_DIR, "extract_meltpool.py")}"'
 )
 calculate_geometry_full_meltpool(CSV_3D = "./meltpool.csv")
-if (PLOT_GEOMETRY_VS_Y_LOCATION):
+
+# Plot regardless of continuity; require metrics CSV only
+if PLOT_GEOMETRY_VS_Y_LOCATION and os.path.exists("./cross_sections_statistics.csv"):
     plotResults()
+else:
+    print("Skipping plotting: metrics CSV missing")
+
+# Always try to produce a slice preview if available
+from functions import plot_slice_preview
+plot_slice_preview(slice_csv="meltpool_slice_xmid.csv", output_png="SlicePreview.png")
 terminal("mkdir -p results_plots && mv *.png results_plots")
 
 print("Geometry measurement finished.")

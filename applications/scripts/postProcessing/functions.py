@@ -44,7 +44,7 @@ def plotResults(CSV_CROSS_SECTIONS = "cross_sections_statistics.csv"):
         plt.plot(x, y_values, marker="o")  
         plt.axhline(y=y_values.mean(), color="red", linestyle="--", 
                     label="Mean")
-        plt.xlabel(xlabel + " (m)")
+        plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         plt.title(title)
         plt.legend()
@@ -53,24 +53,101 @@ def plotResults(CSV_CROSS_SECTIONS = "cross_sections_statistics.csv"):
         plt.savefig("./" + name_png_file + ".png")
     
     df = pd.read_csv(CSV_CROSS_SECTIONS)
-    y_locations = df["iy"]
-    # width_at_y_locations = df["width"]
-    # height_at_y_locations = df["height"]
-    # depth_at_y_locations = df["depth"]
-    # porosity_at_y_locations = df["porosity_at_iy"]
+    # work in micrometers for plotting
+    y_locations_um = df["iy"] * 1e6
     
     keys_for_plot = ["width", "height", "depth", "porosity_at_iy"]
+    if "area" in df.columns:
+        # Keep order consistent: lengths first, then area, porosity last
+        keys_for_plot.insert(3, "area")
     
     for key in keys_for_plot:
+        if key not in df.columns:
+            continue
         values_for_plot = df[key]
         if key == "porosity_at_iy":
-            generate_figure(y_locations, values_for_plot, "y_coordinate", 
-                            "Porosity (porous volume / total volume)", 
-                            "Porosity vs. y-coordinate", "Porosity")
+            generate_figure(
+                y_locations_um,
+                values_for_plot,
+                "y_coordinate (um)",
+                "Porosity (porous volume / total volume)",
+                "Porosity vs. y-coordinate",
+                "Porosity",
+            )
+        elif key == "area":
+            values_um2 = values_for_plot * 1e12
+            generate_figure(
+                y_locations_um,
+                values_um2,
+                "y_coordinate (um)",
+                "Area (um^2)",
+                "Area vs. y-coordinate",
+                "Area",
+            )
         else:
-            generate_figure(y_locations, values_for_plot, "y_coordinate", 
-                            key + " (m)", key.capitalize() + 
-                            " vs. y-coordinate", key.capitalize())
+            values_um = values_for_plot * 1e6
+            title = key.capitalize() + " vs. y-coordinate"
+            generate_figure(
+                y_locations_um,
+                values_um,
+                "y_coordinate (um)",
+                f"{key} (um)",
+                title,
+                key.capitalize(),
+            )
+
+
+def plot_slice_preview(slice_csv="meltpool_slice_xmid.csv", output_png="SlicePreview.png"):
+    """
+    Quick scatter plot of a mid-x slice to visualise where width/height/depth
+    are measured. Uses micrometers on both axes.
+    """
+    if not os.path.exists(slice_csv) or os.path.getsize(slice_csv) == 0:
+        return
+    try:
+        df = pd.read_csv(slice_csv)
+    except pd.errors.EmptyDataError:
+        # Nothing to plot (empty CSV)
+        return
+    if df.empty:
+        return
+    # Accept both Points:0/1/2 and Points_0/1/2
+    cols = df.columns
+    y_col = "Points_1" if "Points_1" in cols else "Points:1"
+    z_col = "Points_2" if "Points_2" in cols else "Points:2"
+    if y_col not in cols or z_col not in cols:
+        return
+    y_um = df[y_col] * 1e6
+    z_um = df[z_col] * 1e6
+    plt.figure()
+    plt.scatter(y_um, z_um, s=5, alpha=0.6)
+    plt.xlabel("y (um)")
+    plt.ylabel("z (um)")
+    plt.title("Mid-x slice (melt pool points)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(output_png)
+
+
+def save_averages_to_excel(cross_sections_statistics_df,
+                           filename="metrics_summary.xlsx"):
+    """Save average width/height/depth (and area if available) to an Excel file."""
+    try:
+        summary = {
+            "width_mean_um": cross_sections_statistics_df["width"].mean() * 1e6,
+            "height_mean_um": cross_sections_statistics_df["height"].mean() * 1e6,
+            "depth_mean_um": cross_sections_statistics_df["depth"].mean() * 1e6,
+        }
+        if "area" in cross_sections_statistics_df.columns:
+            summary["area_mean_um2"] = (
+                cross_sections_statistics_df["area"].mean() * 1e12
+            )
+
+        df_summary = pd.DataFrame([summary])
+        df_summary.to_excel(filename, index=False)
+        print(f"Averages saved to {filename}")
+    except Exception as exc:
+        print(f"Could not write {filename}: {exc}")
             
 
     
@@ -188,7 +265,10 @@ def calculate_statistics_rows_meltpool(CSV_3D, meltpool_is_continuous):
     
     void_iy_levels= []
     if (not meltpool_is_continuous):
-        void_iy_levels = load("void_iy_levels.joblib")
+        try:
+            void_iy_levels = load("void_iy_levels.joblib")
+        except Exception:
+            void_iy_levels = []
     
     y0 = Y_COORD_BEGIN_TRACK + LASER_DIAMETER / 2 
     y_max = Y_COORD_END_TRACK - LASER_DIAMETER / 2  
@@ -206,10 +286,14 @@ def calculate_statistics_rows_meltpool(CSV_3D, meltpool_is_continuous):
         if(iy not in void_iy_levels):
             mask = (iy == np.round(y, 8))
             cells_at_iy = df[mask]
+            if cells_at_iy.empty:
+                # no cells at this y, skip safely
+                iy = np.round(iy + CELL_SIZE, 8)
+                continue
             x_at_iy = cells_at_iy["Points_0"].to_numpy()
             y_at_iy = cells_at_iy["Points_1"].to_numpy()
             z_at_iy = cells_at_iy["Points_2"].to_numpy()
-    
+            
             z_min_at_iy = np.min(z_at_iy)
             z_max_at_iy = np.max(z_at_iy)
             x_min_at_iy = np.min(x_at_iy) 
@@ -331,100 +415,65 @@ def calculate_cross_sections_statistics(row_statistics,
     
     void_iy_levels= []
     if (not meltpool_is_continuous):
-        void_iy_levels = load("void_iy_levels.joblib")
+        try:
+            void_iy_levels = load("void_iy_levels.joblib")
+        except Exception:
+            void_iy_levels = []
     
     for iy in y_unique:
         if (iy not in void_iy_levels):
-            if (iy == 0.00037):
-                print("SIMON")
             mask = (iy == y)
             cross_section_at_iy = row_statistics[mask]
             z_at_iy = cross_section_at_iy["z_coord_"]
-            pores_at_iy = cross_section_at_iy["row_has_pores"]
-            id_rows_at_iy = cross_section_at_iy["id_row"]
             width_rows_at_iy = cross_section_at_iy["width_row"]
             number_pores_at_iy = cross_section_at_iy["number_of_pores_in_row"]
             number_non_void_cells_in_row_at_iy = cross_section_at_iy[
                                                 "number_non_void_cells_in_row"]
-            max_height_location_at_iy = 0 # Just initialisation
-            i = min(id_rows_at_iy)
+            # Simple metrics: width = max row width; height = z span;
+            # depth = z at max width minus lowest z.
+            width = width_rows_at_iy.max()
+            height = z_at_iy.max() - z_at_iy.min()
+            z_at_max_width = z_at_iy[width_rows_at_iy == width]
+            depth = z_at_max_width.max() - z_at_iy.min()
             
-            if (True not in pores_at_iy.values): # This means there is no holes
-                                                 # at this iy section, neither 
-                                                # internal nor upper boundaries
-                max_height_location_at_iy = z_at_iy[max(id_rows_at_iy)] #AQUI
-                height =  max_height_location_at_iy - min(z_at_iy)
-                width = max(width_rows_at_iy)
-                z_location_max_width = width_rows_at_iy.argmax(width)
-                depth = max(z_at_iy) - z_at_iy.to_numpy()[z_location_max_width]
-            
-            else:
-                while (i < max(id_rows_at_iy)):
-                    if (pores_at_iy[i]):
-                        if (True not in pores_at_row_are_internal[i]): # This 
-                                     # means all the pores are upper boundaries
-                            max_height_location_at_iy = z_at_iy[i]
-                            height =  max_height_location_at_iy - min(z_at_iy)
-                            i = max(id_rows_at_iy) # # Break the loop
-                        elif (False not in pores_at_row_are_internal[i]): #This
-                                             # means all the pores are internal
-                            pass
-                        else:
-                            pass
-                    i = i + 1
-                
-                if (max_height_location_at_iy == 0): # This means the iy 
-                                     # section has holes, but they are internal 
-                    max_height_location_at_iy = z_at_iy[i-1]
-                    height =  max_height_location_at_iy - min(z_at_iy)
-                    
-                mask2 = (z_at_iy < max_height_location_at_iy)
-                possible_max_widths = width_rows_at_iy[mask2]
-                try:
-                    width = max(possible_max_widths)
-                except ValueError as e:
-                    print("ValueError raised:", e)
-                location_top_depth_level = np.argmax(possible_max_widths)       
-                depth = ((z_at_iy).to_numpy())[location_top_depth_level] - (
-                min(z_at_iy))
-            
-            porous_volume_at_iy = np.sum(number_pores_at_iy.to_numpy()) * (
-                                                                  CELL_SIZE**3)
-            total_volume_material_at_iy = (np.sum(
-                               number_non_void_cells_in_row_at_iy.to_numpy()) + 
-                        np.sum(number_pores_at_iy.to_numpy())) * (CELL_SIZE**3)
+            pore_cells = np.sum(number_pores_at_iy.to_numpy())
+            material_cells = np.sum(number_non_void_cells_in_row_at_iy.to_numpy())
+            porous_volume_at_iy = pore_cells * (CELL_SIZE**3)
+            total_cells_at_iy = material_cells + pore_cells
+            total_volume_material_at_iy = total_cells_at_iy * (CELL_SIZE**3)
+            area = total_cells_at_iy * (CELL_SIZE**2)
             
             porosity_at_iy = porous_volume_at_iy/total_volume_material_at_iy
             
-        cross_sections_statistics.append([iy, width, height, depth, 
+        cross_sections_statistics.append([iy, width, height, depth, area, 
                                   porosity_at_iy, total_volume_material_at_iy])
                
     cross_sections_statistics_df = pd.DataFrame(cross_sections_statistics, 
                                                 columns = ["iy", "width", 
-                                                           "height", "depth", 
+                                                           "height", "depth",
+                                                           "area",
                                                            "porosity_at_iy", 
                                                 "total_volume_material_at_iy"])
     
     cross_sections_statistics_df.to_csv("./cross_sections_statistics.csv", 
                                         index=False, encoding="utf-8") 
+    save_averages_to_excel(cross_sections_statistics_df,
+                           filename="metrics_summary.xlsx")
         
 
     return cross_sections_statistics_df
 
 
 def calculate_geometry_full_meltpool(CSV_3D = "meltpool.csv"):
+    # Always proceed with geometry calculation; keep continuity flag for info
     meltpool_is_continuous = is_meltpool_continuous(CSV_3D)
-    
-    if (meltpool_is_continuous):
-        row_statistics, pore_locatios_at_rows, \
-        pores_at_row_are_internal = calculate_statistics_rows_meltpool(CSV_3D, 
-                                                        meltpool_is_continuous)
-        cross_sections_statistics = calculate_cross_sections_statistics(
-                                               row_statistics,
-                                               pore_locatios_at_rows, 
-                                               pores_at_row_are_internal, 
-                                               meltpool_is_continuous)
-        
-    else:
-        print("Meltpool is not continuous")
-
+    row_statistics, pore_locatios_at_rows, pores_at_row_are_internal = (
+        calculate_statistics_rows_meltpool(CSV_3D, meltpool_is_continuous)
+    )
+    cross_sections_statistics = calculate_cross_sections_statistics(
+        row_statistics,
+        pore_locatios_at_rows, 
+        pores_at_row_are_internal, 
+        meltpool_is_continuous
+    )
+    return cross_sections_statistics

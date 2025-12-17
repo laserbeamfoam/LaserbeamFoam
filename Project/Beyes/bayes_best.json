@@ -1,0 +1,15 @@
+{
+  "best_objective": 0.115890429,
+  "best_params": {
+    "sigma": 1.009259782,
+    "Marangoni_Constant": -0.000650096,
+    "substrate_temp": 300.0
+  },
+  "powers_W": [
+    140.0,
+    170.0,
+    200.0,
+    230.0,
+    260.0
+  ]
+}

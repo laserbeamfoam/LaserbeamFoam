@@ -1,0 +1,22 @@
+# 案例根目录，默认当前目录
+case_dir: .
+# OpenFOAM 环境脚本（等价于 bashrc）
+foam_bashrc: /usr/lib/openfoam/openfoam2506/etc/bashrc
+# 后处理 Python 解释器路径
+postproc_python: python
+# 后处理脚本路径
+postproc_script: /home/cgh/LaserbeamFoam/applications/scripts/postProcessing/characterise_meltpool.py
+# 实验数据 CSV，默认相对 case_dir
+experimental_data: experimental_data.csv
+# 总迭代次数
+iters: 8
+# 初始随机样本数
+n_initial: 3
+# mpirun 并行核数
+n_proc: 12
+# 随机种子
+seed: 42
+# LCB 探索/开发系数
+kappa: 2.0
+# 历史记录文件名（相对 case_dir）
+history: bayes_history.csv

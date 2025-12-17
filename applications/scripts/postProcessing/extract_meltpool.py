@@ -34,6 +34,10 @@ Authors
 # To ensure correct image size when batch processing, please search 
 # for and uncomment the line `# renderView*.ViewSize = [*,*]`
 
+import os
+# Force offscreen to avoid DISPLAY issues on headless runs
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 #### import the simple module from the paraview
 from paraview.simple import *
 #### disable automatic camera reset on 'Show'
@@ -42,7 +46,6 @@ paraview.simple._DisableFirstRenderCameraReset()
 from pathlib import Path
 import numpy as np
 
-import os
 import sys
 
 # let pvpython see the case folder (where input_data.py is)
@@ -51,6 +54,98 @@ sys.path.insert(0, os.getcwd())
 from input_data import *
 
 current_case = Path.cwd().name
+
+# Simple, version-tolerant extraction: try multiple fields and bail out if empty.
+try:
+    reader = OpenFOAMReader(FileName="./main.foam")
+    reader.MeshRegions = ["internalMesh"]
+    available_cells = list(reader.CellArrays)
+    reader.UpdatePipeline()
+
+    tsteps = list(getattr(reader, "TimestepValues", []) or [])
+    target_time = tsteps[-1] if tsteps else None
+
+    attempts = []
+    if "meltHistory" in available_cells:
+        # meltHistory > 0 means cell has been molten at some point
+        attempts.append(("meltHistory", 1e-6, 1e9))
+    if "liquidMetalCells" in available_cells:
+        attempts.append(("liquidMetalCells", 0.5, 1.1))
+    if "alpha.metal" in available_cells:
+        attempts.append(("alpha.metal", 0.5, 1.1))
+    if "T" in available_cells and "TLiquidus" in available_cells:
+        # fallback to high-temperature threshold if no better field is available
+        attempts.append(("T", 1700.0, 1e9))
+
+    saved_ok = False
+    for field_for_pool, lower, upper in attempts:
+        reader.CellArrays = [field_for_pool]
+        reader.UpdatePipeline(time=target_time) if target_time is not None else reader.UpdatePipeline()
+
+        threshold = Threshold(Input=reader)
+        threshold.Scalars = ["CELLS", field_for_pool]
+        threshold.LowerThreshold = lower
+        threshold.UpperThreshold = upper
+        threshold.ThresholdMethod = "Between"
+        threshold.UpdatePipeline(time=target_time) if target_time is not None else threshold.UpdatePipeline()
+
+        # peek cell count; if zero, try next field
+        try:
+            from paraview import servermanager
+            mb = servermanager.Fetch(threshold)
+            count = 0
+            it = mb.NewIterator()
+            it.UnRegister(None)
+            it.InitTraversal()
+            while not it.IsDoneWithTraversal():
+                b = it.GetCurrentDataObject()
+                count += getattr(b, "GetNumberOfCells", lambda: 0)()
+                it.GoToNextItem()
+        except Exception:
+            count = 0
+
+        if count == 0:
+            print(f"Field {field_for_pool} has zero thresholded cells; trying next option.")
+            continue
+
+        SaveData("./meltpool.csv", proxy=threshold, FieldAssociation="Point Data")
+
+        # Also dump a mid-x slice for visual inspection of melt width/depth
+        try:
+            mid_x = (X_MIN_AND_MAX_DOMAIN[0] + X_MIN_AND_MAX_DOMAIN[1]) / 2
+            slice_mid_x = Slice(Input=threshold)
+            slice_mid_x.SliceType = "Plane"
+            slice_mid_x.SliceType.Normal = [1.0, 0.0, 0.0]
+            slice_mid_x.SliceType.Origin = [mid_x, 0.0, 0.0]
+            slice_mid_x.UpdatePipeline(time=target_time) if target_time is not None else slice_mid_x.UpdatePipeline()
+            SaveData(
+                "./meltpool_slice_xmid.csv",
+                proxy=slice_mid_x,
+                FieldAssociation="Point Data",
+            )
+        except Exception as exc_slice:
+            print(f"Could not save mid-x slice ({exc_slice})")
+
+        # Normalize column names for downstream pandas code
+        import pandas as pd
+        df_simple = pd.read_csv("./meltpool.csv")
+        if df_simple.empty:
+            print(f"Field {field_for_pool} produced empty CSV; trying next option.")
+            continue
+        df_simple = df_simple.rename(
+            columns={"Points:0": "Points_0", "Points:1": "Points_1", "Points:2": "Points_2"}
+        )
+        df_simple.to_csv("./meltpool.csv", index=False)
+        print(f"Saved meltpool.csv via simple threshold path using field {field_for_pool}.")
+        saved_ok = True
+        break
+
+    if saved_ok:
+        sys.exit(0)
+    else:
+        raise RuntimeError("All simple extraction attempts produced zero cells or empty CSV.")
+except Exception as exc:
+    print(f"Simple extraction path failed ({exc}); falling back to legacy pipeline.")
 
 # get active source.
 test_case_1foam = GetActiveSource()
@@ -124,7 +219,7 @@ test_case_1foamDisplay.BackfaceRepresentation = 'Follow Frontface'
 test_case_1foamDisplay.BackfaceAmbientColor = [1.0, 1.0, 1.0]
 test_case_1foamDisplay.BackfaceDiffuseColor = [1.0, 1.0, 1.0]
 test_case_1foamDisplay.BackfaceOpacity = 1.0
-test_case_1foamDisplay.Position = [0.0, 0.0, 0.0]
+test_case_1foamDisplay.Translation = [0.0, 0.0, 0.0]
 test_case_1foamDisplay.Scale = [1.0, 1.0, 1.0]
 test_case_1foamDisplay.Orientation = [0.0, 0.0, 0.0]
 test_case_1foamDisplay.Origin = [0.0, 0.0, 0.0]
@@ -167,12 +262,12 @@ test_case_1foamDisplay.CustomShader = """ // This custom shader code define a ga
 test_case_1foamDisplay.Emissive = 0
 test_case_1foamDisplay.ScaleByArray = 0
 test_case_1foamDisplay.SetScaleArray = ['POINTS', 'p']
-test_case_1foamDisplay.ScaleArrayComponent = ''
+test_case_1foamDisplay.ScaleArrayComponent = 0
 test_case_1foamDisplay.UseScaleFunction = 1
 test_case_1foamDisplay.ScaleTransferFunction = 'PiecewiseFunction'
 test_case_1foamDisplay.OpacityByArray = 0
 test_case_1foamDisplay.OpacityArray = ['POINTS', 'p']
-test_case_1foamDisplay.OpacityArrayComponent = ''
+test_case_1foamDisplay.OpacityArrayComponent = 0
 test_case_1foamDisplay.OpacityTransferFunction = 'PiecewiseFunction'
 test_case_1foamDisplay.DataAxesGrid = 'GridAxesRepresentation'
 test_case_1foamDisplay.SelectionCellLabelBold = 0
@@ -306,8 +401,10 @@ test_case_1foamDisplay.PolarAxes.DrawRadialGridlines = 1
 test_case_1foamDisplay.PolarAxes.PolarArcsVisibility = 1
 test_case_1foamDisplay.PolarAxes.DrawPolarArcsGridlines = 1
 test_case_1foamDisplay.PolarAxes.NumberOfRadialAxes = 0
-test_case_1foamDisplay.PolarAxes.AutoSubdividePolarAxis = 1
-test_case_1foamDisplay.PolarAxes.NumberOfPolarAxis = 0
+if hasattr(test_case_1foamDisplay.PolarAxes, "AutoSubdividePolarAxis"):
+    test_case_1foamDisplay.PolarAxes.AutoSubdividePolarAxis = 1
+if hasattr(test_case_1foamDisplay.PolarAxes, "NumberOfPolarAxis"):
+    test_case_1foamDisplay.PolarAxes.NumberOfPolarAxis = 0
 test_case_1foamDisplay.PolarAxes.MinimumRadius = 0.0
 test_case_1foamDisplay.PolarAxes.MinimumAngle = 0.0
 test_case_1foamDisplay.PolarAxes.MaximumAngle = 90.0
@@ -366,7 +463,13 @@ test_case_1foamDisplay.PolarAxes.DistanceLODThreshold = 0.7
 test_case_1foamDisplay.PolarAxes.EnableViewAngleLOD = 1
 test_case_1foamDisplay.PolarAxes.ViewAngleLODThreshold = 0.7
 test_case_1foamDisplay.PolarAxes.SmallestVisiblePolarAngle = 0.5
-test_case_1foamDisplay.PolarAxes.PolarTicksVisibility = 1
+try:
+    test_case_1foamDisplay.PolarAxes.AllTicksVisibility = 1
+except Exception:
+    try:
+        test_case_1foamDisplay.PolarAxes.PolarTicksVisibility = 1
+    except Exception:
+        pass
 test_case_1foamDisplay.PolarAxes.ArcTicksOriginToPolarAxis = 1
 test_case_1foamDisplay.PolarAxes.TickLocation = 'Both'
 test_case_1foamDisplay.PolarAxes.AxisTickVisibility = 1
@@ -512,7 +615,7 @@ clip1Display.BackfaceRepresentation = 'Follow Frontface'
 clip1Display.BackfaceAmbientColor = [1.0, 1.0, 1.0]
 clip1Display.BackfaceDiffuseColor = [1.0, 1.0, 1.0]
 clip1Display.BackfaceOpacity = 1.0
-clip1Display.Position = [0.0, 0.0, 0.0]
+clip1Display.Translation = [0.0, 0.0, 0.0]
 clip1Display.Scale = [1.0, 1.0, 1.0]
 clip1Display.Orientation = [0.0, 0.0, 0.0]
 clip1Display.Origin = [0.0, 0.0, 0.0]
@@ -555,12 +658,12 @@ clip1Display.CustomShader = """ // This custom shader code define a gaussian blu
 clip1Display.Emissive = 0
 clip1Display.ScaleByArray = 0
 clip1Display.SetScaleArray = ['POINTS', 'p']
-clip1Display.ScaleArrayComponent = ''
+clip1Display.ScaleArrayComponent = 0
 clip1Display.UseScaleFunction = 1
 clip1Display.ScaleTransferFunction = 'PiecewiseFunction'
 clip1Display.OpacityByArray = 0
 clip1Display.OpacityArray = ['POINTS', 'p']
-clip1Display.OpacityArrayComponent = ''
+clip1Display.OpacityArrayComponent = 0
 clip1Display.OpacityTransferFunction = 'PiecewiseFunction'
 clip1Display.DataAxesGrid = 'GridAxesRepresentation'
 clip1Display.SelectionCellLabelBold = 0
@@ -584,7 +687,8 @@ clip1Display.SelectionPointLabelShadow = 0
 clip1Display.PolarAxes = 'PolarAxesRepresentation'
 clip1Display.ScalarOpacityFunction = pPWF
 clip1Display.ScalarOpacityUnitDistance = 7.030666005480218e-06
-clip1Display.ExtractedBlockIndex = 1
+if hasattr(clip1Display, "ExtractedBlockIndex"):
+    clip1Display.ExtractedBlockIndex = 1
 clip1Display.SelectMapper = 'Projected tetra'
 clip1Display.SamplingDimensions = [128, 128, 128]
 clip1Display.UseFloatingPointFrameBuffer = 1
@@ -700,8 +804,10 @@ clip1Display.PolarAxes.DrawRadialGridlines = 1
 clip1Display.PolarAxes.PolarArcsVisibility = 1
 clip1Display.PolarAxes.DrawPolarArcsGridlines = 1
 clip1Display.PolarAxes.NumberOfRadialAxes = 0
-clip1Display.PolarAxes.AutoSubdividePolarAxis = 1
-clip1Display.PolarAxes.NumberOfPolarAxis = 0
+if hasattr(clip1Display.PolarAxes, "AutoSubdividePolarAxis"):
+    clip1Display.PolarAxes.AutoSubdividePolarAxis = 1
+if hasattr(clip1Display.PolarAxes, "NumberOfPolarAxis"):
+    clip1Display.PolarAxes.NumberOfPolarAxis = 0
 clip1Display.PolarAxes.MinimumRadius = 0.0
 clip1Display.PolarAxes.MinimumAngle = 0.0
 clip1Display.PolarAxes.MaximumAngle = 90.0
@@ -760,7 +866,13 @@ clip1Display.PolarAxes.DistanceLODThreshold = 0.7
 clip1Display.PolarAxes.EnableViewAngleLOD = 1
 clip1Display.PolarAxes.ViewAngleLODThreshold = 0.7
 clip1Display.PolarAxes.SmallestVisiblePolarAngle = 0.5
-clip1Display.PolarAxes.PolarTicksVisibility = 1
+try:
+    clip1Display.PolarAxes.AllTicksVisibility = 1
+except Exception:
+    try:
+        clip1Display.PolarAxes.PolarTicksVisibility = 1
+    except Exception:
+        pass
 clip1Display.PolarAxes.ArcTicksOriginToPolarAxis = 1
 clip1Display.PolarAxes.TickLocation = 'Both'
 clip1Display.PolarAxes.AxisTickVisibility = 1
@@ -841,7 +953,10 @@ clip2.ClipType.Normal = [1.0, 0.0, 0.0]
 clip2.ClipType.Offset = 0.0
 
 # toggle 3D widget visibility (only when running from the GUI)
-Show3DWidgets(proxy=clip2.ClipType)
+try:
+    Show3DWidgets(proxy=clip2.ClipType)
+except Exception:
+    pass
 
 # Properties modified on clip2
 clip2.Invert = 0
@@ -879,7 +994,7 @@ clip2Display.BackfaceRepresentation = 'Follow Frontface'
 clip2Display.BackfaceAmbientColor = [1.0, 1.0, 1.0]
 clip2Display.BackfaceDiffuseColor = [1.0, 1.0, 1.0]
 clip2Display.BackfaceOpacity = 1.0
-clip2Display.Position = [0.0, 0.0, 0.0]
+clip2Display.Translation = [0.0, 0.0, 0.0]
 clip2Display.Scale = [1.0, 1.0, 1.0]
 clip2Display.Orientation = [0.0, 0.0, 0.0]
 clip2Display.Origin = [0.0, 0.0, 0.0]
@@ -922,12 +1037,12 @@ clip2Display.CustomShader = """ // This custom shader code define a gaussian blu
 clip2Display.Emissive = 0
 clip2Display.ScaleByArray = 0
 clip2Display.SetScaleArray = ['POINTS', 'p']
-clip2Display.ScaleArrayComponent = ''
+clip2Display.ScaleArrayComponent = 0
 clip2Display.UseScaleFunction = 1
 clip2Display.ScaleTransferFunction = 'PiecewiseFunction'
 clip2Display.OpacityByArray = 0
 clip2Display.OpacityArray = ['POINTS', 'p']
-clip2Display.OpacityArrayComponent = ''
+clip2Display.OpacityArrayComponent = 0
 clip2Display.OpacityTransferFunction = 'PiecewiseFunction'
 clip2Display.DataAxesGrid = 'GridAxesRepresentation'
 clip2Display.SelectionCellLabelBold = 0
@@ -951,7 +1066,8 @@ clip2Display.SelectionPointLabelShadow = 0
 clip2Display.PolarAxes = 'PolarAxesRepresentation'
 clip2Display.ScalarOpacityFunction = pPWF
 clip2Display.ScalarOpacityUnitDistance = 6.33561131050142e-06
-clip2Display.ExtractedBlockIndex = 1
+if hasattr(clip2Display, "ExtractedBlockIndex"):
+    clip2Display.ExtractedBlockIndex = 1
 clip2Display.SelectMapper = 'Projected tetra'
 clip2Display.SamplingDimensions = [128, 128, 128]
 clip2Display.UseFloatingPointFrameBuffer = 1
@@ -1067,8 +1183,10 @@ clip2Display.PolarAxes.DrawRadialGridlines = 1
 clip2Display.PolarAxes.PolarArcsVisibility = 1
 clip2Display.PolarAxes.DrawPolarArcsGridlines = 1
 clip2Display.PolarAxes.NumberOfRadialAxes = 0
-clip2Display.PolarAxes.AutoSubdividePolarAxis = 1
-clip2Display.PolarAxes.NumberOfPolarAxis = 0
+if hasattr(clip2Display.PolarAxes, "AutoSubdividePolarAxis"):
+    clip2Display.PolarAxes.AutoSubdividePolarAxis = 1
+if hasattr(clip2Display.PolarAxes, "NumberOfPolarAxis"):
+    clip2Display.PolarAxes.NumberOfPolarAxis = 0
 clip2Display.PolarAxes.MinimumRadius = 0.0
 clip2Display.PolarAxes.MinimumAngle = 0.0
 clip2Display.PolarAxes.MaximumAngle = 90.0
@@ -1127,7 +1245,13 @@ clip2Display.PolarAxes.DistanceLODThreshold = 0.7
 clip2Display.PolarAxes.EnableViewAngleLOD = 1
 clip2Display.PolarAxes.ViewAngleLODThreshold = 0.7
 clip2Display.PolarAxes.SmallestVisiblePolarAngle = 0.5
-clip2Display.PolarAxes.PolarTicksVisibility = 1
+try:
+    clip2Display.PolarAxes.AllTicksVisibility = 1
+except Exception:
+    try:
+        clip2Display.PolarAxes.PolarTicksVisibility = 1
+    except Exception:
+        pass
 clip2Display.PolarAxes.ArcTicksOriginToPolarAxis = 1
 clip2Display.PolarAxes.TickLocation = 'Both'
 clip2Display.PolarAxes.AxisTickVisibility = 1
@@ -1240,7 +1364,7 @@ clip3Display.BackfaceRepresentation = 'Follow Frontface'
 clip3Display.BackfaceAmbientColor = [1.0, 1.0, 1.0]
 clip3Display.BackfaceDiffuseColor = [1.0, 1.0, 1.0]
 clip3Display.BackfaceOpacity = 1.0
-clip3Display.Position = [0.0, 0.0, 0.0]
+clip3Display.Translation = [0.0, 0.0, 0.0]
 clip3Display.Scale = [1.0, 1.0, 1.0]
 clip3Display.Orientation = [0.0, 0.0, 0.0]
 clip3Display.Origin = [0.0, 0.0, 0.0]
@@ -1283,12 +1407,12 @@ clip3Display.CustomShader = """ // This custom shader code define a gaussian blu
 clip3Display.Emissive = 0
 clip3Display.ScaleByArray = 0
 clip3Display.SetScaleArray = ['POINTS', 'p']
-clip3Display.ScaleArrayComponent = ''
+clip3Display.ScaleArrayComponent = 0
 clip3Display.UseScaleFunction = 1
 clip3Display.ScaleTransferFunction = 'PiecewiseFunction'
 clip3Display.OpacityByArray = 0
 clip3Display.OpacityArray = ['POINTS', 'p']
-clip3Display.OpacityArrayComponent = ''
+clip3Display.OpacityArrayComponent = 0
 clip3Display.OpacityTransferFunction = 'PiecewiseFunction'
 clip3Display.DataAxesGrid = 'GridAxesRepresentation'
 clip3Display.SelectionCellLabelBold = 0
@@ -1312,7 +1436,8 @@ clip3Display.SelectionPointLabelShadow = 0
 clip3Display.PolarAxes = 'PolarAxesRepresentation'
 clip3Display.ScalarOpacityFunction = pPWF
 clip3Display.ScalarOpacityUnitDistance = 5.623239319539663e-06
-clip3Display.ExtractedBlockIndex = 1
+if hasattr(clip3Display, "ExtractedBlockIndex"):
+    clip3Display.ExtractedBlockIndex = 1
 clip3Display.SelectMapper = 'Projected tetra'
 clip3Display.SamplingDimensions = [128, 128, 128]
 clip3Display.UseFloatingPointFrameBuffer = 1
@@ -1428,8 +1553,10 @@ clip3Display.PolarAxes.DrawRadialGridlines = 1
 clip3Display.PolarAxes.PolarArcsVisibility = 1
 clip3Display.PolarAxes.DrawPolarArcsGridlines = 1
 clip3Display.PolarAxes.NumberOfRadialAxes = 0
-clip3Display.PolarAxes.AutoSubdividePolarAxis = 1
-clip3Display.PolarAxes.NumberOfPolarAxis = 0
+if hasattr(clip3Display.PolarAxes, "AutoSubdividePolarAxis"):
+    clip3Display.PolarAxes.AutoSubdividePolarAxis = 1
+if hasattr(clip3Display.PolarAxes, "NumberOfPolarAxis"):
+    clip3Display.PolarAxes.NumberOfPolarAxis = 0
 clip3Display.PolarAxes.MinimumRadius = 0.0
 clip3Display.PolarAxes.MinimumAngle = 0.0
 clip3Display.PolarAxes.MaximumAngle = 90.0
@@ -1488,7 +1615,13 @@ clip3Display.PolarAxes.DistanceLODThreshold = 0.7
 clip3Display.PolarAxes.EnableViewAngleLOD = 1
 clip3Display.PolarAxes.ViewAngleLODThreshold = 0.7
 clip3Display.PolarAxes.SmallestVisiblePolarAngle = 0.5
-clip3Display.PolarAxes.PolarTicksVisibility = 1
+try:
+    clip3Display.PolarAxes.AllTicksVisibility = 1
+except Exception:
+    try:
+        clip3Display.PolarAxes.PolarTicksVisibility = 1
+    except Exception:
+        pass
 clip3Display.PolarAxes.ArcTicksOriginToPolarAxis = 1
 clip3Display.PolarAxes.TickLocation = 'Both'
 clip3Display.PolarAxes.AxisTickVisibility = 1
@@ -1603,7 +1736,7 @@ clip4Display.BackfaceRepresentation = 'Follow Frontface'
 clip4Display.BackfaceAmbientColor = [1.0, 1.0, 1.0]
 clip4Display.BackfaceDiffuseColor = [1.0, 1.0, 1.0]
 clip4Display.BackfaceOpacity = 1.0
-clip4Display.Position = [0.0, 0.0, 0.0]
+clip4Display.Translation = [0.0, 0.0, 0.0]
 clip4Display.Scale = [1.0, 1.0, 1.0]
 clip4Display.Orientation = [0.0, 0.0, 0.0]
 clip4Display.Origin = [0.0, 0.0, 0.0]
@@ -1646,12 +1779,12 @@ clip4Display.CustomShader = """ // This custom shader code define a gaussian blu
 clip4Display.Emissive = 0
 clip4Display.ScaleByArray = 0
 clip4Display.SetScaleArray = ['POINTS', 'p']
-clip4Display.ScaleArrayComponent = ''
+clip4Display.ScaleArrayComponent = 0
 clip4Display.UseScaleFunction = 1
 clip4Display.ScaleTransferFunction = 'PiecewiseFunction'
 clip4Display.OpacityByArray = 0
 clip4Display.OpacityArray = ['POINTS', 'p']
-clip4Display.OpacityArrayComponent = ''
+clip4Display.OpacityArrayComponent = 0
 clip4Display.OpacityTransferFunction = 'PiecewiseFunction'
 clip4Display.DataAxesGrid = 'GridAxesRepresentation'
 clip4Display.SelectionCellLabelBold = 0
@@ -1675,7 +1808,8 @@ clip4Display.SelectionPointLabelShadow = 0
 clip4Display.PolarAxes = 'PolarAxesRepresentation'
 clip4Display.ScalarOpacityFunction = pPWF
 clip4Display.ScalarOpacityUnitDistance = 1.062582986007341e-05
-clip4Display.ExtractedBlockIndex = 1
+if hasattr(clip4Display, "ExtractedBlockIndex"):
+    clip4Display.ExtractedBlockIndex = 1
 clip4Display.SelectMapper = 'Projected tetra'
 clip4Display.SamplingDimensions = [128, 128, 128]
 clip4Display.UseFloatingPointFrameBuffer = 1
@@ -1794,8 +1928,10 @@ clip4Display.PolarAxes.DrawRadialGridlines = 1
 clip4Display.PolarAxes.PolarArcsVisibility = 1
 clip4Display.PolarAxes.DrawPolarArcsGridlines = 1
 clip4Display.PolarAxes.NumberOfRadialAxes = 0
-clip4Display.PolarAxes.AutoSubdividePolarAxis = 1
-clip4Display.PolarAxes.NumberOfPolarAxis = 0
+if hasattr(clip4Display.PolarAxes, "AutoSubdividePolarAxis"):
+    clip4Display.PolarAxes.AutoSubdividePolarAxis = 1
+if hasattr(clip4Display.PolarAxes, "NumberOfPolarAxis"):
+    clip4Display.PolarAxes.NumberOfPolarAxis = 0
 clip4Display.PolarAxes.MinimumRadius = 0.0
 clip4Display.PolarAxes.MinimumAngle = 0.0
 clip4Display.PolarAxes.MaximumAngle = 90.0
@@ -1854,7 +1990,13 @@ clip4Display.PolarAxes.DistanceLODThreshold = 0.7
 clip4Display.PolarAxes.EnableViewAngleLOD = 1
 clip4Display.PolarAxes.ViewAngleLODThreshold = 0.7
 clip4Display.PolarAxes.SmallestVisiblePolarAngle = 0.5
-clip4Display.PolarAxes.PolarTicksVisibility = 1
+try:
+    clip4Display.PolarAxes.AllTicksVisibility = 1
+except Exception:
+    try:
+        clip4Display.PolarAxes.PolarTicksVisibility = 1
+    except Exception:
+        pass
 clip4Display.PolarAxes.ArcTicksOriginToPolarAxis = 1
 clip4Display.PolarAxes.TickLocation = 'Both'
 clip4Display.PolarAxes.AxisTickVisibility = 1
@@ -1969,7 +2111,7 @@ clip5Display.BackfaceRepresentation = 'Follow Frontface'
 clip5Display.BackfaceAmbientColor = [1.0, 1.0, 1.0]
 clip5Display.BackfaceDiffuseColor = [1.0, 1.0, 1.0]
 clip5Display.BackfaceOpacity = 1.0
-clip5Display.Position = [0.0, 0.0, 0.0]
+clip5Display.Translation = [0.0, 0.0, 0.0]
 clip5Display.Scale = [1.0, 1.0, 1.0]
 clip5Display.Orientation = [0.0, 0.0, 0.0]
 clip5Display.Origin = [0.0, 0.0, 0.0]
@@ -2012,12 +2154,12 @@ clip5Display.CustomShader = """ // This custom shader code define a gaussian blu
 clip5Display.Emissive = 0
 clip5Display.ScaleByArray = 0
 clip5Display.SetScaleArray = ['POINTS', 'p']
-clip5Display.ScaleArrayComponent = ''
+clip5Display.ScaleArrayComponent = 0
 clip5Display.UseScaleFunction = 1
 clip5Display.ScaleTransferFunction = 'PiecewiseFunction'
 clip5Display.OpacityByArray = 0
 clip5Display.OpacityArray = ['POINTS', 'p']
-clip5Display.OpacityArrayComponent = ''
+clip5Display.OpacityArrayComponent = 0
 clip5Display.OpacityTransferFunction = 'PiecewiseFunction'
 clip5Display.DataAxesGrid = 'GridAxesRepresentation'
 clip5Display.SelectionCellLabelBold = 0
@@ -2041,7 +2183,8 @@ clip5Display.SelectionPointLabelShadow = 0
 clip5Display.PolarAxes = 'PolarAxesRepresentation'
 clip5Display.ScalarOpacityFunction = pPWF
 clip5Display.ScalarOpacityUnitDistance = 1.0906548326314667e-05
-clip5Display.ExtractedBlockIndex = 1
+if hasattr(clip5Display, "ExtractedBlockIndex"):
+    clip5Display.ExtractedBlockIndex = 1
 clip5Display.SelectMapper = 'Projected tetra'
 clip5Display.SamplingDimensions = [128, 128, 128]
 clip5Display.UseFloatingPointFrameBuffer = 1
@@ -2160,8 +2303,10 @@ clip5Display.PolarAxes.DrawRadialGridlines = 1
 clip5Display.PolarAxes.PolarArcsVisibility = 1
 clip5Display.PolarAxes.DrawPolarArcsGridlines = 1
 clip5Display.PolarAxes.NumberOfRadialAxes = 0
-clip5Display.PolarAxes.AutoSubdividePolarAxis = 1
-clip5Display.PolarAxes.NumberOfPolarAxis = 0
+if hasattr(clip5Display.PolarAxes, "AutoSubdividePolarAxis"):
+    clip5Display.PolarAxes.AutoSubdividePolarAxis = 1
+if hasattr(clip5Display.PolarAxes, "NumberOfPolarAxis"):
+    clip5Display.PolarAxes.NumberOfPolarAxis = 0
 clip5Display.PolarAxes.MinimumRadius = 0.0
 clip5Display.PolarAxes.MinimumAngle = 0.0
 clip5Display.PolarAxes.MaximumAngle = 90.0
@@ -2220,7 +2365,13 @@ clip5Display.PolarAxes.DistanceLODThreshold = 0.7
 clip5Display.PolarAxes.EnableViewAngleLOD = 1
 clip5Display.PolarAxes.ViewAngleLODThreshold = 0.7
 clip5Display.PolarAxes.SmallestVisiblePolarAngle = 0.5
-clip5Display.PolarAxes.PolarTicksVisibility = 1
+try:
+    clip5Display.PolarAxes.AllTicksVisibility = 1
+except Exception:
+    try:
+        clip5Display.PolarAxes.PolarTicksVisibility = 1
+    except Exception:
+        pass
 clip5Display.PolarAxes.ArcTicksOriginToPolarAxis = 1
 clip5Display.PolarAxes.TickLocation = 'Both'
 clip5Display.PolarAxes.AxisTickVisibility = 1
@@ -2307,7 +2458,13 @@ spreadSheetView1.FieldAssociation = 'Point Data'
 clip5Display = Show(clip5, spreadSheetView1)
 
 # trace defaults for the display properties.
-clip5Display.CompositeDataSetIndex = [0]
+try:
+    clip5Display.Selectors = ['/']
+except Exception:
+    try:
+        clip5Display.CompositeDataSetIndex = [0]
+    except Exception:
+        pass
 
 # assign view to a particular cell in the layout
 AssignViewToLayout(view=spreadSheetView1, layout=layout1, hint=0)
