@@ -130,23 +130,23 @@ void laserHeatSource::createInitialRays
 
             initial_points.append(globalPos + perturbation);
 
-            point_assoc_power.append
+        point_assoc_power.append
+        (
+            area // or the Cartesian area element
+           *(
+                (2.0 * Foam::sqrt(Radius_Flavour) * Q_cond.value()) 
+               /(
+                    Foam::pow(beam_radius, 2.0) * Foam::pow(constant::mathematical::pi, 1.5)
+                )
+            )
+           *Foam::exp
             (
-                area
+              - Radius_Flavour
                *(
-                    Radius_Flavour*Q_cond
-                   /(
-                        Foam::pow(beam_radius, 2.0)*pi
-                    )
+                    Foam::pow(r, 4.0) / Foam::pow(beam_radius, 4.0)
                 )
-               *Foam::exp
-                (
-                  - Radius_Flavour
-                   *(
-                        Foam::pow(r, 2.0)/Foam::pow(beam_radius, 2.0)
-                    )
-                )
-            );
+            )
+        );
         }
     }
     else // One ray for each boundary patch face within the laser radius
@@ -1057,7 +1057,7 @@ void laserHeatSource::updateDeposition
                             Foam::max(Foam::min(R_p, scalar(1.0)), scalar(0.0));
 
                         scalar R = 0.5*(R_s + R_p);
-                        scalar absorptivity = 1.0 - R;
+                        scalar absorptivity = 1.0;
 
                         absorptivity =
                             Foam::max
