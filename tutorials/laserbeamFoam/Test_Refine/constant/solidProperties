@@ -1,0 +1,16 @@
+solidElasticity
+{
+    coupling        implicit;
+
+    maxIter         10;
+    tolerance       1e-6;
+    relTol          0;
+
+    E               2.0e11;
+    nu              0.30;
+    alphaT          1.2e-5;
+    Tref            300;
+
+    solidDamping    1.0e14;
+    fSolidMin       1e-6;
+}

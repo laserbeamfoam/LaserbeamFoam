@@ -1,6 +1,7 @@
 EXE_INC = \
     -I../../../src/laserHeatSource/lnInclude \
     -I../../../src/solidElasticity/lnInclude \
+    -I../../../src/solidElasticity \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/incompressibleInterPhaseTransportModel/lnInclude \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/VoFphaseIncompressibleTurbulenceModels/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
@@ -23,6 +24,7 @@ EXE_LIBS = \
     -lfiniteVolume \
     -L$(FOAM_USER_LIBBIN) \
     -llaserHeatSource \
+    -lsolidElasticity \
     -lfvOptions \
     -lsurfMesh \
     -lmeshTools \
