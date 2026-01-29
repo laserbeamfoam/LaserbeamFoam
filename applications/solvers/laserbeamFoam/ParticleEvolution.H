@@ -155,7 +155,7 @@ forAllIter(basicKinematicCloud, parcels, pIter)
     
     scalar tempP = T[celli];
     
-    if (tempP > 2000.0)
+    if (tempP > particle_Tmelt.value())
     {
         scalar originalMass = p.mass();
         label particleID = p.origId();
@@ -177,7 +177,8 @@ forAllIter(basicKinematicCloud, parcels, pIter)
         }
         
         // Calculate what was actually melted (with limiting)
-        scalar meltingTimescale = 0.0001;
+        scalar meltingTimescale = time_melt.value();//0.0001;
+        
         scalar maxMeltRatePerSecond = originalMass / meltingTimescale;
         scalar maxMeltThisStep = maxMeltRatePerSecond * dt;
         scalar desiredMelt = min(remainingMass, maxMeltThisStep);
