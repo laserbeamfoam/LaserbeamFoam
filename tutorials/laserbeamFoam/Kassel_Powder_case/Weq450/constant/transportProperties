@@ -38,7 +38,7 @@ metal
     // Specific heat [J/(kg·K)] - temperature dependent
     poly_cp         (546 0.17 0 0 0 0 0 0);
     
-    elec_resistivity 1.7e-6;  // Electrical resistivity [Ω·m]
+    elec_resistivity 0.5e-6;  // Electrical resistivity [Ω·m]
 }
 
 gas
@@ -66,6 +66,8 @@ p0                  1e5;       // Reference pressure [Pa]
 Tvap                3560;      // Vaporization temperature [K] (~3287°C)
 Mm                  0.04485;   // Molar mass [kg/mol]
 LatentHeatVap       9.83e6;    // Latent heat of vaporization [J/kg]
-
+emS                     0.4;
+emL                     0.1;
+TRef                    TRef [0 0 0 1 0 0 0]   300;
 
 // ************************************************************************* //

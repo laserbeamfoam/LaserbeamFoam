@@ -32,7 +32,7 @@ V_incident	(0 1 0);//(0 1 0);//NORMALISED IN CODE
 laserRadius 200e-6;
 
 
-nRadial	30;
+nRadial	5;
 nAngular	90;
 
 

@@ -20,7 +20,7 @@ method              hierarchical;
 
 hierarchicalCoeffs
 {
-    n               (1 2 6);
+    n               (1 3 4);
     order           yxz;
 }
 

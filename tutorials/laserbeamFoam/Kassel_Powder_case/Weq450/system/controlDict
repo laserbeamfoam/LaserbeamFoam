@@ -14,6 +14,11 @@ FoamFile
     object      controlDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+libs
+(
+    "libmovingConeInjection.so"
+);
+
 
 application     Flint_multiphaseEulerFoamD;
 
@@ -29,7 +34,7 @@ deltaT          1.0e-5;
 
 writeControl    adjustableRunTime;
 
-writeInterval   1e-04;
+writeInterval   1e-03;
 
 purgeWrite      0;
 
@@ -47,10 +52,10 @@ runTimeModifiable yes;
 
 adjustTimeStep  yes;
 
-maxCo           0.2;//0.1;
-maxAlphaCo      0.2;
+maxCo           0.25;//0.1;
+maxAlphaCo      0.25;
 
-maxDeltaT       1.0e-5;
+maxDeltaT       5.0e-5;
 
 
 // ************************************************************************* //

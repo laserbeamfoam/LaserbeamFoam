@@ -86,8 +86,9 @@ class laserHeatSource
         //  smear out the particle interface un-physically
         const Switch powderSim_;
 
-        //- new laser discretisation flag
-        //  Tell the heat source if you want to discreetise the traditional laserbeamfoam way or in radial and polar coordinates
+        //- New laser discretisation flag
+        //  Tell the heat source if you want to discretise the traditional
+        //  laserbeamfoam way or in radial and polar coordinates
         const Switch radialPolarHeatSource_;
 
         //- List of the laser names
@@ -101,6 +102,12 @@ class laserHeatSource
 
         //- List of the time vs laser power interpolation series
         PtrList<interpolationTable<scalar>> timeVsLaserPower_;
+
+        //- Record the ray paths for each laser
+        List<List<DynamicList<point>>> rayPaths_;
+
+        //- Record of times when VTK files were written
+        HashSet<scalar> vtkTimes_;
 
         //- Global bounding box of the mesh
         boundBox globalBB_;
@@ -201,7 +208,7 @@ public:
             const volScalarField& alphaFiltered,
             const volVectorField& nFiltered,
             const volScalarField& resistivity_in,
-            const word& laserName,
+            const label laserID,
             const vector& currentLaserPosition,
             const scalar currentLaserPower,
             const scalar laserRadius,
@@ -225,142 +232,20 @@ public:
             return globalBB_;
         }
 
-        // bool pointOnFace(const face& f, const point& p, const pointField& meshPoints);
+        //- Write the given ray paths to a VTK file with the given name
+        void writeRayPathsToVTK
+        (
+            const List<DynamicList<point>>& rays,
+            const fileName& filename
+        );
 
+        //- Write rayPath_ to a VTK file with the given name
+        void writeRayPathsToVTK();
 
-
-// void writeLinesToVTK(const pointField& points, const word& filename)
-// {
-//     OFstream file(filename);
-    
-//     // VTK header
-//     file << "# vtk DataFile Version 3.0" << nl;
-//     file << "Line data" << nl;
-//     file << "ASCII" << nl;
-//     file << "DATASET POLYDATA" << nl;
-    
-//     // Points section
-//     file << "POINTS " << points.size() << " float" << nl;
-//     forAll(points, i)
-//     {
-//         const point& pt = points[i];
-//         file << pt.x() << " " << pt.y() << " " << pt.z() << nl;
-//     }
-    
-//     // Lines section (connects consecutive points)
-//     label nLines = points.size() - 1;
-//     file << "LINES " << nLines << " " << (nLines * 3) << nl;
-    
-//     for (label i = 0; i < nLines; i++)
-//     {
-//         file << "2 " << i << " " << (i + 1) << nl;
-//     }
-// }
-
-// void writeLinesToVTK(const DynamicList<point>& points, const fileName& filename)
-// {
-//     OFstream file(filename);
-    
-//     if (!file.good())
-//     {
-//         FatalErrorInFunction
-//             << "Cannot open file " << filename
-//             << exit(FatalError);
-//     }
-    
-//     // VTK header
-//     file << "# vtk DataFile Version 3.0" << nl;
-//     file << "Line data" << nl;
-//     file << "ASCII" << nl;
-//     file << "DATASET POLYDATA" << nl;
-    
-//     // Points section
-//     file << "POINTS " << points.size() << " float" << nl;
-//     forAll(points, i)
-//     {
-//         const point& pt = points[i];
-//         file << pt.x() << " " << pt.y() << " " << pt.z() << nl;
-//     }
-    
-//     // Lines section
-//     label nLines = points.size() - 1;
-//     file << "LINES " << nLines << " " << (nLines * 3) << nl;
-    
-//     for (label i = 0; i < nLines; i++)
-//     {
-//         file << "2 " << i << " " << (i + 1) << nl;
-//     }
-// }
-
-
-void writeMultipleRaysToVTK(
-    const DynamicList<DynamicList<point>>& rays,
-    const fileName& filename)//const fileName& filename
-{
-
-    
-    OFstream file(filename);
-    
-    if (!file.good())
-    {
-        FatalErrorInFunction
-            << "Cannot open file " << filename
-            << exit(FatalError);
-    }
-    
-    // Calculate total number of points and lines
-    label totalPoints = 0;
-    label totalLines = 0;
-    
-    forAll(rays, rayI)
-    {
-        totalPoints += rays[rayI].size();
-        if (rays[rayI].size() > 1)
-        {
-            totalLines += (rays[rayI].size() - 1); // n-1 line segments per ray
-        }
-    }
-    
-    // VTK header
-    file << "# vtk DataFile Version 3.0" << nl;
-    file << "Multiple ray data" << nl;
-    file << "ASCII" << nl;
-    file << "DATASET POLYDATA" << nl;
-    
-    // Write all points
-    file << "POINTS " << totalPoints << " float" << nl;
-    forAll(rays, rayI)
-    {
-        const DynamicList<point>& ray = rays[rayI];
-        forAll(ray, pointI)
-        {
-            const point& pt = ray[pointI];
-            file << pt.x() << " " << pt.y() << " " << pt.z() << nl;
-        }
-    }
-    
-    // Write line connectivity
-    // Each line segment is defined by 2 points
-    file << "LINES " << totalLines << " " << (totalLines * 3) << nl;
-    
-    label pointOffset = 0;
-    forAll(rays, rayI)
-    {
-        const DynamicList<point>& ray = rays[rayI];
-        
-        // Connect consecutive points within this ray only
-        for (label i = 0; i < ray.size() - 1; i++)
-        {
-            file << "2 " << (pointOffset + i) << " " << (pointOffset + i + 1) << nl;
-        }
-        
-        pointOffset += ray.size(); // Update offset for next ray
-    }
-    
-    Info << "Written VTK file with " << rays.size() << " rays: " << filename << endl;
-}
-
-
+        //- Write a "vtk.series" file with details about the VTK files written
+        //  so far. This file can be conveniently opened in ParaView and will
+        //  load the rays at the correct physical times
+        void writeRayPathVTKSeriesFile() const;
 };
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

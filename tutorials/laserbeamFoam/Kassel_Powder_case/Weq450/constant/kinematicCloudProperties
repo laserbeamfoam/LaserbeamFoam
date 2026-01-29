@@ -49,7 +49,7 @@ solution
 
 constantProperties
 {
-    rho0            16650;
+    rho0            5000.0;//16650;
     
     // Thermal properties
     Tmelt      3290;   // Melting point [K] (3017°C)
@@ -72,7 +72,7 @@ subModels
         
         gravity;
         
-                sphereDrag
+        sphereDrag
         {
             // Can specify drag model here if needed
             // Default is Schiller-Naumann, good for these Reynolds numbers
@@ -81,79 +81,86 @@ subModels
 
     
     }
-/*
-    injectionModels
-    {
-        // Manual injection with size distribution
-        model1
-        {
-            type            manualInjection;
-            massTotal       1e-6;  // Total mass to inject [kg]
-            parcelBasisType mass;
-            SOI             0;
-            
-            // Position and time of injection
-            positionsFile   "kinematicCloudPositions";
-            U0              (0 1 0);
-            
-            // Size distribution - different diameters
-            sizeDistribution
-            {
-                type        RosinRammler;
-                RosinRammlerDistribution
-                {
-                    minValue    1e-6;   // 1 micron
-                    maxValue    100e-6; // 100 microns
-                    lambda           50e-6;  // Mean diameter
-                    n           3.5;    // Distribution width parameter
-                }
-            }
-        }
-        
-        }
-*/
+
 
 injectionModels
 {
     tantalumPowderFeed
     {
-        type            coneInjection;
+        //type            movingConeInjection;//coneInjection;
+        type    "movingConeInjection<kinematicCloudType>";
         
-        // Jet origin and orientation
-       // position        (0 0.01 0);
-                // List of (position, axis) pairs - note the double parentheses
-      
-        positionAxis
-        (
-            ((0 0.001 0) (0 1 0))  // (position vector) (axis vector)
-        );
 
+        position        (0.0 0.001 0.0);
         
-       // direction       (0 1 0);
+        direction       (0 1 0);
+        
+                    trajectory
+            {
+
+                x
+                {
+                    type    table;
+                    values
+                    (
+                        (0.0    0.0)
+                        (1.0    0.0)
+                        (2.0    0.0)
+                        (3.0    0.0)
+                        (4.0    0.0)
+                        (5.0    0.0)
+                    );
+                }
+                
+                y
+                {
+                    type    table;
+                    values
+                    (
+                        (0.0    0.001)
+                        (2.5    0.001)
+                        (5.0    0.001)
+                    );
+                }
+                
+
+                z
+                {
+                    type    table;
+                    values
+                    (
+                        (0.0    0.0)
+                        (1.0    0.002)
+                        (2.0    0.004)                        
+                    );
+                }
+            }
+
         
         // Cone geometry
         thetaInner      0;
         thetaOuter      8;
         
         // Time control
-        duration        1;
+        duration        1.0;
         SOI             0;
         
         // Flow rate
-        massTotal       1e-2;
+        massTotal       1e-1;
         nParticle	1;
-        parcelBasisType fixed;//mass;
+        parcelBasisType fixed;
         
-        parcelsPerInjector 5000000;    // Required: parcels per injector
+    
         
         // Use table format for flowRateProfile
         flowRateProfile table
         (
-            (0  500000)
-            (10 500000)
+            (0  10000)
+            (1 10000)
         );
         
-        parcelsPerSecond 50000;
+        //parcelsPerSecond 5000000;
+        parcelsPerInjector  1000000;
         
         // Use table format for Umag
         Umag table

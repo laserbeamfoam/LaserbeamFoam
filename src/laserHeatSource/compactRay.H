@@ -34,13 +34,11 @@ SourceFiles
 #ifndef compactRay_H
 #define compactRay_H
 
-#include "volFields.H"
-#include "dictionary.H"
-#include "interpolationTable.H"
+#include "point.H"
+#include "vector.H"
+#include "DynamicList.H"
+#include "HashSet.H"
 
-// #include <vector>
-// #include "globalIndex.H"
-#include "OFstream.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -74,7 +72,7 @@ class compactRay
             label bounceCount_;
 
             //- Global index of the ray
-            label global_Ray_number_;
+            label globalRayIndex_;
 
             //- Is it active?
             bool active_;
@@ -82,38 +80,27 @@ class compactRay
             //- List of all locations the ray has visited
             DynamicList<point> path_;
 
+
     // Public functions
 
+    //- Runtime type information
+    TypeName("compactRay");
+
+    // Constructors
+
         //- Empty constructor
-        compactRay()
-        :
-            power_(0),
-            currentCell_(-1), 
-            bounceCount_(0),
-            global_Ray_number_(-1),
-            active_(false)
-        {}
+        compactRay();
 
         //- Construct from position, direction and power
-        compactRay(const point& position, const vector& dir, scalar power)
-        :
-            position_(position),
-            direction_(dir),
-            power_(power), 
-            currentCell_(-1),
-            bounceCount_(0),
-            global_Ray_number_(-1),
-            active_(true)
-        {
-            direction_ /= mag(direction_) + VSMALL;
-            path_.clear();
-        }
+        compactRay(const point& position, const vector& dir, scalar power);
 
         // Destructor
 
             virtual ~compactRay()
             {}
 
+
+        // Public functions
 
         //- Reset the position, direction and power
         void reset(const point& position, const vector& dir, scalar power)
@@ -123,40 +110,28 @@ class compactRay
             power_ = power;
             currentCell_ = -1;
             bounceCount_ = 0;
-            global_Ray_number_ = -1;
+            globalRayIndex_ = -1;
             active_ = true;
         }
 
-        //- Copy
+        //- Compare equals
         bool operator==(const compactRay& other) const
         {
-            return 
-            position_ == other.position_ && 
-            direction_ == other.direction_ && 
-            power_ == other.power_ &&
-            global_Ray_number_ == other.global_Ray_number_;
+            return
+                position_ == other.position_
+             && direction_ == other.direction_
+             && power_ == other.power_
+             && currentCell_ == other.currentCell_
+             && bounceCount_ == other.bounceCount_
+             && globalRayIndex_ == other.globalRayIndex_
+             && active_ == other.active_
+             && path_ == other.path_;
         }
 
-        //- Compare
+        //- Compare not equals
         bool operator!=(const compactRay& other) const
         {
             return !(*this == other);
-        }
-
-        // Compare
-        bool operator<(const compactRay& other) const
-        {
-            if (position_ != other.position_)
-            {
-                return position_ < other.position_;
-            }
-
-            if (direction_ != other.direction_)
-            {
-                return direction_ < other.direction_;
-            }
-
-            return power_ < other.power_;
         }
 
         //- Output stream operator
@@ -165,16 +140,24 @@ class compactRay
             return os  << ray.position_
                        << ray.direction_
                        << ray.power_
-                       << ray.global_Ray_number_;
+                       << ray.currentCell_
+                       << ray.bounceCount_
+                       << ray.globalRayIndex_
+                       << ray.active_
+                       << ray.path_;
         }
-    
+
         //- Input stream operator
         friend Istream& operator>>(Istream& is, compactRay& ray)
         {
             return is  >> ray.position_
                        >> ray.direction_
                        >> ray.power_
-                       >> ray.global_Ray_number_;
+                       >> ray.currentCell_
+                       >> ray.bounceCount_
+                       >> ray.globalRayIndex_
+                       >> ray.active_
+                       >> ray.path_;
         }
 };
 
@@ -185,7 +168,11 @@ class compactRay
 
 struct combineRayLists
 {
-    void operator()(DynamicList<compactRay>& x, const DynamicList<compactRay>& y) const
+    void operator()
+    (
+        DynamicList<compactRay>& x,
+        const DynamicList<compactRay>& y
+    ) const
     {
         // Create a hash set of existing items for O(1) lookup
         HashSet<compactRay> existing;
@@ -193,7 +180,7 @@ struct combineRayLists
         {
             existing.insert(x[i]);
         }
-        
+
         // Add only new items
         forAll(y, i)
         {
@@ -205,17 +192,27 @@ struct combineRayLists
     }
 };
 
+
 struct combineLists
 {
-    void operator()(DynamicList<point>& x, const DynamicList<point>& y) const
+    void operator()
+    (
+        DynamicList<point>& x,
+        const DynamicList<point>& y
+    ) const
     {
         x.append(y);
     }
 };
 
-struct combineRayPaths
+
+    struct combineRayPaths
 {
-    void operator()(DynamicList<DynamicList<point>>& x, const DynamicList<DynamicList<point>>& y) const
+    void operator()
+    (
+        DynamicList<DynamicList<point>>& x,
+        const DynamicList<DynamicList<point>>& y
+    ) const
     {
         forAll(y, i)
         {
@@ -224,7 +221,7 @@ struct combineRayPaths
     }
 };
 
-    
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 } // End namespace Foam

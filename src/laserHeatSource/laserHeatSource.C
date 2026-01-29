@@ -60,8 +60,8 @@ void laserHeatSource::createInitialRays
 
     if (radialPolarHeatSource())
     {
-        Info<<"nRadial: " << nRadial << nl
-            <<"nAngular: "<< nAngular <<endl;
+        Info<< "nRadial: " << nRadial << nl
+            << "nAngular: "<< nAngular <<endl;
 
         const scalar rMax = 1.5*beam_radius;
         const label totalSamples = nRadial * nAngular;
@@ -254,7 +254,7 @@ void laserHeatSource::createInitialRays
         (
             rayCoords[i], V_incident, rayPowers[i]
         );
-        rays[i].global_Ray_number_ = i;
+        rays[i].globalRayIndex_ = i;
         rays[i].currentCell_ = mesh.findCell(rayCoords[i]);
         rays[i].path_.append(rayCoords[i]);
     }
@@ -370,8 +370,11 @@ laserHeatSource::laserHeatSource
     laserDicts_(0),
     timeVsLaserPosition_(0),
     timeVsLaserPower_(0),
+    rayPaths_(0),
+    vtkTimes_(),
     globalBB_(mesh.bounds())  // Initialize with local bounds first
 {
+    Info<< "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
 
     // Calculate global bounding box
     {
@@ -385,7 +388,11 @@ laserHeatSource::laserHeatSource
         reduce(globalBB_.min(), minOp<vector>());
         reduce(globalBB_.max(), maxOp<vector>());
 
-        Info<< "Global mesh bounding box: " << globalBB_ << endl;
+        // Inflate the bounding box by 1% to avoid issues with rays starting
+        // exactly on the boundary
+        globalBB_.inflate(0.01);
+
+        Info<< "Scaled global mesh bounding box: " << globalBB_ << endl;
     }
 
 
@@ -398,6 +405,11 @@ laserHeatSource::laserHeatSource
         laserDicts_.setSize(laserEntries.size());
         timeVsLaserPosition_.setSize(laserEntries.size());
         timeVsLaserPower_.setSize(laserEntries.size());
+
+        if (Pstream::master())
+        {
+            rayPaths_.setSize(laserEntries.size());
+        }
 
         forAll(laserEntries, laserI)
         {
@@ -445,6 +457,7 @@ laserHeatSource::laserHeatSource
     {
         // There is no lists of lasers, just one
 
+        rayPaths_.setSize(1);
         laserNames_.setSize(1);
         laserDicts_.setSize(1);
         timeVsLaserPosition_.setSize(1);
@@ -550,9 +563,9 @@ void laserHeatSource::updateDeposition
         const scalar currentLaserPower =
             timeVsLaserPower_[laserI](time);
 
-        Info<< "Laser " << laserNames_[laserI] << nl
-            << "Laser mean position = " << currentLaserPosition << nl
-            << "Laser power = " << currentLaserPower << endl;
+        Info<< "Laser: " << laserNames_[laserI] << nl
+            << "    mean position = " << currentLaserPosition << nl
+            << "    power = " << currentLaserPower << endl;
 
         // Dict for current laser
         const dictionary& dict = laserDicts_[laserI];
@@ -577,7 +590,7 @@ void laserHeatSource::updateDeposition
             currentLaserPosition[vector::Z] += oscAmpZ*cos(2*pi*oscFreqZ*time);
         }
 
-        Info<< "Laser position including any oscillation = "
+        Info<< "    position including any oscillation = "
             << currentLaserPosition << endl;
 
         scalar laserRadius = 0.0;
@@ -648,7 +661,7 @@ void laserHeatSource::updateDeposition
             alphaFiltered,
             nFiltered,
             resistivity_in,
-            laserNames_[laserI],
+            laserI,
             currentLaserPosition,
             currentLaserPower,
             laserRadius,
@@ -666,6 +679,9 @@ void laserHeatSource::updateDeposition
             globalBB_
         );
     }
+
+    deposition_.correctBoundaryConditions();
+
 }
 
 
@@ -674,7 +690,7 @@ void laserHeatSource::updateDeposition
     const volScalarField& alphaFiltered,
     const volVectorField& nFiltered,
     const volScalarField& resistivity_in,
-    const word& laserName,
+    const label laserID,
     const vector& currentLaserPosition,
     const scalar currentLaserPower,
     const scalar laserRadius,
@@ -755,6 +771,13 @@ void laserHeatSource::updateDeposition
     // the domain or deposit all of their power
     DynamicList<compactRay> remainingGlobalRays(rays);
 
+    // Reset the ray paths list
+    if (Pstream::master())
+    {
+        rayPaths_[laserID].clear();
+        rayPaths_[laserID].setSize(rays.size());
+    }
+
     // Calculate the ray power tolerance as a fraction of the max ray power
     // Rays with a power less than this will be ignored
     scalar rayPowerAbsTol = 0;
@@ -767,16 +790,16 @@ void laserHeatSource::updateDeposition
 
         rayPowerAbsTol = rayPowerRelTol*maxRayPower;
 
-        Info<< "Max ray power = " << maxRayPower << nl
-            << "Ray power relative tolerance = " << rayPowerRelTol << nl
-            << "Ray power absolute tolerance = " << rayPowerAbsTol << endl;
+        Info<< "    Max ray power = " << maxRayPower << nl
+            << "    Ray power relative tolerance = " << rayPowerRelTol << nl
+            << "    Ray power absolute tolerance = " << rayPowerAbsTol << endl;
     }
+
+    Info<< "    Number of rays: "<< remainingGlobalRays.size() << endl;
 
     // Propagate the rays through the domain
     while (remainingGlobalRays.size() > 0)
     {
-        Info<< "Number of rays in domain: "<< remainingGlobalRays.size() << endl;
-
         // Find all rays on the current processor
         // localRays will store the remaining rays on this processor
         DynamicList<compactRay> localRays;
@@ -787,9 +810,10 @@ void laserHeatSource::updateDeposition
 
             // Check if the ray is within the global bound box and its power is
             // greater than a small fraction of the laser power
-            if 
+            if
             (
-                globalBB.contains(curRay.position_) || curRay.power_ < rayPowerAbsTol
+                globalBB.contains(curRay.position_)
+             && curRay.power_ > rayPowerAbsTol
             )
             {
                 const label myCellID =
@@ -830,7 +854,7 @@ void laserHeatSource::updateDeposition
             {
                 // Calculate the iterator distance as a fraction of the cell size
                 const scalar iterator_distance =
-                    (0.5/pi)*pow(VI[myCellID], 1.0/3.0);
+                    (0.25/pi)*pow(VI[myCellID], 1.0/3.0);
 
                 // Move the ray by the iterator distance
                 curRay.position_ += iterator_distance*curRay.direction_;
@@ -856,18 +880,26 @@ void laserHeatSource::updateDeposition
 
                 // Update the rayQ and rayNumber visualisation fields
                 rayQ_[myCellID] += curRay.power_;
-                rayNumber_[myCellID] = curRay.global_Ray_number_;
+                rayNumber_[myCellID] = curRay.globalRayIndex_;
 
-                if
+                if (curRay.power_ < SMALL)
+                {
+                    // Update the ray's path
+                    curRay.path_.append(curRay.position_);
+
+                    // End of life for the ray
+                    break;
+                }
+                else if
                 (
                     mag(nFilteredI[myCellID]) > 0.5
                  && alphaFilteredI[myCellID] >= dep_cutoff
-                 && curRay.power_ > SMALL
                 )
                 {
                     // Interface detected
                     // Deposit a fraction of the power and calculate the reflection
 
+                    // Material / dielectric properties
                     const scalar damping_frequency =
                         plasma_frequency*plasma_frequency
                        *constant::electromagnetic::epsilon0.value()
@@ -875,71 +907,81 @@ void laserHeatSource::updateDeposition
 
                     const scalar e_r =
                         1.0
-                        - (
-                            sqr(plasma_frequency)/(sqr(angular_frequency)
-                          + sqr(damping_frequency))
+                      - (
+                            sqr(plasma_frequency)
+                           /(sqr(angular_frequency) + sqr(damping_frequency))
                         );
 
                     const scalar e_i =
                         (damping_frequency/angular_frequency)
                        *(
                             sqr(plasma_frequency)
-                           /(
-                               sqr(angular_frequency) + sqr(damping_frequency)
-                            )
+                           /(sqr(angular_frequency) + sqr(damping_frequency))
                         );
 
                     const scalar ref_index =
                         Foam::sqrt
                         (
-                            (Foam::sqrt((e_r*e_r) +(e_i*e_i)) + e_r)/2.0
+                            (Foam::sqrt(e_r*e_r + e_i*e_i) + e_r)/2.0
                         );
 
                     const scalar ext_coefficient =
                         Foam::sqrt
                         (
-                            (Foam::sqrt((e_r*e_r) +(e_i*e_i)) - e_r)/2.0
+                            (Foam::sqrt(e_r*e_r + e_i*e_i) - e_r)/2.0
                         );
 
-                    scalar argument =
-                        (
-                            curRay.direction_ & nFilteredI[myCellID]
-                        )/(mag(curRay.direction_)*mag(nFilteredI[myCellID]));
+                    // Incidence angle with consistent normal orientation
 
-                    if (argument >= (1.0 - SMALL))
+                    // Unit surface normal
+                    vector n = nFilteredI[myCellID];
+                    n /= mag(n);
+
+                    // Incoming direction (towards the interface)
+                    vector d = curRay.direction_;
+                    const scalar dMag = mag(d);
+                    if (dMag <= SMALL)
                     {
-                        argument = 1.0;
+                        // Degenerate ray; stop it
+                        curRay.power_ = 0.0;
+
+                        // Update the ray's path
+                        curRay.path_.append(curRay.position_);
+
+                        // End of life for the ray
+                        break;
                     }
-                    else if (argument <= (-1.0 + SMALL))
+                    else
                     {
-                        argument = -1.0;
-                    }
+                        d /= dMag;              // unit propagation direction
+                        vector kin = -d;        // direction of incoming wave
 
-                   const scalar theta_in = std::acos(argument);
+                        scalar cosTheta = kin & n;
 
-                    const scalar alpha_laser =
-                        Foam::sqrt
-                        (
-                            Foam::sqrt
+                        // Flip normal to ensure cosTheta >= 0 (normal into
+                        // incident medium)
+                        if (cosTheta < 0.0)
+                        {
+                            n = -n;
+                            cosTheta = -cosTheta;
+                        }
+
+                        // Clamp to [0,1] to avoid NaN from acos
+                        cosTheta =
+                            Foam::max
                             (
-                                sqr
-                                (
-                                    sqr(ref_index)
-                                  - sqr(ext_coefficient)
-                                  - sqr(Foam::sin(theta_in))
-                                )
-                              + (
-                                    4.0*sqr(ref_index)*sqr(ext_coefficient)
-                                )
-                            )
-                          + sqr(ref_index)
-                          - sqr(ext_coefficient)
-                          - sqr(Foam::sin(theta_in))/2.0
-                        );
+                                Foam::min(cosTheta, scalar(1.0)),
+                                scalar(0.0)
+                            );
 
-                    const scalar beta_laser =
-                        Foam::sqrt
-                        (
+                        const scalar theta_in = std::acos(cosTheta);
+
+                        // Fresnel-like optics
+
+                        const scalar sinTheta = Foam::sin(theta_in);
+
+                        const scalar alpha_laser =
+                            Foam::sqrt
                             (
                                 Foam::sqrt
                                 (
@@ -947,102 +989,133 @@ void laserHeatSource::updateDeposition
                                     (
                                         sqr(ref_index)
                                       - sqr(ext_coefficient)
-                                      - sqr(Foam::sin(theta_in))
+                                      - sqr(sinTheta)
                                     )
                                   + 4.0*sqr(ref_index)*sqr(ext_coefficient)
                                 )
-                              - sqr(ref_index)
-                              + sqr(ext_coefficient)
-                              + sqr(Foam::sin(theta_in))
-                            )/2.0
-                        );
+                              + sqr(ref_index)
+                              - sqr(ext_coefficient)
+                              - sqr(sinTheta)/2.0
+                            );
 
-                    const scalar R_s =
-                        (
+                        const scalar beta_laser =
+                            Foam::sqrt
+                            (
+                                (
+                                    Foam::sqrt
+                                    (
+                                        sqr
+                                        (
+                                            sqr(ref_index)
+                                          - sqr(ext_coefficient)
+                                          - sqr(sinTheta)
+                                        )
+                                      + 4.0*sqr(ref_index)*sqr(ext_coefficient)
+                                    )
+                                  - sqr(ref_index)
+                                  + sqr(ext_coefficient)
+                                  + sqr(sinTheta)
+                                )/2.0
+                            );
+
+                        const scalar cosTheta_in = Foam::cos(theta_in);
+
+                        scalar R_s =
                             (
                                 sqr(alpha_laser)
                               + sqr(beta_laser)
-                              - 2.0*alpha_laser*Foam::cos(theta_in)
-                              + sqr(Foam::cos(theta_in))
-                            )
-                            /(
-                                sqr(alpha_laser)
-                              + sqr(beta_laser)
-                              + 2.0*alpha_laser*Foam::cos(theta_in)
-                              + sqr(Foam::cos(theta_in))
-                            )
-                        );
-
-                    const scalar R_p =
-                        R_s
-                        *(
-                            (
-                                sqr(alpha_laser)
-                              + sqr(beta_laser)
-                              - (
-                                    2.0*alpha_laser*Foam::sin(theta_in)
-                                   *Foam::tan(theta_in)
-                                )
-                              + (
-                                    sqr(Foam::sin(theta_in))
-                                   *sqr(Foam::tan(theta_in))
-                                )
+                              - 2.0*alpha_laser*cosTheta_in
+                              + sqr(cosTheta_in)
                             )
                            /(
                                 sqr(alpha_laser)
                               + sqr(beta_laser)
-                              + (
-                                    2.0*alpha_laser*Foam::sin(theta_in)
-                                   *Foam::tan(theta_in)
-                                )
-                              + sqr(Foam::sin(theta_in))*sqr(Foam::tan(theta_in))
-                            )
-                        );
-
-                    const scalar absorptivity = 1.0 - ((R_s + R_p)/2.0);
-
-                    if (theta_in >= pi/2.0)
-                    {
-                        // Dump half of energy and propogate further - once the
-                        // optics is its own function we shoule work out what
-                        // pi-theta returns for the absorptivity and pass this
-                        // here instead of 0.5
-                        deposition_[myCellID] += 0.5*curRay.power_/VI[myCellID];//yDimI[myCellID];
-                        curRay.power_ *= 0.5;
-                    }
-                    else
-                    {
-                        deposition_[myCellID] += absorptivity*curRay.power_/VI[myCellID];
-                        curRay.power_ *= (1.0 - absorptivity);
-                        curRay.direction_ -=
-                            (
-                                (
-                                    (
-                                        (
-                                            2.0*curRay.direction_
-                                          & nFilteredI[myCellID]
-                                        )/magSqr(nFilteredI[myCellID])
-                                    )
-                                )*nFilteredI[myCellID]
+                              + 2.0*alpha_laser*cosTheta_in
+                              + sqr(cosTheta_in)
                             );
+
+                        scalar R_p =
+                            R_s
+                           *(
+                                sqr(alpha_laser)
+                              + sqr(beta_laser)
+                              - 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
+                              + sqr(sinTheta)*sqr(Foam::tan(theta_in))
+                            )
+                           /(
+                                sqr(alpha_laser)
+                              + sqr(beta_laser)
+                              + 2.0*alpha_laser*sinTheta*Foam::tan(theta_in)
+                              + sqr(sinTheta)*sqr(Foam::tan(theta_in))
+                            );
+
+                        // Clamp reflectivities and absorptivity to [0,1]
+
+                        R_s =
+                            Foam::max(Foam::min(R_s, scalar(1.0)), scalar(0.0));
+                        R_p =
+                            Foam::max(Foam::min(R_p, scalar(1.0)), scalar(0.0));
+
+                        scalar R = 0.5*(R_s + R_p);
+                        scalar absorptivity = 1.0 - R;
+
+                        absorptivity =
+                            Foam::max
+                            (
+                                Foam::min(absorptivity, scalar(1.0)),
+                                scalar(0.0)
+                            );
+
+                        if (debug)
+                        {
+                            Info<< "ray " << curRay.globalRayIndex_
+                                << ", cell " << myCellID
+                                << ", theta_in = " << theta_in
+                                << ", R_s = " << R_s
+                                << ", R_p = " << R_p
+                                << ", absorptivity = " << absorptivity << endl;
+                        }
+
+                        // Deposit and reflect
+
+                        deposition_[myCellID] +=
+                            absorptivity*curRay.power_/VI[myCellID];
+
+                        curRay.power_ *= (1.0 - absorptivity);
+
+                        // Specular reflection
+                        // reflect original direction about n
+                        // n points into incident medium
+                        const vector dRef =
+                            curRay.direction_ - 2.0*(curRay.direction_ & n)*n;
+
+                        curRay.direction_ = dRef;
                     }
                 }
-                else 
+                else if (alphaFilteredI[myCellID] >= dep_cutoff)
                 {
-                    if
-                    (
-                        alphaFilteredI[myCellID] > dep_cutoff
-                     && mag(nFilteredI[myCellID]) < 0.5
-                     && curRay.power_ > SMALL
-                    )
-                    {
-                        // Deposit half the energy and send it back the way it came
-                        Info<< "Within the bulk" << endl;
+                    // Bulk metal
+                    // Assume fully absorbing, no further propagation
 
-                        deposition_[myCellID] += 0.5*curRay.power_/VI[myCellID];;
-                        curRay.direction_ = -curRay.direction_;
-                        curRay.power_ *= 0.5;
+                    if (debug)
+                    {
+                        Info<< "Bulk absorption at cell " << myCellID
+                            << ", alpha = " << alphaFilteredI[myCellID]
+                            << ", |n| = " << mag(nFilteredI[myCellID])
+                            << ", power = " << curRay.power_ << endl;
                     }
+
+                    // Deposit all remaining ray power in this cell
+                    deposition_[myCellID] += curRay.power_/VI[myCellID];
+
+                    // Kill the ray
+                    curRay.power_ = 0.0;
+
+                    // Update the ray's path
+                    curRay.path_.append(curRay.position_);
+
+                    // End of life for the ray
+                    break;
                 }
 
                 // Update the ray's path
@@ -1055,276 +1128,187 @@ void laserHeatSource::updateDeposition
         remainingGlobalRays = localRays;
         Pstream::combineGather(remainingGlobalRays, combineRayLists());
         Pstream::broadcast(remainingGlobalRays);
+
+        // Record the latest ray paths
+        // Note that once a ray has left the domain then its global path is no
+        // longer updated so its path will be the final full path
+        if (Pstream::master())
+        {
+            forAll(remainingGlobalRays, rI)
+            {
+                const compactRay& curRay = remainingGlobalRays[rI];
+                const label rayID = curRay.globalRayIndex_;
+                rayPaths_[laserID][rayID] = curRay.path_;
+            }
+        }
     }
 
+    deposition_.correctBoundaryConditions();
 
-     // if (runTime.outputTime())
-     // {
-     //     // Create a directory for the VTK files
-     //     fileName vtkDir;
-     //     if (Pstream::parRun())
-     //     {
-     //         vtkDir = runTime.path()/".."/"VTKs";
-     //     }
-     //     else
-     //     {
-     //         vtkDir = runTime.path()/"VTKs";
-     //     }
-
-     //     mkDir(vtkDir);
-
-     //     // // Collect all ray paths from all rays
-     //     DynamicList<DynamicList<point>> allRayPaths = WriteRays;
-
-     //     // // rays contains all the rays with their complete paths
-     //     // forAll(WriteRays, rayI)
-     //     // {
-     //     //     // Info<<" HERE"<<endl;
-     //     //     // Info<<" HERE"<<endl;
-     //     //     // Info<<" HERE"<<endl;
-     //     //     // Info<<" HERE"<<endl;
-     //     //     // Info<<"ray path size: "<<WriteRays[rayI].path_.size()<<endl;
-     //     //     // Info<<" HERE"<<endl;
-     //     //     // Info<<" HERE"<<endl;
-     //     //     // Info<<" HERE"<<endl;
-
-     //     //     if (WriteRays.size() > 1)  // Only add rays that have traveled
-     //     //     {
-     //     //         allRayPaths.append(WriteRays);
-     //     //     }
-     //     // }
-
-     //     // Gather paths from all processors if running in parallel
-     //     if (Pstream::parRun())
-     //     {
-     //         // Gather all paths to master processor
-     //         List<DynamicList<DynamicList<point>>> gatheredPaths(Pstream::nProcs());
-     //         gatheredPaths[Pstream::myProcNo()] = allRayPaths;
-     //         Pstream::gatherList(gatheredPaths);
-
-     //         if (Pstream::master())
-     //         {
-     //             // Combine all paths
-     //             allRayPaths.clear();
-     //             forAll(gatheredPaths, procI)
-     //             {
-     //                 const DynamicList<DynamicList<point>>& procPaths = gatheredPaths[procI];
-     //                 forAll(procPaths, pathI)
-     //                 {
-     //                     allRayPaths.append(procPaths[pathI]);
-     //                 }
-     //             }
-     //         }
-     //     }
-
-     //     // Write VTK file (only master processor in parallel runs)
-     //     if (!Pstream::parRun() || Pstream::master())
-     //     {
-     //         fileName vtkFileName = vtkDir/"rays_" + laserName + "_" + Foam::name(runTime.timeIndex()) + ".vtk";
-     //         writeMultipleRaysToVTK(allRayPaths, vtkFileName);
-
-     //         Info<< "Written " << allRayPaths.size() << " ray paths to " << vtkFileName << endl;
-     //     }
-     // }
-
-
-     const scalar TotalQ = fvc::domainIntegrate(deposition_).value();
-     Info<< "Total Q deposited this timestep: " << TotalQ <<endl;
-
-    //  // Combine rays across procs
-    //  if (runTime.outputTime() && Pstream::parRun())
-    //  {
-    //      if (debug)
-    //      {
-    //          Info<< "Parallel syncing beams!" << endl;
-    //      }
-
-    //      // The ray starting points were added to the beamDirectionChangePoints list
-    //      // on all procs, so we will remove them from all procs apart from the master
-    //      // Note: the beamDirectionChangePoints list is only synced at output times
-    //      // and will only be correct on the master proc which writes them
-    //      if (!Pstream::master())
-    //      {
-    //          forAll(beamDirectionChangePoints, rayI)
-    //          {
-    //              beamDirectionChangePoints[rayI] =
-    //                  SubField<vector>
-    //                  (
-    //                      beamDirectionChangePoints[rayI],
-    //                      beamDirectionChangePoints[rayI].size() - 1,
-    //                      1
-    //                  );
-
-    //              beamDirectionChangeOrder[rayI] =
-    //                  SubField<int>
-    //                  (
-    //                      beamDirectionChangeOrder[rayI],
-    //                      beamDirectionChangeOrder[rayI].size() - 1,
-    //                      1
-    //                  );
-    //          }
-    //      }
-
-    //      // Sync beams across procs
-    //      forAll(beamDirectionChangePoints, rayI)
-    //      {
-    //          {
-    //              List<List<vector>> gatheredField(Pstream::nProcs());
-    //              gatheredField[Pstream::myProcNo()] =
-    //                  beamDirectionChangePoints[rayI];
-    //              Pstream::gatherList(gatheredField);
-
-    //              beamDirectionChangePoints[rayI] =
-    //                  ListListOps::combine<List<vector>>
-    //                  (
-    //                      gatheredField,
-    //                      accessOp<List<vector>>()
-    //                  );
-    //          }
-
-    //          {
-    //              List<List<int>> gatheredField(Pstream::nProcs());
-    //              gatheredField[Pstream::myProcNo()] =
-    //                  beamDirectionChangeOrder[rayI];
-    //              Pstream::gatherList(gatheredField);
-
-    //              beamDirectionChangeOrder[rayI] =
-    //                  ListListOps::combine<List<int>>
-    //                  (
-    //                      gatheredField,
-    //                      accessOp<List<int>>()
-    //                  );
-    //          }
-
-    //          // Re-order the list
-    //          if (Pstream::master())
-    //          {
-    //              SortableList<int> sortedOrder(beamDirectionChangeOrder[rayI]);
-    //              List<vector> unsortedPoints(beamDirectionChangePoints[rayI]);
-    //              List<int> unsortedOrder(beamDirectionChangeOrder[rayI]);
-    //              forAll(sortedOrder, i)
-    //              {
-    //                  beamDirectionChangePoints[rayI][i] =
-    //                      unsortedPoints[sortedOrder.indices()[i]];
-    //                  beamDirectionChangeOrder[rayI][i] =
-    //                      unsortedOrder[sortedOrder.indices()[i]];
-    //              }
-    //          }
-    //      }
-    //  }
-
-
-    //  // Write rays
-    //  if (runTime.outputTime() && Pstream::master())
-    //  {
-    //      if (debug)
-    //      {
-    //          forAll(beamDirectionChangePoints, rayI)
-    //          {
-    //              Info<< "ray " << rayI << endl;
-    //              forAll(beamDirectionChangePoints[rayI], i)
-    //              {
-    //                  Info<< "    " << beamDirectionChangePoints[rayI][i]
-    //                      << endl;
-    //              }
-    //          }
-    //      }
-
-    //      // Write rays in VTK format
-    //      // See
-    //      // https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html
-
-    //      // Create a directory for the VTK files
-    //      fileName vtkDir;
-    //      if (Pstream::parRun())
-    //      {
-    //          vtkDir = runTime.path()/".."/"VTKs";
-    //      }
-    //      else
-    //      {
-    //          vtkDir = runTime.path()/"VTKs";
-    //      }
-
-    //      mkDir(vtkDir);
-
-    //      // Create a VTK file
-    //      OFstream rayVtkFile
-    //      (
-    //          vtkDir/laserName + "_rays_"
-    //        + Foam::name(runTime.timeIndex()) + ".vtk"
-    //      );
-
-    //      Info<< "Writing rays to " << rayVtkFile.name() << endl;
-
-    //      // Write header
-    //      rayVtkFile
-    //          << "# vtk DataFile Version 2.0" << nl
-    //          << "Rays" << nl
-    //          << "ASCII" << endl;
-
-    //      // Count the number of points and calculate the offset for each ray
-    //      label nRayPoints = 0;
-    //      labelList pointIdOffset(beamDirectionChangePoints.size(), 0);
-    //      forAll(beamDirectionChangePoints, rayI)
-    //      {
-    //          nRayPoints += beamDirectionChangePoints[rayI].size();
-
-    //          if (rayI > 0)
-    //          {
-    //              pointIdOffset[rayI] =
-    //                  pointIdOffset[rayI - 1]
-    //                + beamDirectionChangePoints[rayI - 1].size();
-    //          }
-    //      }
-
-    //      // Write points
-    //      rayVtkFile
-    //          << "DATASET POLYDATA" << nl
-    //          << "POINTS " << nRayPoints << " double" << endl;
-
-    //      // Add ray points
-    //      forAll(beamDirectionChangePoints, rayI)
-    //      {
-    //          forAll(beamDirectionChangePoints[rayI], i)
-    //          {
-    //              rayVtkFile
-    //                  << beamDirectionChangePoints[rayI][i].x() << " "
-    //                  << beamDirectionChangePoints[rayI][i].y() << " "
-    //                  << beamDirectionChangePoints[rayI][i].z() << endl;
-    //          }
-    //      }
-
-    //      // Count the number of lines
-    //      label nRayLines = 0;
-    //      forAll(beamDirectionChangePoints, rayI)
-    //      {
-    //          // Note: we must add 1 as the VTK format requires it
-    //          nRayLines += beamDirectionChangePoints[rayI].size() + 1;
-    //      }
-
-    //      // Write lines
-    //      rayVtkFile
-    //          << "LINES " << beamDirectionChangePoints.size() << " " << nRayLines
-    //          << endl;
-
-    //      forAll(beamDirectionChangePoints, rayI)
-    //      {
-    //          // Write the number of points in the line
-    //          rayVtkFile
-    //              << beamDirectionChangePoints[rayI].size();
-
-    //          // Write indices of points
-    //          forAll(beamDirectionChangePoints[rayI], i)
-    //          {
-    //              rayVtkFile
-    //                  << " " << pointIdOffset[rayI] + i;
-    //          }
-
-    //          rayVtkFile
-    //              << endl;
-    //      }
-    //  }
+    const scalar TotalQ = fvc::domainIntegrate(deposition_).value();
+    Info<< "    Total Q deposited: " << TotalQ <<endl;
 }
+
+
+void laserHeatSource::writeRayPathsToVTK()
+{
+    const Time& runTime = deposition_.time();
+    if (Pstream::master())
+    {
+        // Create a directory for the VTK files
+        fileName vtkDir;
+        if (Pstream::parRun())
+        {
+            vtkDir = runTime.path()/".."/"VTKs";
+        }
+        else
+        {
+            vtkDir = runTime.path()/"VTKs";
+        }
+
+        mkDir(vtkDir);
+
+        // Record this time as having a VTK file
+        vtkTimes_.insert(runTime.value());
+
+        // Write ray paths to VTK files
+        forAll(laserNames_, laserI)
+        {
+            const fileName vtkFileName
+            (
+                vtkDir/"rays_" + laserNames_[laserI] + "_"
+              + Foam::name(runTime.value()) + ".vtk"
+            );
+            Info<< "Writing " << rayPaths_[laserI].size() << " ray paths to "
+                << vtkFileName << endl;
+            writeRayPathsToVTK(rayPaths_[laserI], vtkFileName);
+        }
+    }
+}
+
+
+void laserHeatSource::writeRayPathsToVTK
+(
+    const List<DynamicList<point>>& rays,
+    const fileName& filename
+)
+{
+    OFstream file(filename);
+
+    if (!file.good())
+    {
+        FatalErrorInFunction
+            << "Cannot open file " << filename
+            << exit(FatalError);
+    }
+
+    // Calculate total number of points and lines
+    label totalPoints = 0;
+    label totalLines = 0;
+
+    forAll(rays, rayI)
+    {
+        totalPoints += rays[rayI].size();
+        if (rays[rayI].size() > 1)
+        {
+            // n-1 line segments per ray
+            totalLines += (rays[rayI].size() - 1);
+        }
+    }
+
+    // VTK header
+    file<< "# vtk DataFile Version 3.0" << nl;
+    file<< "Multiple ray data" << nl;
+    file<< "ASCII" << nl;
+    file<< "DATASET POLYDATA" << nl;
+
+    // Write all points
+    file<< "POINTS " << totalPoints << " float" << nl;
+    forAll(rays, rayI)
+    {
+        const DynamicList<point>& ray = rays[rayI];
+        forAll(ray, pointI)
+        {
+            const point& pt = ray[pointI];
+            file<< pt.x() << " " << pt.y() << " " << pt.z() << nl;
+        }
+    }
+
+    // Write line connectivity
+    // Each line segment is defined by 2 points
+    file<< "LINES " << totalLines << " " << (totalLines * 3) << nl;
+
+    label pointOffset = 0;
+    forAll(rays, rayI)
+    {
+        const DynamicList<point>& ray = rays[rayI];
+
+        // Connect consecutive points within this ray only
+        for (label i = 0; i < ray.size() - 1; i++)
+        {
+            file<< "2 " << (pointOffset + i) << " " << (pointOffset + i + 1)
+                << nl;
+        }
+
+        // Update offset for next ray
+        pointOffset += ray.size();
+    }
+}
+
+
+void laserHeatSource::writeRayPathVTKSeriesFile() const
+{
+    const Time& runTime = deposition_.time();
+    if (Pstream::master())
+    {
+        // Directory that already holds the legacy .vtk files
+        const fileName vtkDir =
+            Pstream::parRun()
+          ? runTime.path()/".."/"VTKs"
+          : runTime.path()/"VTKs";
+
+        // Get the list of times when VTK files were written
+        const scalarList times = vtkTimes_.toc();
+
+        // Ensure chronological order
+        SortableList<scalar> sortedTimes(times);
+
+        // Write ray paths to VTK files
+        forAll(laserNames_, laserI)
+        {
+            const word& laserName = laserNames_[laserI];
+
+            const fileName seriesFile = vtkDir/"rays_" + laserName + ".vtk.series";
+            Info<< "Writing ray path series file: " << seriesFile << nl;
+
+            OFstream os(seriesFile);
+            os.precision(12); // good numeric precision for times
+
+            os  << "{\n"
+                << "  \"file-series-version\": \"1.0\",\n"
+                << "  \"files\": [\n";
+
+            for (label i = 0; i < sortedTimes.size(); ++i)
+            {
+                const scalar t = sortedTimes[i];
+
+                // Filenames follow your convention:
+                //   rays_<laserName>_<timeName>.vtk
+                // We reconstruct <timeName> with Foam::name(t).
+                os  << "    { \"name\": \"rays_"
+                    << laserName << "_" << Foam::name(t)
+                    << ".vtk\", \"time\": " << t << " }";
+
+                if (i+1 < sortedTimes.size()) os << ",";
+                os << "\n";
+            }
+
+            os  << "  ]\n"
+                << "}\n";
+        }
+    }
+}
+
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

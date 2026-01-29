@@ -1,4 +1,4 @@
-    MRF.correctBoundaryVelocity(U);
+MRF.correctBoundaryVelocity(U);
 
 
 if (laser.powderSim())
@@ -14,9 +14,13 @@ else
        /(Foam::pow(epsilon1, 3) + DarcyConstantsmall);
 }
 
+DC.correctBoundaryConditions();  // ADDED
+
 gradAlpha = fvc::grad(alpha1);
+gradAlpha.correctBoundaryConditions();  // ADDED - CRITICAL!
 
 nHatM = gradAlpha/(mag(gradAlpha) + deltaN);
+nHatM.correctBoundaryConditions();  // ADDED
 
 Marangoni =
     epsilon1*Marangoni_Constant*(gradT - nHatM*(nHatM & gradT))*mag(gradAlpha);
@@ -38,9 +42,11 @@ if (damperSwitch)
 {
     // To account for high density difference
     damper = 2.0*rho/(rho1 + rho2);
+    damper.correctBoundaryConditions();  // ADDED
 }
 
 pVap = 0.54*p0*Foam::exp(LatentHeatVap*Mm*((T - Tvap)/(R*T*Tvap)));
+pVap.correctBoundaryConditions();  // ADDED
 
 
     fvVectorMatrix UEqn

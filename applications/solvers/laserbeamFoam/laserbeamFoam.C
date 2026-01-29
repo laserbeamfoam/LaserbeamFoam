@@ -331,8 +331,19 @@ int main(int argc, char *argv[])
 
 
         runTime.write();
+
+                // Write ray paths to VTK files
+        if (runTime.outputTime())
+        {
+            laser.writeRayPathsToVTK();
+        }
+
         runTime.printExecutionTime(Info);
     }
+
+    laser.writeRayPathVTKSeriesFile();
+
+    
 
     Info<< "End\n" << endl;
 
