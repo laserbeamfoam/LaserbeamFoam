@@ -200,6 +200,13 @@ forAllIter(basicKinematicCloud, parcels, pIter)
         scalar actualMeltedMass = desiredMelt * limitFactor;
         scalar newRemainingFraction = (remainingMass - actualMeltedMass) / originalMass;
         
+        // UPDATE PARTICLE DIAMETER to reflect new mass:
+scalar newMass = remainingMass - actualMeltedMass;
+scalar rhoParticle = p.rho();  // Particle density
+scalar newDiameter = Foam::pow(6.0 * newMass / (rhoParticle * M_PI), 1.0/3.0);
+p.d() = newDiameter;
+
+
         if (newRemainingFraction < 0.01)
         {
             p.active(false);
