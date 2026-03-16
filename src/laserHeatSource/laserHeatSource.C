@@ -45,7 +45,7 @@ void laserHeatSource::seedRayCloud
     const label N_sub_divisions,
     const label nRadial,
     const label nAngular,
-    const vector& V_incident,
+    const vector& currentLaserIncidentVector,
     const scalar Radius_Flavour,
     const scalar Q_cond,
     const scalar beam_radius,
@@ -74,7 +74,7 @@ void laserHeatSource::seedRayCloud
     // care to perturb in the ray direction and transverse to the ray direction
 
     // Ray direction
-    const vector d = V_incident/(mag(V_incident) + VSMALL);
+    const vector d = currentLaserIncidentVector/(mag(currentLaserIncidentVector) + VSMALL);
 
     // Pick a stable “arbitrary” axis not parallel to d
     const vector a =
@@ -163,7 +163,7 @@ void laserHeatSource::seedRayCloud
             currentLaserPosition.z()
         );
 
-        const vector V_i(V_incident/(mag(V_incident) + SMALL));
+        const vector V_i(currentLaserIncidentVector/(mag(currentLaserIncidentVector) + SMALL));
 
         const vector a =
             (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
@@ -332,7 +332,7 @@ void laserHeatSource::seedRayCloud
                     mesh,
                     rayCoords[i],
                     cellI,
-                    V_incident,
+                    currentLaserIncidentVector,
                     rayPowers[i],
                     0.0,        // dA
                     i           // globalRayIndex
@@ -455,6 +455,7 @@ laserHeatSource::laserHeatSource
     laserNames_(0),
     laserDicts_(0),
     timeVsLaserPosition_(0),
+    timeVsLaserIncidentVector_(0),
     timeVsLaserPower_(0),
     rayPaths_(0),
     vtkTimes_(),
@@ -484,6 +485,7 @@ laserHeatSource::laserHeatSource
         laserNames_.setSize(laserEntries.size());
         laserDicts_.setSize(laserEntries.size());
         timeVsLaserPosition_.setSize(laserEntries.size());
+        timeVsLaserIncidentVector_.setSize(laserEntries.size());
         timeVsLaserPower_.setSize(laserEntries.size());
 
         if (Pstream::master())
@@ -510,6 +512,15 @@ laserHeatSource::laserHeatSource
                 )
             );
 
+            timeVsLaserIncidentVector_.set
+            (
+                laserI,
+                new interpolationTable<vector>
+                (
+                    laserEntries[laserI].dict().subDict("timeVsLaserIncidentVector")
+                )
+            );
+
             timeVsLaserPower_.set
             (
                 laserI,
@@ -529,6 +540,13 @@ laserHeatSource::laserHeatSource
                 << " if a list of lasers is provided" << exit(FatalError);
         }
 
+        if (found("timeVsLaserIncidentVector"))
+        {
+            FatalErrorInFunction
+                << "timeVsLaserIncidentVector should not be defined in the main dict"
+                << " if a list of lasers is provided" << exit(FatalError);
+        }
+
         if (found("timeVsLaserPower"))
         {
             FatalErrorInFunction
@@ -544,6 +562,7 @@ laserHeatSource::laserHeatSource
         laserNames_.setSize(1);
         laserDicts_.setSize(1);
         timeVsLaserPosition_.setSize(1);
+        timeVsLaserIncidentVector_.setSize(1);
         timeVsLaserPower_.setSize(1);
 
         laserNames_[0] = "laser0";
@@ -555,6 +574,12 @@ laserHeatSource::laserHeatSource
         (
             0,
             new interpolationTable<vector>(subDict("timeVsLaserPosition"))
+        );
+
+        timeVsLaserIncidentVector_.set
+        (
+            0,
+            new interpolationTable<vector>(subDict("timeVsLaserIncidentVector"))
         );
 
         timeVsLaserPower_.set
@@ -574,11 +599,19 @@ laserHeatSource::laserHeatSource
     }
 
     // Give errors if the old input format is found
+    if (found("V_incident"))
+    {
+        FatalErrorInFunction
+            << "'V_incident' is deprecated: please instead specify the laser "
+            << "incident vector in time via the timeVsLaserIncidentVector sub-dict"
+            << exit(FatalError);
+    }
+    // Give errors if the old input format is found
     if (found("HS_bg"))
     {
         FatalErrorInFunction
             << "'HS_bg' is deprecated: please instead specify the laser "
-            << "position in time via the laserPositionVsTime sub-dict"
+            << "position in time via the timeVsLaserPosition sub-dict"
             << exit(FatalError);
     }
     // Give errors if the old input format is found
@@ -586,7 +619,7 @@ laserHeatSource::laserHeatSource
     {
         FatalErrorInFunction
             << "'HS_lg' is deprecated: please instead specify the laser "
-            << "position in time via the laserPositionVsTime sub-dict"
+            << "position in time via the timeVsLaserPosition sub-dict"
             << exit(FatalError);
     }
     // Give errors if the old input format is found
@@ -594,7 +627,7 @@ laserHeatSource::laserHeatSource
     {
         FatalErrorInFunction
             << "'HS_velocity' is deprecated: please instead specify the laser "
-            << "position in time via the laserPositionVsTime sub-dict"
+            << "position in time via the timeVsLaserPosition sub-dict"
             << exit(FatalError);
     }
     // Give errors if the old input format is found
@@ -602,7 +635,7 @@ laserHeatSource::laserHeatSource
     {
         FatalErrorInFunction
             << "'HS_Q' is deprecated: please instead specify the laser "
-            << "power in time via the laserPowereVsTime sub-dict"
+            << "power in time via the timeVsLaserPower sub-dict"
             << exit(FatalError);
     }
     // Give errors if the old input format is found
@@ -642,11 +675,14 @@ void laserHeatSource::updateDeposition
         // Lookup the current laser position and power
         vector currentLaserPosition =
             timeVsLaserPosition_[laserI](time);
+        vector currentLaserIncidentVector =
+            timeVsLaserIncidentVector_[laserI](time);
         const scalar currentLaserPower =
             timeVsLaserPower_[laserI](time);
 
         Info<< "Laser: " << laserNames_[laserI] << nl
             << "    mean position = " << currentLaserPosition << nl
+            << "    incident vector = " << currentLaserIncidentVector << nl
             << "    power = " << currentLaserPower << endl;
 
             // Dict for current laser
@@ -704,7 +740,6 @@ void laserHeatSource::updateDeposition
         (
             dict.lookupOrDefault<label>("N_sub_divisions", 1)
         );
-        const vector V_incident(dict.lookup("V_incident"));
         const scalar wavelength(readScalar(dict.lookup("wavelength")));
         const scalar e_num_density
         (
@@ -743,7 +778,7 @@ void laserHeatSource::updateDeposition
             N_sub_divisions,
             nRadial,
             nAngular,
-            V_incident,
+            currentLaserIncidentVector,
             wavelength,
             e_num_density,
             dep_cutoff,
@@ -785,7 +820,7 @@ void laserHeatSource::updateDeposition
     const label N_sub_divisions,
     const label nRadial,
     const label nAngular,
-    const vector& V_incident,
+    const vector& currentLaserIncidentVector,
     const scalar wavelength,
     const scalar e_num_density,
     const scalar dep_cutoff,
@@ -845,7 +880,7 @@ void laserHeatSource::updateDeposition
         N_sub_divisions,
         nRadial,
         nAngular,
-        V_incident,
+        currentLaserIncidentVector,
         Radius_Flavour,
         currentLaserPower,
         beam_radius,

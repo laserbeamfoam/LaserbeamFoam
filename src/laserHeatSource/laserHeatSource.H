@@ -101,6 +101,9 @@ class laserHeatSource
         //- List of the time vs laser position interpolation series
         PtrList<interpolationTable<vector>> timeVsLaserPosition_;
 
+        //- List of the time vs laser incident vector interpolation series
+        PtrList<interpolationTable<vector>> timeVsLaserIncidentVector_;
+
         //- List of the time vs laser power interpolation series
         PtrList<interpolationTable<scalar>> timeVsLaserPower_;
 
@@ -130,7 +133,7 @@ class laserHeatSource
             const label N_sub_divisions,
             const label nRadial,
             const label nAngular,
-            const vector& V_incident,
+            const vector& currentLaserIncidentVector,
             const scalar Radius_Flavour,
             const scalar Q_cond,
             const scalar beam_radius,
@@ -209,7 +212,7 @@ public:
             const label N_sub_divisions,
             const label nRadial,
             const label nAngular,
-            const vector& V_incident,
+            const vector& currentLaserIncidentVector,
             const scalar wavelength,
             const scalar e_num_density,
             const scalar dep_cutoff,
