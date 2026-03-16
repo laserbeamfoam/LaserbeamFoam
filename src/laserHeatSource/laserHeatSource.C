@@ -46,6 +46,8 @@ void laserHeatSource::seedRayCloud
     const label nRadial,
     const label nAngular,
     const vector& V_incident,
+    const label laserProfile,
+    const scalar ringWidth,
     const scalar Radius_Flavour,
     const scalar Q_cond,
     const scalar beam_radius,
@@ -61,6 +63,10 @@ void laserHeatSource::seedRayCloud
 
     const scalarField& yDimI = yDim_;
     const scalar pi = constant::mathematical::pi;
+
+    // Static cast the laser profile to the enumeration type
+    // The guards added to the input parsing ensure that this will be a valid value
+    const LaserProfile laserProfileEnum = static_cast<LaserProfile>(laserProfile);
 
     // -- Build global list of ray positions and powers --
 
@@ -194,15 +200,7 @@ void laserHeatSource::seedRayCloud
             point_assoc_power.append
             (
                 area
-               *(
-                    Radius_Flavour*Q_cond
-                   /(Foam::pow(beam_radius, 2.0)*pi)
-                )
-               *Foam::exp
-                (
-                  - Radius_Flavour
-                   *(Foam::pow(r, 2.0)/Foam::pow(beam_radius, 2.0))
-                )
+                *calculateRayPower(r, beam_radius, laserProfileEnum, ringWidth, Radius_Flavour, Q_cond, beam_radius)
             );
         }
     }
@@ -251,18 +249,7 @@ void laserHeatSource::seedRayCloud
                         point_assoc_power.append
                         (
                             sqr(yDimI[celli]/N_sub_divisions)
-                           *(
-                                (Radius_Flavour*Q_cond)
-                               /(Foam::pow(beam_radius, 2.0)*pi)
-                            )
-                           *Foam::exp
-                            (
-                              - Radius_Flavour
-                               *(
-                                    Foam::pow(r, 2.0)
-                                   /Foam::pow(beam_radius, 2.0)
-                                )
-                            )
+                            *calculateRayPower(r, beam_radius, laserProfileEnum, ringWidth, Radius_Flavour, Q_cond, beam_radius)
                         );
                     }
                 }
@@ -346,6 +333,32 @@ void laserHeatSource::seedRayCloud
         << ", local particles: " << cloud.size() << endl;
 }
 
+scalar laserHeatSource::calculateRayPower(
+    const scalar r,
+    const scalar laserRadius,
+    const LaserProfile laserProfile,
+    const scalar ringWidth,
+    const scalar Radius_Flavour,
+    const scalar Q_cond,
+    const scalar beam_radius) const
+{
+    switch (laserProfile)
+    {
+    default:
+    case LaserProfile::GAUSSIAN:
+        // Gaussian profile
+        return (
+                   Radius_Flavour * Q_cond / (Foam::pow(beam_radius, 2.0) * constant::mathematical::pi)) *
+               Foam::exp(
+                   -Radius_Flavour * (Foam::pow(r, 2.0) / Foam::pow(beam_radius, 2.0)));
+    case LaserProfile::TOROIDAL:
+        // Toroidal profile
+        return (
+                   Radius_Flavour * Q_cond / (Foam::pow(beam_radius, 2.0) * constant::mathematical::pi)) *
+               Foam::exp(
+                   -2.0 * Foam::pow(r - beam_radius, 2.0) / (ringWidth * ringWidth * beam_radius * beam_radius));
+    }
+}
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -714,6 +727,35 @@ void laserHeatSource::updateDeposition
         (
             dict.lookupOrDefault<scalar>("dep_cutoff", 0.5)
         );
+        const label laserProfile
+        (
+            dict.lookupOrDefault<label>("laserProfile", 0)
+        );
+
+        const scalar ringWidth = dict.lookupOrDefault<scalar>("ringWidth", 0);
+
+        if (laserProfile < 0)
+        {
+            FatalErrorInFunction
+                << "The laser profile should be a non-negative integer!"
+                << exit(FatalError);
+        }
+        else if (laserProfile > laserHeatSource::LaserProfile::TOROIDAL)
+        {
+            FatalErrorInFunction
+                << "The laser profile " << laserProfile
+                << " is not recognised. The following profiles are available:" << endl
+                << "    0: Gaussian" << endl
+                << "    1: Toroidal - requires 'ringWidth (0 < ringWidth <= 1)'" << endl
+                << exit(FatalError);
+        }
+        else if (laserProfile == laserHeatSource::LaserProfile::TOROIDAL && (ringWidth <= 0 || ringWidth > 1.0))
+        {
+            FatalErrorInFunction
+                << "ringWidth must be specified and between 0 and 1 for ring laser profile!"
+                << exit(FatalError);
+        }
+
         const scalar Radius_Flavour
         (
             dict.lookupOrDefault<scalar>("Radius_Flavour", 2.0)
@@ -747,6 +789,8 @@ void laserHeatSource::updateDeposition
             wavelength,
             e_num_density,
             dep_cutoff,
+            laserProfile,
+            ringWidth,
             Radius_Flavour,
             useLocalSearch,
             maxLocalSearch,
@@ -789,6 +833,8 @@ void laserHeatSource::updateDeposition
     const scalar wavelength,
     const scalar e_num_density,
     const scalar dep_cutoff,
+    const label laserProfile,
+    const scalar ringWidth,
     const scalar Radius_Flavour,
     const Switch useLocalSearch,
     const label maxLocalSearch,
@@ -846,6 +892,8 @@ void laserHeatSource::updateDeposition
         nRadial,
         nAngular,
         V_incident,
+        laserProfile,
+        ringWidth,
         Radius_Flavour,
         currentLaserPower,
         beam_radius,

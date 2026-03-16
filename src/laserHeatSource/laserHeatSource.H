@@ -113,6 +113,13 @@ class laserHeatSource
         //- Global bounding box of the mesh
         boundBox globalBB_;
 
+        //- Laser profile enumeration
+        enum LaserProfile
+        {
+            GAUSSIAN = 0,
+            TOROIDAL = 1
+        };
+
 
     // Private Member Functions
 
@@ -131,10 +138,25 @@ class laserHeatSource
             const label nRadial,
             const label nAngular,
             const vector& V_incident,
+            const label laserProfile,
+            const scalar ringWidth,
             const scalar Radius_Flavour,
             const scalar Q_cond,
             const scalar beam_radius,
             label& nTotalRays
+        ) const;
+
+        //- Calculate the power associated with a ray at a given distance
+        //  from the laser centre, for a given laser profile and parameters
+        scalar calculateRayPower
+        (
+            const scalar r,
+            const scalar laserRadius,
+            const LaserProfile laserProfile,
+            const scalar ringWidth,
+            const scalar Radius_Flavour,
+            const scalar Q_cond,
+            const scalar beam_radius
         ) const;
 
         //- Disallow default bitwise copy construct
@@ -213,6 +235,8 @@ public:
             const scalar wavelength,
             const scalar e_num_density,
             const scalar dep_cutoff,
+            const label laserProfile,
+            const scalar ringWidth,
             const scalar Radius_Flavour,
             const Switch useLocalSearch,
             const label maxLocalSearch,
