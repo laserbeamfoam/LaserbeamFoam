@@ -36,8 +36,11 @@ timeVsLaserPower
     outOfBounds clamp;
 }
 
-// Laser radius
-laserRadius 0.00025;
+timeVsLaserRadius
+{
+    file    "$FOAM_CASE/constant/timeVsLaserRadius";
+    outOfBounds clamp;
+}
 
 // number of Rays per cell
 N_sub_divisions	1;

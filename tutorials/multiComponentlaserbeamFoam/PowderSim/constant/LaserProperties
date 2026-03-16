@@ -32,10 +32,13 @@ timeVsLaserPower
     outOfBounds clamp;
 }
 
+timeVsLaserRadius
+{
+    file    "$FOAM_CASE/constant/timeVsLaserRadius";
+    outOfBounds clamp;
+}
+
 N_sub_divisions	2;
-
-HS_a 10e-5;
-
 
 wavelength	1.064e-6;
 

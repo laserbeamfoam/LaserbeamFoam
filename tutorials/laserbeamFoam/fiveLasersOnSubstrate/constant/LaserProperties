@@ -38,8 +38,11 @@ lasers
             outOfBounds clamp;
         }
 
-        // Laser radius
-        laserRadius 55e-6;
+        timeVsLaserRadius
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserRadius0";
+            outOfBounds clamp;
+        }
 
         // Laser physical properties
         wavelength      1.064e-6;
@@ -70,8 +73,11 @@ lasers
             outOfBounds clamp;
         }
 
-        // Laser radius
-        laserRadius 55e-6;
+        timeVsLaserRadius
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserRadius1";
+            outOfBounds clamp;
+        }
 
         // Laser physical properties
         wavelength      1.064e-6;
@@ -101,8 +107,11 @@ lasers
             outOfBounds clamp;
         }
 
-        // Laser radius
-        laserRadius 55e-6;
+        timeVsLaserRadius
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserRadius2";
+            outOfBounds clamp;
+        }
 
         // Laser physical properties
         wavelength      1.064e-6;
@@ -132,8 +141,11 @@ lasers
             outOfBounds clamp;
         }
 
-        // Laser radius
-        laserRadius 55e-6;
+        timeVsLaserRadius
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserRadius3";
+            outOfBounds clamp;
+        }
 
         // Laser physical properties
         wavelength      1.064e-6;
@@ -163,8 +175,11 @@ lasers
             outOfBounds clamp;
         }
 
-        // Laser radius
-        laserRadius 55e-6;
+        timeVsLaserRadius
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserRadius4";
+            outOfBounds clamp;
+        }
 
         // Laser physical properties
         wavelength      1.064e-6;

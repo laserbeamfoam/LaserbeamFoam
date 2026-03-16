@@ -32,8 +32,11 @@ timeVsLaserPower
     outOfBounds clamp;
 }
 
-
-laserRadius 0.001;
+timeVsLaserRadius
+{
+    file    "$FOAM_CASE/constant/timeVsLaserRadius";
+    outOfBounds clamp;
+}
 
 N_sub_divisions	2;
 
