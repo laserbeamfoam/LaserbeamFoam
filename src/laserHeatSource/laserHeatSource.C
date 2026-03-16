@@ -41,7 +41,7 @@ void laserHeatSource::seedRayCloud
     Cloud<laserRayParticle>& cloud,
     const fvMesh& mesh,
     const vector& currentLaserPosition,
-    const scalar laserRadius,
+    const scalar currentLaserRadius,
     const label N_sub_divisions,
     const label nRadial,
     const label nAngular,
@@ -457,6 +457,7 @@ laserHeatSource::laserHeatSource
     timeVsLaserPosition_(0),
     timeVsLaserIncidentVector_(0),
     timeVsLaserPower_(0),
+    timeVsLaserRadius_(0),
     rayPaths_(0),
     vtkTimes_(),
     globalBB_(mesh.bounds())
@@ -487,6 +488,7 @@ laserHeatSource::laserHeatSource
         timeVsLaserPosition_.setSize(laserEntries.size());
         timeVsLaserIncidentVector_.setSize(laserEntries.size());
         timeVsLaserPower_.setSize(laserEntries.size());
+        timeVsLaserRadius_.setSize(laserEntries.size());
 
         if (Pstream::master())
         {
@@ -529,6 +531,15 @@ laserHeatSource::laserHeatSource
                     laserEntries[laserI].dict().subDict("timeVsLaserPower")
                 )
             );
+
+            timeVsLaserRadius_.set
+            (
+                laserI,
+                new interpolationTable<scalar>
+                (
+                    laserEntries[laserI].dict().subDict("timeVsLaserRadius")
+                )
+            );
         }
 
             // Check that a single laser is not also defined
@@ -553,6 +564,13 @@ laserHeatSource::laserHeatSource
                 << "timeVsLaserPower should not be defined in the main dict"
                 << " if a list of lasers is provided" << exit(FatalError);
         }
+
+        if (found("timeVsLaserRadius"))
+        {
+            FatalErrorInFunction
+                << "timeVsLaserRadius should not be defined in the main dict"
+                << " if a list of lasers is provided" << exit(FatalError);
+        }
     }
     else
     {
@@ -564,6 +582,7 @@ laserHeatSource::laserHeatSource
         timeVsLaserPosition_.setSize(1);
         timeVsLaserIncidentVector_.setSize(1);
         timeVsLaserPower_.setSize(1);
+        timeVsLaserRadius_.setSize(1);
 
         laserNames_[0] = "laser0";
 
@@ -586,6 +605,12 @@ laserHeatSource::laserHeatSource
         (
             0,
             new interpolationTable<scalar>(subDict("timeVsLaserPower"))
+        );
+
+        timeVsLaserRadius_.set
+        (
+            0,
+            new interpolationTable<scalar>(subDict("timeVsLaserRadius"))
         );
     }
 
@@ -639,6 +664,22 @@ laserHeatSource::laserHeatSource
             << exit(FatalError);
     }
     // Give errors if the old input format is found
+    if (found("HS_a"))
+    {
+        FatalErrorInFunction
+            << "'HS_a' is deprecated: please instead specify the laser "
+            << "radius in time via the timeVsLaserRadius sub-dict"
+            << exit(FatalError);
+    }
+    // Give errors if the old input format is found
+    if (found("laserRadius"))
+    {
+        FatalErrorInFunction
+            << "'laserRadius' is deprecated: please instead specify the laser "
+            << "radius in time via the timeVsLaserRadius sub-dict"
+            << exit(FatalError);
+    }
+    // Give errors if the old input format is found
     if (found("elec_resistivity"))
     {
         FatalErrorInFunction
@@ -679,13 +720,16 @@ void laserHeatSource::updateDeposition
             timeVsLaserIncidentVector_[laserI](time);
         const scalar currentLaserPower =
             timeVsLaserPower_[laserI](time);
+        const scalar currentLaserRadius =
+            timeVsLaserRadius_[laserI](time);
 
         Info<< "Laser: " << laserNames_[laserI] << nl
             << "    mean position = " << currentLaserPosition << nl
             << "    incident vector = " << currentLaserIncidentVector << nl
-            << "    power = " << currentLaserPower << endl;
+            << "    power = " << currentLaserPower << nl
+            << "    radius = " << currentLaserRadius << endl;
 
-            // Dict for current laser
+        // Dict for current laser
         const dictionary& dict = laserDicts_[laserI];
 
         // If defined, add oscillation to laser position
@@ -709,30 +753,6 @@ void laserHeatSource::updateDeposition
 
         Info<< "    position including any oscillation = "
             << currentLaserPosition << endl;
-
-        scalar laserRadius = 0.0;
-        if (dict.found("HS_a") && dict.found("laserRadius"))
-        {
-            FatalErrorInFunction
-                << "The laser radius should be specified via 'laserRadius' or "
-                << "'HS_a', not both!" << exit(FatalError);
-        }
-
-        if (dict.found("HS_a"))
-        {
-            laserRadius = readScalar(dict.lookup("HS_a"));
-        }
-        else if (dict.found("laserRadius"))
-        {
-            laserRadius = readScalar(dict.lookup("laserRadius"));
-        }
-        else
-        {
-            FatalErrorInFunction
-                << "The laser radius should be specified via 'laserRadius' "
-                << "or 'HS_a'"
-                << exit(FatalError);
-        }
 
         const label nRadial(dict.lookupOrDefault<label>("nRadial", 5));
         const label nAngular(dict.lookupOrDefault<label>("nAngular", 30));
@@ -774,7 +794,7 @@ void laserHeatSource::updateDeposition
             laserI,
             currentLaserPosition,
             currentLaserPower,
-            laserRadius,
+            currentLaserRadius,
             N_sub_divisions,
             nRadial,
             nAngular,
@@ -816,7 +836,7 @@ void laserHeatSource::updateDeposition
     const label laserID,
     const vector& currentLaserPosition,
     const scalar currentLaserPower,
-    const scalar laserRadius,
+    const scalar currentLaserRadius,
     const label N_sub_divisions,
     const label nRadial,
     const label nAngular,
@@ -833,7 +853,7 @@ void laserHeatSource::updateDeposition
 {
     const fvMesh& mesh = deposition_.mesh();
     const scalar pi = constant::mathematical::pi;
-    const scalar beam_radius = laserRadius;
+    const scalar beam_radius = currentLaserRadius;
 
     // Material constants
     const scalar plasma_frequency = Foam::sqrt
@@ -876,7 +896,7 @@ void laserHeatSource::updateDeposition
         rayCloud,
         mesh,
         currentLaserPosition,
-        laserRadius,
+        currentLaserRadius,
         N_sub_divisions,
         nRadial,
         nAngular,
