@@ -24,15 +24,19 @@ lasers
             file    "$FOAM_CASE/constant/timeVsLaserPosition0";
             outOfBounds clamp;
         }
+        
+        // Laser angle (normalised in the code)
+        timeVsLaserIncidentVector
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserIncidentVector0";
+            outOfBounds clamp;
+        }
 
         timeVsLaserPower
         {
             file    "$FOAM_CASE/constant/timeVsLaserPower0";
             outOfBounds clamp;
         }
-
-        // Laser angle (normalised in the code)
-        V_incident (0 1 0);
 
         // Laser radius
         laserRadius 55e-6;
@@ -52,15 +56,19 @@ lasers
             file    "$FOAM_CASE/constant/timeVsLaserPosition1";
             outOfBounds clamp;
         }
+        
+        // Laser angle (normalised in the code)
+        timeVsLaserIncidentVector
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserIncidentVector1";
+            outOfBounds clamp;
+        }
 
         timeVsLaserPower
         {
             file    "$FOAM_CASE/constant/timeVsLaserPower1";
             outOfBounds clamp;
         }
-
-        // Laser angle (normalised in the code)
-        V_incident (0 1 0);
 
         // Laser radius
         laserRadius 55e-6;
@@ -79,15 +87,19 @@ lasers
             file    "$FOAM_CASE/constant/timeVsLaserPosition2";
             outOfBounds clamp;
         }
+        
+        // Laser angle (normalised in the code)
+        timeVsLaserIncidentVector
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserIncidentVector2";
+            outOfBounds clamp;
+        }
 
         timeVsLaserPower
         {
             file    "$FOAM_CASE/constant/timeVsLaserPower2";
             outOfBounds clamp;
         }
-
-        // Laser angle (normalised in the code)
-        V_incident (0 1 0);
 
         // Laser radius
         laserRadius 55e-6;
@@ -106,15 +118,19 @@ lasers
             file    "$FOAM_CASE/constant/timeVsLaserPosition3";
             outOfBounds clamp;
         }
+        
+        // Laser angle (normalised in the code)
+        timeVsLaserIncidentVector
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserIncidentVector3";
+            outOfBounds clamp;
+        }
 
         timeVsLaserPower
         {
             file    "$FOAM_CASE/constant/timeVsLaserPower3";
             outOfBounds clamp;
         }
-
-        // Laser angle (normalised in the code)
-        V_incident (0 1 0);
 
         // Laser radius
         laserRadius 55e-6;
@@ -133,15 +149,19 @@ lasers
             file    "$FOAM_CASE/constant/timeVsLaserPosition4";
             outOfBounds clamp;
         }
+        
+        // Laser angle (normalised in the code)
+        timeVsLaserIncidentVector
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserIncidentVector4";
+            outOfBounds clamp;
+        }
 
         timeVsLaserPower
         {
             file    "$FOAM_CASE/constant/timeVsLaserPower4";
             outOfBounds clamp;
         }
-
-        // Laser angle (normalised in the code)
-        V_incident (0 1 0);
 
         // Laser radius
         laserRadius 55e-6;

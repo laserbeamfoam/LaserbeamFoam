@@ -27,6 +27,12 @@ timeVsLaserPosition
     outOfBounds clamp;
 }
 
+timeVsLaserIncidentVector
+{
+    file    "$FOAM_CASE/constant/timeVsLaserIncidentVector";
+    outOfBounds clamp;
+}
+
 timeVsLaserPower
 {
     file    "$FOAM_CASE/constant/timeVsLaserPower";
@@ -43,7 +49,6 @@ laserPatchName	  topWall;
 // ----------------------------------------------------------------------
 // Ray-tracing model parameters
 N_sub_divisions	1;
-V_incident (0 1 0);//(0 1 0);// Laser angle - NORMALISED IN CODE
 wavelength	1.064e-6;
 e_num_density	5.83e29;
 debug no;
