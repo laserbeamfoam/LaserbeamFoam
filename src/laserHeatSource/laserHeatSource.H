@@ -117,7 +117,8 @@ class laserHeatSource
         enum LaserProfile
         {
             GAUSSIAN = 0,
-            TOROIDAL = 1
+            TOROIDAL = 1,
+            TOPHAT   = 2
         };
 
 

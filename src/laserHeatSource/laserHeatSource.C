@@ -357,6 +357,9 @@ scalar laserHeatSource::calculateRayPower(
                    Radius_Flavour * Q_cond / (Foam::pow(beam_radius, 2.0) * constant::mathematical::pi)) *
                Foam::exp(
                    -2.0 * Foam::pow(r - beam_radius, 2.0) / (ringWidth * ringWidth * beam_radius * beam_radius));
+    case LaserProfile::TOPHAT:
+        // Tophat profile
+        return (r <= laserRadius) ? (Q_cond / (constant::mathematical::pi * Foam::pow(laserRadius, 2.0))) : 0.0;
     }
 }
 
@@ -734,22 +737,20 @@ void laserHeatSource::updateDeposition
 
         const scalar ringWidth = dict.lookupOrDefault<scalar>("ringWidth", 0);
 
-        if (laserProfile < 0)
-        {
-            FatalErrorInFunction
-                << "The laser profile should be a non-negative integer!"
-                << exit(FatalError);
-        }
-        else if (laserProfile > laserHeatSource::LaserProfile::TOROIDAL)
+        // Check that the laser profile is valid
+        if (laserProfile < 0 ||laserProfile > laserHeatSource::LaserProfile::TOPHAT)
         {
             FatalErrorInFunction
                 << "The laser profile " << laserProfile
                 << " is not recognised. The following profiles are available:" << endl
                 << "    0: Gaussian" << endl
                 << "    1: Toroidal - requires 'ringWidth (0 < ringWidth <= 1)'" << endl
+                << "    2: Tophat" << endl
                 << exit(FatalError);
         }
-        else if (laserProfile == laserHeatSource::LaserProfile::TOROIDAL && (ringWidth <= 0 || ringWidth > 1.0))
+        
+        // For the toroidal profile, check that the ring width is specified and valid
+        if (laserProfile == laserHeatSource::LaserProfile::TOROIDAL && (ringWidth <= 0 || ringWidth > 1.0))
         {
             FatalErrorInFunction
                 << "ringWidth must be specified and between 0 and 1 for ring laser profile!"
