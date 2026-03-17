@@ -21,6 +21,10 @@ interpolationTable<scalar> laserPowerSeries
 (
     LaserProperties.subDict("timeVsLaserPower")
 );
+interpolationTable<scalar> laserRadiusSeries
+(
+    LaserProperties.subDict("timeVsLaserRadius")
+);
 interpolationTable<vector> laserPositionSeries
 (
     LaserProperties.subDict("timeVsLaserPosition")
@@ -48,7 +52,7 @@ volScalarField em
 
 word laserPatchName(word(LaserProperties.lookup("laserPatchName")));
 
-const dimensionedScalar r0("laserRadius", dimLength, LaserProperties);
+dimensionedScalar r0("laserRadius", dimLength, 0.0);
 dimensionedScalar t("t", dimensionSet(0, 0, 1, 0, 0, 0, 0), 0.0);
 dimensionedScalar Power("Power", dimensionSet(1, 2, -3, 0, 0, 0, 0), 0.0);
 dimensionedVector laserPos

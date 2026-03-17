@@ -17,8 +17,6 @@ FoamFile
 
 radialPolarHeatSource no;
 
-laserRadius 25e-6; // The radius of the laser
-
 ray_tracing_on true;
 
 timeVsLaserPosition
@@ -37,6 +35,12 @@ timeVsLaserPower
 {
     file    "$FOAM_CASE/constant/timeVsLaserPower";
     outOfBounds clamp; 
+}
+
+timeVsLaserRadius
+{
+    file    "$FOAM_CASE/constant/timeVsLaserRadius";
+    outOfBounds clamp;
 }
 
 // ----------------------------------------------------------------------
