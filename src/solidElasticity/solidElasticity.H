@@ -29,6 +29,7 @@ class solidElasticity
     scalar tolerance_;
     scalar relTol_;
     word coupling_;
+    bool compactNormalStress_;
 
     void readDict(const dictionary& solidDict);
 

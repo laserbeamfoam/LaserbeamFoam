@@ -33,7 +33,8 @@ solidElasticity::solidElasticity
     maxIter_(10),
     tolerance_(1e-6),
     relTol_(0),
-    coupling_("implicit")
+    coupling_("implicit"),
+    compactNormalStress_(false)
 {
     readDict(solidDict);
     updateFSolid();
@@ -59,6 +60,8 @@ void solidElasticity::readDict(const dictionary& solidDict)
     maxIter_ = elastDict.lookupOrDefault<label>("maxIter", 10);
     tolerance_ = elastDict.lookupOrDefault<scalar>("tolerance", 1e-6);
     relTol_ = elastDict.lookupOrDefault<scalar>("relTol", 0);
+    compactNormalStress_ =
+        elastDict.lookupOrDefault<bool>("compactNormalStress", false);
 
     E_ = dimensionedScalar
     (
@@ -122,6 +125,17 @@ void solidElasticity::updateFSolid()
 void solidElasticity::solve()
 {
     updateFSolid();
+
+    if (gMax(fSolid_) <= fSolidMin_.value())
+    {
+        D_ = vector::zero;
+        epsilonElast_ = symmTensor::zero;
+        sigmaElast_ = symmTensor::zero;
+        D_.correctBoundaryConditions();
+        epsilonElast_.correctBoundaryConditions();
+        sigmaElast_.correctBoundaryConditions();
+        return;
+    }
 
     const dimensionedScalar mu0
     (
@@ -196,24 +210,82 @@ void solidElasticity::solve()
         fSolidEff*threeK0*alphaT_
     );
 
+    const volScalarField kRef
+    (
+        IOobject
+        (
+            "kRef",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        fSolidEff*dimensionedScalar
+        (
+            "kRef",
+            dimensionSet(1, -3, -2, 0, 0),
+            1e-6*E_.value()
+        )
+    );
+
     scalar initialResidual = GREAT;
     scalar initialResidual0 = GREAT;
     label iter = 0;
+
+    volVectorField divSigmaExp
+    (
+        IOobject
+        (
+            "divSigmaExp",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        fvc::div(sigmaElast_)
+    );
+
+    if (compactNormalStress_)
+    {
+        divSigmaExp -= fvc::laplacian(2*mu + lambda, D_, "laplacian(DD,D)");
+    }
+    else
+    {
+        divSigmaExp -= fvc::div((2*mu + lambda)*fvc::grad(D_), "div(sigmaElast)");
+    }
 
     do
     {
         fvVectorMatrix DEqn
         (
             fvm::laplacian(2*mu + lambda, D_, "laplacian(DD,D)")
+                    + fvm::Sp(kRef, D_)
          ==
-            fvc::grad(threeKalpha*(T_ - Tref_))
+                        divSigmaExp
+                    + fvc::grad(threeKalpha*(T_ - Tref_))
         );
 
         if (mesh_.nCells() > 0)
         {
-            DEqn.setComponentReference(0, 0, vector::X, 0);
-            DEqn.setComponentReference(0, 0, vector::Y, 0);
-            DEqn.setComponentReference(0, 0, vector::Z, 0);
+            const scalarField& fI = fSolid_.internalField();
+            scalar localMax = -GREAT;
+            label localCell = 0;
+
+            forAll(fI, celli)
+            {
+                if (fI[celli] > localMax)
+                {
+                    localMax = fI[celli];
+                    localCell = celli;
+                }
+            }
+
+            const scalar globalMax = returnReduce(localMax, maxOp<scalar>());
+
+            if (localMax >= globalMax - SMALL)
+            {
+                DEqn.setReference(localCell, vector::zero, true);
+            }
         }
 
         DEqn.relax();
@@ -222,6 +294,11 @@ void solidElasticity::solve()
         if (iter == 0)
         {
             initialResidual0 = max(initialResidual, VSMALL);
+        }
+
+        if (!compactNormalStress_)
+        {
+            divSigmaExp = fvc::div(DEqn.flux());
         }
 
         ++iter;
@@ -238,6 +315,19 @@ void solidElasticity::solve()
     epsilonElast_ = symm(gradD) - (alphaT_*(T_ - Tref_))*I;
     sigmaElast_ = mu*twoSymm(gradD) + (lambda*I)*tr(gradD)
         - (threeKalpha*(T_ - Tref_))*I;
+
+    if (compactNormalStress_)
+    {
+        divSigmaExp = fvc::div
+        (
+            sigmaElast_ - (2*mu + lambda)*gradD,
+            "div(sigmaElast)"
+        );
+    }
+    else
+    {
+        divSigmaExp += fvc::div(sigmaElast_);
+    }
 
     epsilonElast_.correctBoundaryConditions();
     sigmaElast_.correctBoundaryConditions();

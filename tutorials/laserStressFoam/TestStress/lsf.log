@@ -1,0 +1,91 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _f917e866-20250814 OPENFOAM=2506 patch=250814 version=2506
+Arch   : "LSB;label=32;scalar=64"
+Exec   : laserStressFoam
+Date   : Feb 19 2026
+Time   : 15:56:59
+Host   : ifsw-michel
+PID    : 14839
+I/O    : uncollated
+Case   : /home/jolinho96/dev/LaserbeamFoam/tutorials/laserStressFoam/TestStress
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+
+PIMPLE: Operating solver in PISO mode
+
+Reading field p_rgh
+
+Reading field U
+
+Reading field Temperature
+
+Reading/calculating face flux field phi
+
+Reading transportProperties
+
+Selecting incompressible transport model Newtonian
+Selecting incompressible transport model Newtonian
+Selecting turbulence model type laminar
+Selecting laminar stress model Stokes
+
+Reading g
+
+Reading hRef
+Calculating field g.h
+
+radialPolarHeatSource = true
+Scaled global mesh bounding box: (-0.002583666003 -0.001083666003 -0.001083666003) (0.002583666003 0.002083666003 0.005083666003)
+No MRF models present
+
+No finite volume options present
+--> FOAM Warning : Entry 'reconstructionScheme' not found in dictionary "/home/jolinho96/dev/LaserbeamFoam/tutorials/laserStressFoam/TestStress/system/fvSolution/solvers/alpha.metal.*"
+using default
+Selecting reconstructionScheme: isoAlpha
+DICPCG:  Solving for pcorr, Initial residual = 0, Final residual = 0, No Iterations 0
+time step continuity errors : sum local = 0, global = 0, cumulative = 0
+Courant Number mean: 0 max: 0
+
+Starting time loop
+
+Courant Number mean: 0 max: 0
+Interface Courant Number mean: 0 max: 0
+deltaT = 1e-07
+Time = 1e-07
+
+PIMPLE: iteration 1
+smoothSolver:  Solving for alpha.metal, Initial residual = 0, Final residual = 0, No Iterations 0
+Phase-1 volume fraction = 0.6666666667  Min(alpha.metal) = 0  Max(alpha.metal) = 1
+MULES: Correcting alpha.metal
+MULES: Correcting alpha.metal
+Phase-1 volume fraction = 0.6666666667  Min(alpha.metal) = 0  Max(alpha.metal) = 1
+Laser: laser0
+    mean position = (0 -0.001 4e-10)
+    power = 4000
+    position including any oscillation = (0 -0.001 4e-10)
+nRadial: 50
+nAngular: 90
+    Max ray power = 1.617252816
+    Ray power relative tolerance = 1e-06
+    Ray power absolute tolerance = 1.617252816e-06
+    Number of rays: 4500
+    Total Q deposited: 1107.676173
+GAMG:  Solving for Dx, Initial residual = 1, Final residual = 9.968487218e-09, No Iterations 572
+GAMG:  Solving for Dy, Initial residual = 0, Final residual = 0, No Iterations 0
+GAMG:  Solving for Dz, Initial residual = 1, Final residual = 9.956203043e-09, No Iterations 453
+GAMG:  Solving for Dx, Initial residual = 0.4901966716, Final residual = 0.0004626681801, No Iterations 2000
+GAMG:  Solving for Dy, Initial residual = 0, Final residual = 0, No Iterations 0
+GAMG:  Solving for Dz, Initial residual = 0.470345994, Final residual = 0.0005322858639, No Iterations 2000

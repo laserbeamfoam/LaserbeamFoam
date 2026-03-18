@@ -42,7 +42,7 @@ boundaryField
         U               U;
         phi             phi;
     }
-rightWall
+    rightWall
     {
         type            fixedFluxPressure;
         value           uniform 0;

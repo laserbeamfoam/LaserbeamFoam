@@ -23,11 +23,9 @@ defaultFieldValues
 regions
 (
 
-
-
     boxToCell
     {
-        box (-0.85 0.001 -0.5) (0.85 0.004 0.5);
+        box (-0.0025 0.000 -0.001) (0.0025 0.002 0.005);
         fieldValues
         (
     volScalarFieldValue alpha.metal 1

@@ -63,10 +63,17 @@ solvers
     }
     D
     {
-        solver          smoothSolver;
-        smoother        symGaussSeidel;
+        solver          GAMG;
         tolerance       1e-08;
         relTol          0;
+        smoother        DICGaussSeidel;
+        nPreSweeps      1;
+        nPostSweeps     2;
+        nFinestSweeps   2;
+        cacheAgglomeration true;
+        maxIter         2000;
+        nCellsInCoarsestLevel 20;
+
     }
 
     DFinal
@@ -96,6 +103,13 @@ solvers
     }
 }
 
+stressAnalysis
+{
+    compactNormalStress yes;
+    nCorrectors         1;
+    D                   1E-6;
+}       
+
 MELTING
 {
     minTempCorrector 1;
@@ -118,6 +132,10 @@ relaxationFactors
 {
     equations
     {
+        U               0.7;
+        p_rgh           0.3;
+        T               0.7;
+        D               0.3;
         ".*" 1;
     }
 }

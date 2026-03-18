@@ -14,6 +14,11 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+d2dt2Schemes
+{
+    default         steadyState;
+}
+
 ddtSchemes
 {
     default         Euler;
@@ -22,6 +27,8 @@ ddtSchemes
 gradSchemes
 {
     default         Gauss linear;
+    grad(D)         leastSquares;
+    grad(T)         Gauss linear; //leastSquares;
 }
 
 divSchemes
@@ -33,12 +40,15 @@ divSchemes
     div(rhoPhi,epsilon1)	Gauss linear;//Gauss vanLeer01;
     div(rhophicp,T)   Gauss upwind;
     div(sigmaElast)  Gauss linear;
+    div(sigmaD)      Gauss linear;
+    div((fSolid*sigmaElast))  Gauss linear;
 }
 
 laplacianSchemes
 {
     default         Gauss linear corrected;
     laplacian(DD,D) Gauss linear corrected;
+    laplacian(DT,T) Gauss linear corrected;
 }
 
 interpolationSchemes

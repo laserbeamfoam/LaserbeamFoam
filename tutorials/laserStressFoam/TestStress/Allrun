@@ -9,4 +9,6 @@ cp -r initial 0
 runApplication blockMesh
 runApplication setFields
 touch TestStress.foam
-#runApplication laserbeamFoam
+#runApplication laserStressFoam
+laserStressFoam > log.laserStressFoam 2>&1 &
+tail -f log.laserStressFoam
