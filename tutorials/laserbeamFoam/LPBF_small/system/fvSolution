@@ -89,7 +89,7 @@ MELTING
     epsilonTolerance 1e-6;
     epsilonRelaxation 0.9;
     
-    damperSwitch true;//false;//true;
+    damperSwitch true;
 }
 
 PIMPLE

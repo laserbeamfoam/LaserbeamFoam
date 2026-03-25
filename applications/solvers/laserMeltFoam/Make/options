@@ -19,7 +19,8 @@ EXE_INC = \
     -I$(LIB_SRC)/TurbulenceModels/incompressible/lnInclude \
     -I$(LIB_SRC)/TurbulenceModels/phaseIncompressible/lnInclude \
     -I$(LIB_SRC)/transportModels/immiscibleIncompressibleTwoPhaseMixture/lnInclude\
-    -I$(LIB_SRC)/transportModels/incompressible/incompressibleTwoPhaseMixture\
+    -I$(LIB_SRC)/transportModels/incompressible/incompressibleTwoPhaseMixture \
+    -I$(LIB_SRC)/lagrangian/basic/lnInclude
 
 EXE_LIBS = \
     -L$(FOAM_USER_LIBBIN) \
@@ -40,4 +41,5 @@ EXE_LIBS = \
     -ltwoPhaseMixture \
     -ltwoPhaseProperties \
     -lVoFphaseTurbulentTransportModels \
-    -lincompressibleInterPhaseTransportModels
+    -lincompressibleInterPhaseTransportModels \
+    -llagrangian

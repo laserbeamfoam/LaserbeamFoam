@@ -241,8 +241,8 @@ const dimensionedScalar SB
     scalar(5.67e-8)
 ); // Stefan-Boltzmann Constant
 
-const scalar emL(readScalar(transportProperties.lookup("emL")));
-const scalar emS(readScalar(transportProperties.lookup("emS")));
+[[maybe_unused]]const scalar emL(readScalar(transportProperties.lookup("emL")));
+[[maybe_unused]]const scalar emS(readScalar(transportProperties.lookup("emS")));
 const dimensionedScalar TRef ("TRef",transportProperties);
 
 const Polynomial<8> polykappa_m(transportPropertiesMetal.lookup("poly_kappa"));

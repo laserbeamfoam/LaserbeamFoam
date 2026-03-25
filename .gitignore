@@ -3,8 +3,11 @@ test/
 platforms/
 
 # VTK files
-**/*.vtk
-**/*.VTK
+*.vtk
+*.VTK
+*.vtk.series
+VTKs
+VTK
 
 # Build files
 **/log.Allwmake

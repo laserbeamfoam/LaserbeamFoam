@@ -14,7 +14,20 @@ else
     echo "liggghts not found in the PATH: skipping"
 fi
 
+# Create the mesh
 runApplication blockMesh
-runApplication setSolidFraction -subDivisions 1
+runApplication setSolidFraction -subDivisions 6
 runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
-runApplication laserbeamFoam
+
+if [[ $1 == "parallel" ]]
+then
+    # Run in parallel
+    runApplication decomposePar
+    runParallel laserbeamFoam
+    runApplication reconstructPar
+else
+    # Run in serial
+    runApplication laserbeamFoam
+fi
+
+

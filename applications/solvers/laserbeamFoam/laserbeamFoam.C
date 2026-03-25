@@ -36,7 +36,7 @@ Description
     with optional mesh motion and mesh topology changes including adaptive
     re-meshing.
 Authors
-    
+
     Tom Flint, UoM.
     Philip Cardiff, UCD.
     Gowthaman Parivendhan, UCD.
@@ -125,14 +125,14 @@ int main(int argc, char *argv[])
                 #include "MULES/alphaCourantNo.H"
                 #include "MULES/setDeltaT.H"
             }
-        } 
+        }
         else if (interfaceTrackingScheme == "isoAdvector")
         {
             #include "isoAdvector/porousCourantNo.H"
             #include "isoAdvector/porousAlphaCourantNo.H"
             #include "isoAdvector/setDeltaT.H"
         }
-        
+
         ++runTime;
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
                 #include "MULES/firstIter.H"
                 #include "MULES/alphaControls.H"
                 #include "MULES/alphaEqnSubCycle.H"
-            } 
+            }
             else if (interfaceTrackingScheme == "isoAdvector")
             {
                 #include "isoAdvector/firstIter.H"
@@ -154,11 +154,7 @@ int main(int argc, char *argv[])
                 #include "isoAdvector/alphaEqnSubCycle.H"
             }
 
-     
-
             #include "updateProps.H"
-
-
 
             // Update the laser deposition field
             laser.updateDeposition
@@ -189,7 +185,7 @@ int main(int argc, char *argv[])
         }
 
         // Update the melt history
-        const volScalarField& alphaMetal = 
+        const volScalarField& alphaMetal =
             mesh.lookupObject<volScalarField>("alpha.metal");
         condition = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
         meltHistory += condition;
@@ -200,13 +196,11 @@ int main(int argc, char *argv[])
         if (runTime.outputTime())
         {
             laser.writeRayPathsToVTK();
+            laser.writeRayPathVTKSeriesFile();
         }
 
         runTime.printExecutionTime(Info);
     }
-
-    // Write a VTK series file for easy-opening of the ray files
-    laser.writeRayPathVTKSeriesFile();
 
     Info<< "End\n" << endl;
 
