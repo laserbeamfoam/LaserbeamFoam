@@ -10,28 +10,34 @@ FoamFile
     version     2.0;
     format      ascii;
     class       dictionary;
-    location    "constant";
-    object      solidProperties;
+    location    "system";
+    object      controlDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-solidElasticity
-{
-    enabled         true;
-    coupling        implicit;
+application     laserStressFoam;
 
-    maxIter         8;
-    tolerance       1e-6;
-    relTol          0.05;
-    compactNormalStress true;
+startFrom       startTime;
+startTime       0;
+stopAt          endTime;
+endTime         1e-06;
 
-    E               2.0e11;
-    nu              0.30;
-    alphaT          1.2e-5;
-    Tref            300;
+deltaT          1e-07;
+maxDeltaT       1e-07;
 
-    solidDamping    1.0e6;
-    fSolidMin       1e-6;
-}
+writeControl    timeStep;
+writeInterval   5;
+
+purgeWrite      0;
+writeFormat     ascii;
+writePrecision  10;
+writeCompression off;
+timeFormat      general;
+timePrecision   10;
+
+runTimeModifiable yes;
+adjustTimeStep  no;
+maxCo           0.5;
+maxAlphaCo      0.5;
 
 // ************************************************************************* //

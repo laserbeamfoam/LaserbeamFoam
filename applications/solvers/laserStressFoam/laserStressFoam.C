@@ -179,6 +179,10 @@ int main(int argc, char *argv[])
             #include "UEqn.H"
             #include "TEqn.H"
 
+            // Refresh elasticity with the updated thermal state before the
+            // next outer correction and before writing fields.
+            solidElast.solve();
+
             // --- Pressure corrector loop
             while (pimple.correct())
             {
@@ -195,7 +199,22 @@ int main(int argc, char *argv[])
         const volScalarField& alphaMetal = 
             mesh.lookupObject<volScalarField>("alpha.metal");
         condition = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
+        condition.correctBoundaryConditions();
         meltHistory += condition;
+        meltHistory.correctBoundaryConditions();
+
+        const volScalarField magD("magD", mag(D));
+        const volScalarField magSigmaElast("magSigmaElast", mag(sigmaElast));
+
+        Info<< "Elastic diagnostics: "
+            << "T[min,max]=(" << gMin(T) << ", " << gMax(T)
+            << "), epsilon1[min,max]=(" << gMin(epsilon1) << ", "
+            << gMax(epsilon1)
+            << "), fSolid[min,max]=(" << gMin(fSolid) << ", "
+            << gMax(fSolid)
+            << "), max(|D|)=" << gMax(magD)
+            << ", max(|sigmaElast|)=" << gMax(magSigmaElast)
+            << nl;
 
         runTime.write();
 

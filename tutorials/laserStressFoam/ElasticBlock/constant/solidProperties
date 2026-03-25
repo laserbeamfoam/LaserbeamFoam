@@ -17,21 +17,21 @@ FoamFile
 
 solidElasticity
 {
-    enabled         true;
-    coupling        implicit;
+    enabled             true;
+    coupling            implicit;
 
-    maxIter         8;
-    tolerance       1e-6;
-    relTol          0.05;
+    maxIter             12;
+    tolerance           1e-8;
+    relTol              0.0;
     compactNormalStress true;
 
-    E               2.0e11;
-    nu              0.30;
-    alphaT          1.2e-5;
-    Tref            300;
+    E                   2.0e11;
+    nu                  0.30;
+    alphaT              1.2e-5;
+    Tref                300;
 
-    solidDamping    1.0e6;
-    fSolidMin       1e-6;
+    solidDamping        1.0e-6;
+    fSolidMin           1e-6;
 }
 
 // ************************************************************************* //

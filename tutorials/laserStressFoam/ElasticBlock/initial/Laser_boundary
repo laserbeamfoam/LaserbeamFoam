@@ -1,8 +1,8 @@
 /*--------------------------------*- C++ -*----------------------------------*\
 | =========                 |                                                 |
 | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Version:  3.0.1                                 |
-|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
 FoamFile
@@ -10,7 +10,8 @@ FoamFile
     version     2.0;
     format      ascii;
     class       volScalarField;
-    object      alpha.metal;
+    location    "0";
+    object      Laser_boundary;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -20,37 +21,34 @@ internalField   uniform 0;
 
 boundaryField
 {
-
-//    #includeEtc "caseDicts/setConstraintTypes"
-    
-    
-	frontAndBack{
-        type            zeroGradient;
-	}
-
     lowerWall
     {
-        type            zeroGradient;
+        type            fixedValue;
+        value           uniform -1;
     }
 
     atmosphere
     {
-        type            inletOutlet;
-        inletValue      uniform 0;
-        value           uniform 0;
-    }
-    rightWall
-    {
-        type            zeroGradient;
-    }
-    leftWall
-    {
-        type            zeroGradient;
+        type            fixedValue;
+        value           uniform 1;
     }
 
-    defaultFaces
+    rightWall
     {
-        type            empty;
+        type            fixedValue;
+        value           uniform -1;
+    }
+
+    leftWall
+    {
+        type            fixedValue;
+        value           uniform -1;
+    }
+
+    frontAndBack
+    {
+        type            fixedValue;
+        value           uniform -1;
     }
 }
 

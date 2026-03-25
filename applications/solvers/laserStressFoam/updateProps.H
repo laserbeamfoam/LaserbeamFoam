@@ -143,7 +143,49 @@
     }
 
     solidElast.updateFSolid();
-    solidDampingCoeff = fSolid*solidElast.solidDamping();
+    const dimensionedScalar liquidFracFloor("liquidFracFloor", dimless, 0.05);
+    if (laser.powderSim())
+    {
+        const volScalarField epsilonForDamping
+        (
+            IOobject
+            (
+                "epsilonForDamping",
+                runTime.timeName(),
+                mesh,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            max(epsilon1mask, liquidFracFloor)
+        );
+
+        solidDampingCoeff =
+            solidElast.solidDamping()
+           *fSolid
+           *Foam::pow((1.0 - epsilonForDamping), 2)
+           /Foam::pow(epsilonForDamping, 3);
+    }
+    else
+    {
+        const volScalarField epsilonForDamping
+        (
+            IOobject
+            (
+                "epsilonForDamping",
+                runTime.timeName(),
+                mesh,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            max(epsilon1, liquidFracFloor)
+        );
+
+        solidDampingCoeff =
+            solidElast.solidDamping()
+           *fSolid
+           *Foam::pow((1.0 - epsilonForDamping), 2)
+           /Foam::pow(epsilonForDamping, 3);
+    }
     solidDampingCoeff.correctBoundaryConditions();
 
     // e2temp = fvc::average(epsilon1mask);

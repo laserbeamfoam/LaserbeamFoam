@@ -17,20 +17,20 @@ FoamFile
 
 application     laserStressFoam;
 
-startFrom       latestTime;
+startFrom       startTime;
 
 startTime       0;
 
 stopAt          endTime;
 
-endTime         1e-6;
+endTime         5e-6;
 
-deltaT          1.0e-7;
+deltaT          5.0e-8;
 maxDeltaT       1.0e-7;
 
 writeControl    adjustableRunTime;
 
-writeInterval   1e-07;
+writeInterval   5e-07;
 
 purgeWrite      0;
 

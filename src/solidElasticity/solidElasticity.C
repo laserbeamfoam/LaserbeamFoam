@@ -34,6 +34,7 @@ solidElasticity::solidElasticity
     tolerance_(1e-6),
     relTol_(0),
     coupling_("implicit"),
+    enabled_(true),
     compactNormalStress_(false)
 {
     readDict(solidDict);
@@ -50,6 +51,7 @@ void solidElasticity::readDict(const dictionary& solidDict)
     const dictionary& elastDict = solidDict.subDict("solidElasticity");
 
     coupling_ = elastDict.lookupOrDefault<word>("coupling", "implicit");
+    enabled_ = elastDict.lookupOrDefault<bool>("enabled", true);
     if (coupling_ != "implicit")
     {
         FatalErrorInFunction
@@ -125,6 +127,17 @@ void solidElasticity::updateFSolid()
 void solidElasticity::solve()
 {
     updateFSolid();
+
+    if (!enabled_)
+    {
+        D_ = vector::zero;
+        epsilonElast_ = symmTensor::zero;
+        sigmaElast_ = symmTensor::zero;
+        D_.correctBoundaryConditions();
+        epsilonElast_.correctBoundaryConditions();
+        sigmaElast_.correctBoundaryConditions();
+        return;
+    }
 
     if (gMax(fSolid_) <= fSolidMin_.value())
     {
@@ -232,6 +245,43 @@ void solidElasticity::solve()
     scalar initialResidual0 = GREAT;
     label iter = 0;
 
+    bool hasFixedD = false;
+    forAll(D_.boundaryField(), patchi)
+    {
+        if (D_.boundaryField()[patchi].fixesValue())
+        {
+            hasFixedD = true;
+            break;
+        }
+    }
+
+    hasFixedD = returnReduce(hasFixedD, orOp<bool>());
+
+    label refCell = -1;
+
+    if (!hasFixedD && mesh_.nCells() > 0)
+    {
+        const scalarField& fI = fSolid_.internalField();
+        scalar localMax = -GREAT;
+        label localCell = 0;
+
+        forAll(fI, celli)
+        {
+            if (fI[celli] > localMax)
+            {
+                localMax = fI[celli];
+                localCell = celli;
+            }
+        }
+
+        const scalar globalMax = returnReduce(localMax, maxOp<scalar>());
+
+        if (localMax >= globalMax - SMALL)
+        {
+            refCell = localCell;
+        }
+    }
+
     volVectorField divSigmaExp
     (
         IOobject
@@ -242,50 +292,61 @@ void solidElasticity::solve()
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        fvc::div(sigmaElast_)
+        mesh_,
+        dimensionedVector("zero", dimensionSet(1, -2, -2, 0, 0), vector::zero)
     );
-
-    if (compactNormalStress_)
-    {
-        divSigmaExp -= fvc::laplacian(2*mu + lambda, D_, "laplacian(DD,D)");
-    }
-    else
-    {
-        divSigmaExp -= fvc::div((2*mu + lambda)*fvc::grad(D_), "div(sigmaElast)");
-    }
 
     do
     {
+        volTensorField gradD(fvc::grad(D_));
+        const volSymmTensorField sigmaMech
+        (
+            IOobject
+            (
+                "sigmaMech",
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            mu*twoSymm(gradD) + (lambda*I)*tr(gradD)
+        );
+
+        epsilonElast_ = symm(gradD) - (alphaT_*(T_ - Tref_))*I;
+        sigmaElast_ = sigmaMech
+            - (threeKalpha*(T_ - Tref_))*I;
+
+        if (compactNormalStress_)
+        {
+            divSigmaExp = -fvc::div
+            (
+                sigmaMech - (2*mu + lambda)*gradD,
+                "div(sigmaElast)"
+            );
+        }
+        else
+        {
+            divSigmaExp =
+              - fvc::div(sigmaMech)
+              + fvc::div
+                (
+                    (2*mu + lambda)*fvc::grad(D_),
+                    "div(sigmaElast)"
+                );
+        }
+
         fvVectorMatrix DEqn
         (
             fvm::laplacian(2*mu + lambda, D_, "laplacian(DD,D)")
-                    + fvm::Sp(kRef, D_)
+          + fvm::Sp(kRef, D_)
          ==
-                        divSigmaExp
-                    + fvc::grad(threeKalpha*(T_ - Tref_))
+            divSigmaExp
+          + fvc::grad(threeKalpha*(T_ - Tref_))
         );
 
-        if (mesh_.nCells() > 0)
+        if (refCell >= 0)
         {
-            const scalarField& fI = fSolid_.internalField();
-            scalar localMax = -GREAT;
-            label localCell = 0;
-
-            forAll(fI, celli)
-            {
-                if (fI[celli] > localMax)
-                {
-                    localMax = fI[celli];
-                    localCell = celli;
-                }
-            }
-
-            const scalar globalMax = returnReduce(localMax, maxOp<scalar>());
-
-            if (localMax >= globalMax - SMALL)
-            {
-                DEqn.setReference(localCell, vector::zero, true);
-            }
+            DEqn.setReference(refCell, vector::zero, true);
         }
 
         DEqn.relax();
@@ -294,11 +355,6 @@ void solidElasticity::solve()
         if (iter == 0)
         {
             initialResidual0 = max(initialResidual, VSMALL);
-        }
-
-        if (!compactNormalStress_)
-        {
-            divSigmaExp = fvc::div(DEqn.flux());
         }
 
         ++iter;
@@ -316,19 +372,7 @@ void solidElasticity::solve()
     sigmaElast_ = mu*twoSymm(gradD) + (lambda*I)*tr(gradD)
         - (threeKalpha*(T_ - Tref_))*I;
 
-    if (compactNormalStress_)
-    {
-        divSigmaExp = fvc::div
-        (
-            sigmaElast_ - (2*mu + lambda)*gradD,
-            "div(sigmaElast)"
-        );
-    }
-    else
-    {
-        divSigmaExp += fvc::div(sigmaElast_);
-    }
-
+    D_.correctBoundaryConditions();
     epsilonElast_.correctBoundaryConditions();
     sigmaElast_.correctBoundaryConditions();
 }

@@ -1,9 +1,9 @@
 /*--------------------------------*- C++ -*----------------------------------*\
-  =========                 |
-  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
-   \\    /   O peration     | Website:  https://openfoam.org
-    \\  /    A nd           | Version:  10
-     \\/     M anipulation  |
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Website:  https://openfoam.org                  |
+|   \\  /    A nd           | Version:  10                                    |
+|    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
 FoamFile
 {
@@ -20,12 +20,9 @@ solvers
     {
         nAlphaCorr      2;
         nAlphaSubCycles 1;
-        
         cAlpha          1;
-
         MULESCorr       yes;
         nLimiterIter    5;
-
         solver          smoothSolver;
         smoother        symGaussSeidel;
         tolerance       1e-8;
@@ -36,7 +33,7 @@ solvers
     {
         solver          PCG;
         preconditioner  DIC;
-        tolerance       1e-5;
+        tolerance       1e-6;
         relTol          0;
     }
 
@@ -44,8 +41,8 @@ solvers
     {
         solver          PCG;
         preconditioner  DIC;
-        tolerance       1e-07;
-        relTol          0.0;
+        tolerance       1e-7;
+        relTol          0;
     }
 
     p_rghFinal
@@ -58,13 +55,14 @@ solvers
     {
         solver          smoothSolver;
         smoother        symGaussSeidel;
-        tolerance       1e-06;
+        tolerance       1e-8;
         relTol          0;
     }
+
     D
     {
         solver          GAMG;
-        tolerance       1e-08;
+        tolerance       1e-10;
         relTol          0;
         smoother        DICGaussSeidel;
         nPreSweeps      1;
@@ -72,8 +70,7 @@ solvers
         nFinestSweeps   2;
         cacheAgglomeration true;
         maxIter         2000;
-        nCellsInCoarsestLevel 20;
-
+        nCellsInCoarsestLevel 10;
     }
 
     DFinal
@@ -84,22 +81,16 @@ solvers
 
     T
     {
-/*
-        solver          PBiCG;
-        preconditioner  DILU;
-        tolerance       1e-12;
-        minIter         1;
-        maxIter         500;//2
-*/
         solver          smoothSolver;
         smoother        symGaussSeidel;
-        tolerance       1e-9;
-        relTol          0.0;
+        tolerance       1e-10;
+        relTol          0;
     }
 
     TFinal
     {
         $T;
+        relTol          0;
     }
 }
 
@@ -107,25 +98,26 @@ stressAnalysis
 {
     compactNormalStress yes;
     nCorrectors         1;
-    D                   1E-6;
-}       
+    D                   1e-6;
+}
 
 MELTING
 {
-    minTempCorrector 1;
-    maxTempCorrector 20;
-    epsilonTolerance 1e-6;
-    epsilonRelaxation 0.9;
-    
-    damperSwitch true;//false;//true;
+    minTempCorrector    1;
+    maxTempCorrector    5;
+    epsilonTolerance    1e-8;
+    epsilonRelaxation   1.0;
+    damperSwitch        false;
 }
 
 PIMPLE
 {
     momentumPredictor   no;
-    nOuterCorrectors    2;
-    nCorrectors         3;
+    nOuterCorrectors    1;
+    nCorrectors         1;
     nNonOrthogonalCorrectors 0;
+    pRefCell            0;
+    pRefValue           0;
 }
 
 relaxationFactors
@@ -135,10 +127,9 @@ relaxationFactors
         U               0.7;
         p_rgh           0.3;
         T               0.7;
-        D               0.3;
-        ".*" 1;
+        D               0.7;
+        ".*"            1;
     }
 }
-
 
 // ************************************************************************* //

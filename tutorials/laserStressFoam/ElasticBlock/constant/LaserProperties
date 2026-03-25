@@ -1,8 +1,8 @@
 /*--------------------------------*- C++ -*----------------------------------*\
 | =========                 |                                                 |
 | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Website:  www.openfoam.com                      |
-|   \\  /    A nd           | Version:  2506                                  |
+|  \\    /   O peration     | Website:  https://openfoam.org                  |
+|   \\  /    A nd           | Version:  6                                     |
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
 FoamFile
@@ -11,27 +11,30 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      solidProperties;
+    object      LaserProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-solidElasticity
+timeVsLaserPosition
 {
-    enabled         true;
-    coupling        implicit;
-
-    maxIter         8;
-    tolerance       1e-6;
-    relTol          0.05;
-    compactNormalStress true;
-
-    E               2.0e11;
-    nu              0.30;
-    alphaT          1.2e-5;
-    Tref            300;
-
-    solidDamping    1.0e6;
-    fSolidMin       1e-6;
+    file    "$FOAM_CASE/constant/timeVsLaserPosition";
+    outOfBounds clamp;
 }
+
+timeVsLaserPower
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPower";
+    outOfBounds clamp;
+}
+
+V_incident      (0 1 0);
+laserRadius     0.0002;
+N_sub_divisions 1;
+nRadial         4;
+nAngular        8;
+wavelength      1.064e-6;
+e_num_density   5.83e29;
+Radius_Flavour  2.0;
+useLocalSearch  true;
 
 // ************************************************************************* //
