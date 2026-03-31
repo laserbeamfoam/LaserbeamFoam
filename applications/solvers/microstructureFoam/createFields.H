@@ -433,19 +433,19 @@ volScalarField TRHS
     dimensionedScalar("TRHS", dimensionSet(1, -1, -3, 0, 0), 0.0)
 );
 
-volScalarField Tcorr
-(
-    IOobject
-    (
-        "Tcorr",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("Tcorr", dimensionSet(0, 0, 0, 1, 0), 0.0)
-);
+// volScalarField Tcorr
+// (
+//     IOobject
+//     (
+//         "Tcorr",
+//         runTime.timeName(),
+//         mesh,
+//         IOobject::NO_READ,
+//         IOobject::NO_WRITE
+//     ),
+//     mesh,
+//     dimensionedScalar("Tcorr", dimensionSet(0, 0, 0, 1, 0), 0.0)
+// );
 
 volScalarField beta
 (
@@ -902,7 +902,7 @@ List<bool> niActive (PopBal.size(),true);
                 runTime.timeName(),
                 mesh,
                 IOobject::READ_IF_PRESENT,//IOobject::MUST_READ,
-                // IOobject::AUTO_WRITE
+                //  IOobject::AUTO_WRITE
                 IOobject::NO_WRITE
             ),
             mesh,

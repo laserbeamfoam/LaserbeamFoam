@@ -204,7 +204,8 @@ int main(int argc, char *argv[])
 
             #include "PFEqns.H"
 
-
+            epsilon1 = max(min(1.0 - xi, scalar(1)), scalar(0));
+            epsilon1.correctBoundaryConditions();
             
 
             if (pimple.turbCorr())
@@ -213,20 +214,83 @@ int main(int argc, char *argv[])
             }
         }
 
-        // Update the melt history
+                // Update the melt history
         const volScalarField& alphaMetal =
             mesh.lookupObject<volScalarField>("alpha.metal");
         condition = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
         meltHistory += condition;
 
-        runTime.write();
-
-        // Write ray paths to VTK files
-        if (runTime.outputTime())
+        if (runTime.writeTime())
         {
+            //- Update grainNum field
+            grainNum = dimensionedScalar(grainNum.dimensions(), -1);
+            maxNiVal = dimensionedScalar(maxNiVal.dimensions(), 0);
+
+            forAll(grainNum, i)
+            {
+                forAll(PopBal, j)
+                {
+                    if
+                    (
+                        (PopBal[j][i] > grainNumThreshold)
+                     && (PopBal[j][i] > maxNiVal[i])
+                    )
+                    {
+                        maxNiVal[i] = PopBal[j][i];
+                        grainNum[i] = j;
+                    }
+                }
+            }
+
+            //- Populate orientation fields from quaternions
+            forAll(qw, i)
+            {
+                label gn = grainNum[i];
+
+                if (gn < 0)
+                {
+                    qw[i] = qZero.w();
+                    qv[i] = qZero.v();
+                }
+                else
+                {
+                    qw[i] = rot2[gn].w();
+                    qv[i] = rot2[gn].v();
+                }
+            }
+
+            //- Write PopBal fields
+            if (write_ni_all)
+            {
+                forAll(PopBal, i)
+                {
+                    PopBal[i].write();
+                }
+            }
+            else if (write_ni_active)
+            {
+                forAll(PopBal, i)
+                {
+                    if (niActive[i])
+                    {
+                        PopBal[i].write();
+                    }
+                }
+            }
+
+            // Write ray paths
             laser.writeRayPathsToVTK();
             laser.writeRayPathVTKSeriesFile();
         }
+
+        runTime.write();
+
+        // Write ray paths to VTK files
+        // if (runTime.outputTime())
+        // {
+        //     laser.writeRayPathsToVTK();
+        //     laser.writeRayPathVTKSeriesFile();
+        // }
 
         runTime.printExecutionTime(Info);
     }

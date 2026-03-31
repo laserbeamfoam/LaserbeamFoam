@@ -1,14 +1,4 @@
 {
-/*
-dimensionedScalar Kg("Kg", dimensionSet(0, 2, -1, 0, 0), readScalar(PhaseFieldProperties.lookup("Kg")));
-dimensionedScalar gamma_pf("gamma_pf", dimensionSet(0, 0, 0, 0, 0), readScalar(PhaseFieldProperties.lookup("gamma_pf")));
-dimensionedScalar m_g("m_g", dimensionSet(0, 0, -1, 0, 0), readScalar(PhaseFieldProperties.lookup("m_g")));
-dimensionedScalar Lg("Lg", dimensionSet(0, 0, 0, 0, 0), readScalar(PhaseFieldProperties.lookup("Lg")));
-
-dimensionedScalar m_p("m_p", dimensionSet(0, 0, -1, 0, 0), readScalar(PhaseFieldProperties.lookup("m_p")));
-dimensionedScalar Lp("Lp", dimensionSet(0, 0, 0, 0, 0), readScalar(PhaseFieldProperties.lookup("Lp")));
-dimensionedScalar Kp("Kp", dimensionSet(0, 2, -1, 0, 0), readScalar(PhaseFieldProperties.lookup("Kp")));
-*/
 
 
 dimensionedScalar gamma_pf("gamma_pf", dimensionSet(0, 0, 0, 0, 0), readScalar(PhaseFieldProperties.lookup("gamma_pf")));
@@ -57,20 +47,7 @@ Lp = Aniso_Mob*(1.0*D0*Foam::exp((-Qg)/(gasconstant*T)));
 else{
     Lp = (1.0*D0*Foam::exp((-Qg)/(gasconstant*T)));
 }
-// Info<<m_p.value()<<endl;
-// Info<<m_g.value()<<endl;
-// Info<<Kg.value()<<endl;
-// Info<<Kp.value()<<endl;
-// Info<<Lp.value()<<endl;
-// Info<<Lg.value()<<endl;
-// Info<<endl;
-// Info<<gamma_pf.value()<<endl;
-// Info<<sigma_P.value()<<endl;
-// Info<<sigma_G.value()<<endl;
-// Info<<lp.value()<<endl;
-// Info<<lg.value()<<endl;
-// Info<<deltaf_g.value()<<endl;
-// Info<<deltaf_p.value()<<endl;
+
 
 Info << "Before sum phases " << endl;
 Sum_Phases*=0.0;
@@ -86,82 +63,90 @@ for (label count = 0; count < N_Ori; count++) //find the number of non zero phas
 }
 
 
+// forAll(mesh.C(), cell)
+// {
+//     label active_phases[N_Ori] =
+//     {
+//         0
+//     };
+//     label n_active_phases = 0;
+
+
+
+//     for (label count = 0; count < N_Ori; count++)
+//     {
+//         if (PopBal_av[count][cell] > SMALL)
+//         {
+//             active_phases[n_active_phases++] = count;
+//         }
+
+//     }
+
+
+//     for (label count_i = 0; count_i < n_active_phases; count_i++)
+//         {
+//             GBs[cell]+=PopBal[active_phases[count_i]][cell]*PopBal[active_phases[count_i]][cell];
+
+//             scalar initial_sum = Foam::pow(PopBal[active_phases[count_i]][cell],3.0)-PopBal[active_phases[count_i]][cell]+(2.0*PopBal[active_phases[count_i]][cell]*Foam::pow(1.0-xi[cell],2.0));
+
+//                 Sum_Phases[cell]+=PopBal[active_phases[count_i]][cell];
+//         for (label count_j = 0; count_j < n_active_phases; count_j++)
+//         {
+//                 if(active_phases[count_i] != active_phases[count_j]){
+//                         initial_sum+=2.0*gamma_pf.value()*PopBal[active_phases[count_i]][cell]*Foam::pow(PopBal[active_phases[count_j]][cell],2.0);
+//                 }
+//         }
+
+//         Sum_parts[active_phases[count_i]][cell]=initial_sum;
+
+
+//         }
+
+
+
+// }
+
+
+
 forAll(mesh.C(), cell)
 {
-    label active_phases[N_Ori] =
-    {
-        0
-    };
-    label n_active_phases = 0;
+    const scalar xiCell = xi[cell];
 
-
+    // --- First pass O(N): find active phases, accumulate totals ---
+    scalar sumNiSq = 0.0;
 
     for (label count = 0; count < N_Ori; count++)
     {
         if (PopBal_av[count][cell] > SMALL)
         {
-            active_phases[n_active_phases++] = count;
+            const scalar ni = PopBal[count][cell];
+            sumNiSq += ni*ni;
+            Sum_Phases[cell] += ni;
         }
-
     }
 
+    GBs[cell] = sumNiSq;  // GBs is just the sum of ni^2
 
-    for (label count_i = 0; count_i < n_active_phases; count_i++)
-        {
-            GBs[cell]+=PopBal[active_phases[count_i]][cell]*PopBal[active_phases[count_i]][cell];
-
-            scalar initial_sum = Foam::pow(PopBal[active_phases[count_i]][cell],3.0)-PopBal[active_phases[count_i]][cell]+(2.0*PopBal[active_phases[count_i]][cell]*Foam::pow(1.0-xi[cell],2.0));
-
-                Sum_Phases[cell]+=PopBal[active_phases[count_i]][cell];
-        for (label count_j = 0; count_j < n_active_phases; count_j++)
-        {
-                if(active_phases[count_i] != active_phases[count_j]){
-                        initial_sum+=2.0*gamma_pf.value()*PopBal[active_phases[count_i]][cell]*Foam::pow(PopBal[active_phases[count_j]][cell],2.0);
-                }
-        }
-
-        Sum_parts[active_phases[count_i]][cell]=initial_sum;
-
-
-        }
-
-
-
-}
-
-
-
-
-/*
-for(label count = 0; count < N_Ori; count++)
-{
-    if (niActive[count])
+    // --- Second pass O(N): compute Sum_parts using the identity ---
+    //     cross term for phase i: Σ_{j≠i} 2γ·ni·nj²
+    //                           = 2γ·ni·(sumNiSq - ni²)
+    for (label count = 0; count < N_Ori; count++)
     {
-        volScalarField& ni = PopBal[count];
-        GBs+=ni*ni;
-
-        volScalarField test12 = (ni*ni*ni) - ni + 2.0*ni*(1.0-xi)*(1.0-xi);
-
-        Sum_Phases+=ni;
-        // volScalarField test12addition = 0.0*ni;//NEED TO SET THIS TO ZERO BETTER
-        for(label count2 = 0; count2 < N_Ori; count2++)
+        if (PopBal_av[count][cell] > SMALL)
         {
-            if (niActive[count2])
-            {
-                if(count != count2){
-                    volScalarField& nj = PopBal[count2];
-                    // test12addition += nj*nj;
-                    test12+=2.0*gamma_pf*ni*nj*nj;
-                }
-            }
-        }
-        // test12+=2.0*gamma_pf*ni*test12addition;
+            const scalar ni = PopBal[count][cell];
+            const scalar oneMinusXi = 1.0 - xiCell;
 
-        Sum_parts.set(count,new volScalarField(test12));//
-            // volScalarField& Su=Sum_parts[count];
+            Sum_parts[count][cell] =
+                ni*ni*ni - ni
+              + 2.0*ni*oneMinusXi*oneMinusXi
+              + 2.0*gamma_pf.value()*ni*(sumNiSq - ni*ni);
+        }
     }
 }
-*/
+
+
+
 
 Info << "Before solveNi " << endl;
 
