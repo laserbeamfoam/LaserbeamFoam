@@ -9,6 +9,8 @@ if (pimple.firstIter() || moveMeshOuterCorrectors)
 
     if (mesh.changing())
     {
+        #include "updateYDim.H"
+
         gh = (g & mesh.C()) - ghRef;
         ghf = (g & mesh.Cf()) - ghRef;
 
