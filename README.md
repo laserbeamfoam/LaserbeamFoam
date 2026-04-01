@@ -4,6 +4,18 @@
   <img src="images/LBF.gif" alt="LBF gif" style="width:1000px;">
 </p>
 
+## Codex Skill
+
+This repository includes a repo-local Codex skill at
+`.agents/skills/laserbeamfoam/SKILL.md` for work on the `laserbeamFoam`
+codebase.
+
+To load it in Codex, reference it directly, for example:
+
+```text
+[$laserbeamfoam](.agents/skills/laserbeamfoam/SKILL.md)
+```
+
 ## Overview
 
 Presented here is a growing suite of solvers that describe the laser-substrate
