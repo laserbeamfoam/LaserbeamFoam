@@ -20,81 +20,75 @@
 
     TSolidus.correctBoundaryConditions();
     TLiquidus.correctBoundaryConditions();
-    beta.correctBoundaryConditions();  // ADDED
-    rhok.correctBoundaryConditions();  // ADDED
+    beta.correctBoundaryConditions();
+    rhok.correctBoundaryConditions();
 
     #include "updateKappaCp.H"
 
     const vectorField& CI = mesh.C();
     metalaverage = fvc::average(alpha1);
-    metalaverage.correctBoundaryConditions();  // ADDED
+    metalaverage.correctBoundaryConditions();
+    alpha_smoothed = metalaverage;
+    alpha_smoothed.correctBoundaryConditions();
 
-    alpha_filtered = volScalarField("alpha_filtered", alpha1);
-    alpha_filtered.correctBoundaryConditions();
     scalarField& alpha_filteredI = alpha_filtered;
-    // alpha_filteredI.correctBoundaryConditions();
+    alpha_filteredI = alpha1I;
+
     forAll(CI, celli)
     {
-        if (alpha1I[celli] > 0.99)
+        const scalar alpha1Value = alpha1I[celli];
+
+        if (alpha1Value > 0.99)
         {
             alpha_filteredI[celli] = 1.0;
         }
+        else if (alpha1Value < 0.01)
+        {
+            alpha_filteredI[celli] = 0.0;
+        }
         else
         {
-            if (alpha1I[celli] < 0.01)
-            {
-                alpha_filteredI[celli] = 0.0;
-            }
-            else
-            {
-                alpha_filteredI[celli] = alpha1I[celli];
-            }
+            alpha_filteredI[celli] = alpha1Value;
         }
     }
 
-    // Access the boundary fields
     volScalarField::Boundary& alpha_filteredBf = alpha_filtered.boundaryFieldRef();
     const volScalarField::Boundary& alpha1Bf = alpha1.boundaryField();
 
-    // Loop through all boundary patches
     forAll(alpha_filteredBf, patchi)
     {
-        // Get references to the patch fields
         scalarField& alpha_filteredPatch = alpha_filteredBf[patchi];
         const scalarField& alpha1Patch = alpha1Bf[patchi];
 
-        // Apply the same logic to each face in the patch
         forAll(alpha_filteredPatch, facei)
         {
-            if (alpha1Patch[facei] > 0.99)
+            const scalar alpha1Value = alpha1Patch[facei];
+
+            if (alpha1Value > 0.99)
             {
                 alpha_filteredPatch[facei] = 1.0;
             }
-            else if (alpha1Patch[facei] < 0.01)
+            else if (alpha1Value < 0.01)
             {
                 alpha_filteredPatch[facei] = 0.0;
             }
             else
             {
-                alpha_filteredPatch[facei] = alpha1Patch[facei];
+                alpha_filteredPatch[facei] = alpha1Value;
             }
         }
     }
 
     alpha_filtered.correctBoundaryConditions();
 
-    alpha_smoothed = fvc::average(alpha1);
-
     LatentHeat =
         alpha_filtered*LatentHeat1 + (1.0 - alpha_filtered)*LatentHeat2;
-
-    // gradepsilon1 = fvc::grad(epsilon1);
-    // gradepsilon1.correctBoundaryConditions();
 
     {
         const volVectorField gradAlphaFiltered(fvc::grad(alpha_filtered));
         n_filtered = gradAlphaFiltered/(mag(gradAlphaFiltered) + deltaN);
     }
+    n_filtered.correctBoundaryConditions();
 
     e1temp = fvc::average(epsilon1);
 
@@ -115,32 +109,13 @@
 
     epsilon1mask.correctBoundaryConditions();
 
-    // e2temp = fvc::average(epsilon1mask);
-    // epsilon1mask2 *= 0.0;
-
-    // const scalarField& e2tempI = e2temp;
-    // scalarField& epsilon1mask2I = epsilon1mask2;
-    // forAll(CI, celli)
-    // {
-    //     if (e2tempI[celli] <= 0.95)
-    //     {
-    //         epsilon1mask2I[celli] = 0.0;
-    //     }
-    //     else
-    //     {
-    //         epsilon1mask2I[celli] = epsilon1maskI[celli];
-    //     }
-
-    // }
-
-    // epsilon1mask2.correctBoundaryConditions();
-
     if (laser.powderSim())
     {
         gh = epsilon1mask*(g & mesh.C());
         ghf = fvc::interpolate(epsilon1mask)*(g & mesh.Cf());
     }
-    else{
+    else
+    {
         gh = (g & mesh.C());
         ghf = (g & mesh.Cf());
     }
