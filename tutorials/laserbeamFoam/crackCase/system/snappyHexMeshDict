@@ -1,0 +1,112 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  3.0.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      snappyHexMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// Add these three lines:
+castellatedMesh true;
+snap            true;
+addLayers      	false;
+
+geometry
+{
+    crack.stl
+    {
+        type triSurfaceMesh;
+        name crack;
+    }
+}
+
+castellatedMeshControls
+{
+    maxLocalCells  200000; // Limit cells per processor to 2.5 million
+    maxGlobalCells 2000000; // Cap on total number of cells across all processors
+    minRefinementCells 10;
+    maxLoadUnbalance 0.10;
+    nCellsBetweenLevels 3; // How many cells exist between refinement levels
+
+    features
+    (
+        { file "crack.eMesh"; level 2; }
+    );
+
+    refinementSurfaces
+    {
+		crack  
+		{ 
+			level (1 2); // Levels of refinement aims at refining 1, but will go up to 2
+			faceType patch; 
+            cellZone metalZone;
+            zoneInside inside;
+		}
+    }
+	
+	locationsInMesh
+    (
+        ((0  0.002  0) metalZone) // Point inside the substrate bulk
+        ((0 -0.002  0) airZone)   // Point in the atmosphere above
+    );
+	
+	    refinementRegions
+    {
+    }
+	
+    resolveFeatureAngle 30;
+
+    allowFreeStandingZoneFaces true;
+}
+
+snapControls
+{
+    nSmoothPatch 3;
+    tolerance 1;
+    nSolveIter 30;
+    nRelaxIter 5;
+}
+
+meshQualityControls
+{
+    #include "meshQualityDict"
+}
+
+addLayersControls
+{
+    relativeSizes       true; // Layers are sized relative to the local background cell
+    layers
+    {
+        "crack"          // Use the name of your STL patch
+        {
+            nSurfaceLayers  3; // Start with 3 layers for stability
+        }
+    }
+    expansionRatio      1.2;    // Each layer is 20% thicker than the previous one
+    finalLayerThickness 0.5;    // The last layer is 50% of the background cell height
+    minThickness        0.1;    // Minimum thickness to prevent collapse in corners
+    nGrow               0;      
+	featureAngle        60;    // Mandatory for v2506
+    nLayerIter          50;    // Recommended for stability
+    nRelaxIter          5;     // Recommended
+	maxFaceThicknessRatio   0.5;   // Mandatory for v2506
+	nBufferCellsNoExtrude   0;
+	nSmoothSurfaceNormals   1;
+    nSmoothNormals          3;
+    nSmoothThickness        10;
+    maxThicknessToMedialRatio 0.3;
+    minMedialAxisAngle      90;
+    nBufferCellsNoExtrude   0;
+    nMedialAxisIter         10;
+}
+
+mergeTolerance 1e-6;
+

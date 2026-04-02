@@ -1,0 +1,61 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Interface tracking method: isoAdvector or MULES
+interfaceTrackingScheme MULES;
+
+phases          (metal gas);
+
+metal //316L SS
+{
+    transportModel  Newtonian;
+    
+	nu             		7.8e-07;
+    rho           	    7250;
+    Tsolidus 			1675;
+    Tliquidus 			1723;
+    LatentHeat 			2.8e5;
+    beta    			8.0e-5;
+    poly_kappa   		(25 0 0 0 0 0 0 0);
+    poly_cp   			(700 0 0 0 0 0 0 0);
+    elec_resistivity	1.2e-6;
+}
+
+gas //Air
+{
+    transportModel  Newtonian;
+
+    nu           	   1.51e-05;
+    rho           	   1.204;
+    poly_kappa         (0.0031 8e-5 2e-8 0 0 0 0 0);
+    poly_cp   	       (923.15 0.2571 -1e-05 0 0 0 0 0);
+    Tsolidus  	       1.0;
+    Tliquidus  	       10.0;
+    LatentHeat         1;
+    beta    	       5.88e-4; //1/Beta at 1700K
+}
+
+sigma                  1.6;
+Marangoni_Constant     -5e-4;
+p0				       1e5;
+Tvap			       3086;
+Mm				       0.055;
+LatentHeatVap 	       7.45e6;
+emS                    0.4;
+emL                    0.1;
+TRef                   TRef [0 0 0 1 0 0 0]   300;
+
+// ************************************************************************* //

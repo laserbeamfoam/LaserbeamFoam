@@ -704,7 +704,92 @@ void laserHeatSource::updateDeposition
         (
             dict.lookupOrDefault<label>("N_sub_divisions", 1)
         );
-        const vector V_incident(dict.lookup("V_incident"));
+        const vector V_incident_base(dict.lookup("V_incident"));
+        vector V_incident = V_incident_base;
+
+        // ---------------------------------------------------------------
+        // Optional: rotate V_incident around a fixed axis at constant
+        // angular velocity (Rodrigues' rotation formula).
+        //
+        // Use case: laser source fixed at the centre of a pipe, beam
+        // pointing radially outward toward the inner diameter.  By
+        // rotating V_incident around the pipe (Z) axis at a known rate
+        // the impact point walks along the circumferential crack while
+        // the source stays still.
+        //
+        // Dictionary keywords (all in the laser sub-dictionary):
+        //
+        //   V_incident       (1 0 0);   // starting beam direction
+        //   V_inc_rotAxis    (0 0 1);   // axis to rotate around
+        //                               //   e.g. (0 0 1) = Z axis = pipe axis
+        //   V_inc_angVel     0.1745;    // angular velocity [rad/s]
+        //                               //   0.1745 rad/s ≈ 10 deg/s
+        //   V_inc_startAngle 0;         // angle already applied at t=0 [rad]
+        //                               //   (optional, default 0)
+        //
+        // How Rodrigues' formula works
+        // ─────────────────────────────
+        // We want to rotate a vector V around a unit axis K by angle θ.
+        // The formula splits V into two parts:
+        //
+        //   1. The component of V that is PARALLEL to K — this part does
+        //      not move when you rotate around K, so it is kept as-is:
+        //          V_parallel = K * (K · V)
+        //
+        //   2. The component of V that is PERPENDICULAR to K — this part
+        //      rotates in a circle.  Rodrigues combines cos/sin to do that:
+        //          V_perp_rotated = (V - V_parallel)*cos(θ) + (K × V)*sin(θ)
+        //
+        // Adding them back together gives the rotated vector:
+        //
+        //   V_rotated = V*cos(θ) + (K × V)*sin(θ) + K*(K · V)*(1 - cos(θ))
+        //
+        // At θ=0  →  V_rotated = V            (no rotation yet)
+        // At θ=90 →  V_rotated = K × V        (quarter turn)
+        // At θ=180→  V_rotated = 2*V_parallel - V  (half turn)
+        // ---------------------------------------------------------------
+        if (dict.found("V_inc_rotAxis"))
+        {
+            // Read the axis the beam direction will rotate around.
+            // Normalise it so it is a unit vector (required by Rodrigues).
+            vector rotAxis(dict.lookup("V_inc_rotAxis"));
+            rotAxis /= (mag(rotAxis) + VSMALL);
+
+            // Angular velocity in radians per second.
+            const scalar angVel
+            (
+                readScalar(dict.lookup("V_inc_angVel"))
+            );
+
+            // Optional starting angle so you can begin mid-arc (default 0).
+            const scalar startAngle
+            (
+                dict.lookupOrDefault<scalar>("V_inc_startAngle", 0.0)
+            );
+
+            // Total rotation angle at the current simulation time.
+            // e.g. angVel=0.1745 rad/s, time=5s → angle ≈ 50 degrees
+            const scalar angle = startAngle + angVel * time;
+
+            const scalar cosA = Foam::cos(angle);
+            const scalar sinA = Foam::sin(angle);
+
+            // Apply Rodrigues' rotation formula (see derivation above).
+            // rotAxis ^ V_incident_base  is the cross-product  K × V.
+            // rotAxis & V_incident_base  is the dot-product    K · V.
+            V_incident =
+                V_incident_base * cosA
+              + (rotAxis ^ V_incident_base) * sinA
+              + rotAxis * (rotAxis & V_incident_base) * (1.0 - cosA);
+
+            Info<< "    V_incident (with axis rotation)" << nl
+                << "      rotAxis    = " << rotAxis << nl
+                << "      angle      = " << angle * 180.0
+                                         / constant::mathematical::pi
+                << " deg" << nl
+                << "      V_incident = " << V_incident << endl;
+        }
+
         const scalar wavelength(readScalar(dict.lookup("wavelength")));
         const scalar e_num_density
         (

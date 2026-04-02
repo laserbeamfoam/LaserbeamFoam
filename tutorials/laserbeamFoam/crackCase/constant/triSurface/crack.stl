@@ -1,0 +1,170 @@
+solid crack
+ facet normal 0 0 1
+  outer loop
+   vertex -0.005 1.11759e-10 0.01
+   vertex 0.005 1.11759e-10 0.01
+   vertex -0.005 0.005 0.01
+  endloop
+ endfacet
+ facet normal -0 0 1
+  outer loop
+   vertex -0.005 0.005 0.01
+   vertex 0.005 1.11759e-10 0.01
+   vertex 0.005 0.005 0.01
+  endloop
+ endfacet
+ facet normal -1 0 -4.33681e-17
+  outer loop
+   vertex -0.005 1.11759e-10 -0.01
+   vertex -0.005 1.11759e-10 0.01
+   vertex -0.005 0.005 -0.01
+  endloop
+ endfacet
+ facet normal -1 0 -4.33681e-17
+  outer loop
+   vertex -0.005 0.005 -0.01
+   vertex -0.005 1.11759e-10 0.01
+   vertex -0.005 0.005 0.01
+  endloop
+ endfacet
+ facet normal 1.73472e-16 -3.46945e-16 -1
+  outer loop
+   vertex 0.005 1.11759e-10 -0.01
+   vertex -0.005 1.11759e-10 -0.01
+   vertex 0.005 0.005 -0.01
+  endloop
+ endfacet
+ facet normal -0 0 -1
+  outer loop
+   vertex 0.005 0.005 -0.01
+   vertex -0.005 1.11759e-10 -0.01
+   vertex -0.005 0.005 -0.01
+  endloop
+ endfacet
+ facet normal 1 -0 0
+  outer loop
+   vertex 0.005 1.11759e-10 0.01
+   vertex 0.005 1.11759e-10 -0.01
+   vertex 0.005 0.005 0.01
+  endloop
+ endfacet
+ facet normal 1 0 0
+  outer loop
+   vertex 0.005 0.005 0.01
+   vertex 0.005 1.11759e-10 -0.01
+   vertex 0.005 0.005 -0.01
+  endloop
+ endfacet
+ facet normal 0 -1 0
+  outer loop
+   vertex 0.00025 1.11759e-10 0.0025
+   vertex 0.005 1.11759e-10 0.01
+   vertex -0.00025 1.11759e-10 0.0025
+  endloop
+ endfacet
+ facet normal 0 -1 0
+  outer loop
+   vertex -0.00025 1.11759e-10 0.0025
+   vertex 0.005 1.11759e-10 0.01
+   vertex -0.005 1.11759e-10 0.01
+  endloop
+ endfacet
+ facet normal -0 -1 -0
+  outer loop
+   vertex -0.00025 1.11759e-10 0.0025
+   vertex -0.005 1.11759e-10 0.01
+   vertex -0.00025 1.11759e-10 -0.0025
+  endloop
+ endfacet
+ facet normal -0 -1 0
+  outer loop
+   vertex -0.00025 1.11759e-10 -0.0025
+   vertex -0.005 1.11759e-10 0.01
+   vertex -0.005 1.11759e-10 -0.01
+  endloop
+ endfacet
+ facet normal 0 -1 -0
+  outer loop
+   vertex -0.00025 1.11759e-10 -0.0025
+   vertex -0.005 1.11759e-10 -0.01
+   vertex 0.00025 1.11759e-10 -0.0025
+  endloop
+ endfacet
+ facet normal 0 -1 -0
+  outer loop
+   vertex 0.00025 1.11759e-10 -0.0025
+   vertex -0.005 1.11759e-10 -0.01
+   vertex 0.005 1.11759e-10 -0.01
+  endloop
+ endfacet
+ facet normal 0 -1 0
+  outer loop
+   vertex 0.00025 1.11759e-10 -0.0025
+   vertex 0.005 1.11759e-10 -0.01
+   vertex 0.00025 1.11759e-10 0.0025
+  endloop
+ endfacet
+ facet normal 0 -1 0
+  outer loop
+   vertex 0.00025 1.11759e-10 0.0025
+   vertex 0.005 1.11759e-10 -0.01
+   vertex 0.005 1.11759e-10 0.01
+  endloop
+ endfacet
+ facet normal 0 1 -1.30104e-16
+  outer loop
+   vertex 0.005 0.005 -0.01
+   vertex -0.005 0.005 -0.01
+   vertex 0.005 0.005 0.01
+  endloop
+ endfacet
+ facet normal 0 1 -1.30104e-16
+  outer loop
+   vertex 0.005 0.005 0.01
+   vertex -0.005 0.005 -0.01
+   vertex -0.005 0.005 0.01
+  endloop
+ endfacet
+ facet normal -0.970142 -0.242536 0
+  outer loop
+   vertex -1.11759e-10 0.001 -0.0025
+   vertex 0.00025 1.11759e-10 -0.0025
+   vertex -1.11759e-10 0.001 0.0025
+  endloop
+ endfacet
+ facet normal -0.970142 -0.242536 0
+  outer loop
+   vertex -1.11759e-10 0.001 0.0025
+   vertex 0.00025 1.11759e-10 -0.0025
+   vertex 0.00025 1.11759e-10 0.0025
+  endloop
+ endfacet
+ facet normal 0.970142 -0.242536 0
+  outer loop
+   vertex -0.00025 1.11759e-10 -0.0025
+   vertex -1.11759e-10 0.001 -0.0025
+   vertex -0.00025 1.11759e-10 0.0025
+  endloop
+ endfacet
+ facet normal 0.970142 -0.242536 0
+  outer loop
+   vertex -0.00025 1.11759e-10 0.0025
+   vertex -1.11759e-10 0.001 -0.0025
+   vertex -1.11759e-10 0.001 0.0025
+  endloop
+ endfacet
+ facet normal 0 0 1
+  outer loop
+   vertex -1.11759e-10 0.001 -0.0025
+   vertex -0.00025 1.11759e-10 -0.0025
+   vertex 0.00025 1.11759e-10 -0.0025
+  endloop
+ endfacet
+ facet normal 0 0 -1
+  outer loop
+   vertex 0.00025 1.11759e-10 0.0025
+   vertex -0.00025 1.11759e-10 0.0025
+   vertex -1.11759e-10 0.001 0.0025
+  endloop
+ endfacet
+endsolid crack

@@ -1,0 +1,127 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    arch        "LSB;label=32;scalar=64";
+    class       dictionary;
+    location    "system";
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+convertToMeters 0.001;
+
+// Dictionary format using calc's copied from Wolf dynamics tutorials:
+xmin -2.5;
+xmax 2.5;
+ymin -3;
+ymax 3;
+zmin -6.5;
+zmax 6.5;
+
+dx 0.4; 
+dy $dx;
+dz $dx;
+
+lx #calc "$xmax - $xmin";
+ly #calc "$ymax - $ymin";
+lz #calc "$zmax - $zmin";
+
+xcells #calc "abs(($lx)/($dx))";
+ycells #calc "abs(($ly)/($dy))";
+zcells #calc "abs(($lz)/($dz))";
+
+vertices
+(
+    ($xmin  $ymin  $zmin)
+    ($xmax  $ymin  $zmin)
+    ($xmax  $ymax  $zmin)
+    ($xmin  $ymax  $zmin)
+    ($xmin  $ymin  $zmax)
+    ($xmax  $ymin  $zmax)
+    ($xmax  $ymax  $zmax)
+    ($xmin  $ymax  $zmax)
+);
+
+blocks
+(
+
+hex (0 1 2 3 4 5 6 7) ($xcells $ycells $zcells) simpleGrading (1 1 1)
+
+);
+
+edges
+(
+);
+
+boundary
+(
+
+    lowerWall
+    {
+        type wall;
+        faces
+        (
+            (3 7 6 2)
+
+        );
+    }
+
+    atmosphere
+    {
+        type patch;
+        faces
+        (
+            (1 5 4 0)
+        );
+    }
+    rightWall
+    {
+        type patch;
+        faces
+        (
+            (1 2 6 5)
+	    
+        );
+    }
+    leftWall
+    {
+        type patch;
+        faces
+        (
+            (0 4 7 3)
+        );
+    }
+    frontAndBack
+    {
+        type patch;
+        faces
+        (
+            (0 3 2 1)
+	    (5 6 7 4)
+        );
+    }
+    /*
+        internal
+    {
+        type internal;
+        faces ();
+    }
+   */ 
+    
+);
+
+mergePatchPairs
+(
+
+
+);
+
+// ************************************************************************* //

@@ -1,0 +1,67 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  6
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      PhaseFieldProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+radialPolarHeatSource no;
+
+lasers
+(
+    laser0
+    {
+        // Laser position is fixed at one point for the whole simulation
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition0";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower0";
+            outOfBounds clamp;
+        }
+
+        // Starting beam direction: pointing in +Y (toward the metal surface).
+        // In this 2D domain: atmosphere is at Y=0, metal wall is at Y=5mm.
+        // X=0 throughout — rotation around X axis keeps motion in Y-Z plane only.
+        V_incident (0 1 0);
+
+        // ── Axis-rotation parameters ──────────────────────────────────────
+        // The beam direction is rotated around V_inc_rotAxis at a constant
+        // angular velocity.  Think of the laser sitting at the centre of a
+        // pipe: V_incident starts pointing at the crack, then rotates so the
+        // impact point walks along the circumferential weld/crack.
+        //
+        // V_inc_rotAxis    : the axis to rotate around.
+        //                  
+        // V_inc_angVel     : rotation speed in rad/s.
+        //                    0.1745 rad/s ≈ 10 degrees per second.
+        //                    Over 0.01 s the beam sweeps ~0.1 degrees — tiny
+        //                    but enough to confirm the feature is working.
+        // V_inc_startAngle : angle (rad) already applied at t=0.
+        //                    0 means the beam starts exactly at V_incident.
+        V_inc_rotAxis    (1 0 0);
+        V_inc_angVel     157.08;       // rad/s  (= 100 deg/s for visible sweep in 0.01 s)
+        V_inc_startAngle -0.7854;
+
+        // Laser radius
+        laserRadius 0.0005;
+
+        // Laser physical properties
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+    }
+);

@@ -1,0 +1,83 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  3.0.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      laser_boundary;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+
+//    #includeEtc "caseDicts/setConstraintTypes"
+    crack
+    {
+        type            fixedValue;
+        value           uniform 1.0; // Defines the crack volume as gas/void
+    }
+    	// 2. The interface created by zoning (Side A)
+    metalZone_to_airZone
+    {
+        type            fixedValue;
+        value           uniform 1.0; // Defines the crack volume as gas/void
+    }
+
+    // 3. The interface created by zoning (Side B)
+    airZone_to_metalZone
+    {
+        type            fixedValue;
+        value           uniform 1.0; // Defines the crack volume as gas/void
+    }
+	frontAndBack{
+type fixedValue;
+value uniform -1.0;
+	}
+
+    lowerWall
+    {
+type fixedValue;
+value uniform -1.0;
+    }
+
+    atmosphere
+    {
+type fixedValue;
+value uniform 1.0;
+    }
+
+rightWall
+    {
+type fixedValue;
+value uniform -1.0;
+    }
+    leftWall
+    {
+type fixedValue;
+value uniform -1.0;
+    }
+
+    defaultFaces
+    {
+        type            empty;
+    }
+	
+	".*"
+    {           
+        type            processor;
+        value           uniform 0;
+    }
+}
+
+// ************************************************************************* //

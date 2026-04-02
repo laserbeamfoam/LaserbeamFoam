@@ -1,0 +1,31 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      meshQualityDict;
+}
+
+// -1 means "disable check"
+// Positive numbers are limits
+
+// Use these overrides if the standard include above is missing or fails,
+// otherwise the line above usually handles everything.
+// You can leave the values below as a fallback:
+
+maxNonOrtho 75;
+maxBoundarySkewness 20;
+maxInternalSkewness 4;
+maxConcave 80;
+minVol 1e-16;
+minTetQuality 1e-30;
+minArea -1;
+minTwist 0.05;
+minDeterminant 0.001;
+minFaceWeight 0.05;
+minVolRatio 0.01;
+minTriangleTwist -1;
+
+// Advanced Error Handling
+nSmoothScale 4;
+errorReduction 0.75;
