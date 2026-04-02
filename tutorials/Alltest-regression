@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+echo "============================================================"
+echo "laserbeamFoam regression tests"
+echo "============================================================"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${SCRIPT_DIR}"
+REG_ROOT="${ROOT_DIR}/../tutorialsTest-regression"
+MAX_JOBS=""
+
+usage()
+{
+    cat <<'EOF'
+Usage: Alltest-regression [-j [N]]
+
+Run the tutorial regression tests in parallel.
+
+  -j [N]  Limit the number of parallel jobs. If N is omitted, use all
+          available cores.
+EOF
+}
+
+get_num_cores()
+{
+    if command -v nproc >/dev/null 2>&1; then
+        nproc
+    elif command -v getconf >/dev/null 2>&1; then
+        getconf _NPROCESSORS_ONLN
+    else
+        sysctl -n hw.ncpu
+    fi
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -j)
+            if [[ $# -gt 1 && "$2" != -* ]]; then
+                MAX_JOBS="$2"
+                shift 2
+            else
+                MAX_JOBS="auto"
+                shift
+            fi
+            ;;
+        -j*)
+            MAX_JOBS="${1#-j}"
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+done
+
+clean_copied_case_artifacts()
+{
+    local dir="$1"
+
+    find "$dir" -type f -name "log.*" -delete
+    find "$dir" -type d \( -name postProcessing -o -name dynamicCode -o -name "processor*" -o -name regressionTests -o -name VTKs -o -name VTK \) -prune -exec rm -rf {} +
+}
+
+rm -rf "${REG_ROOT}"
+mkdir -p "${REG_ROOT}"
+
+REGRESSION_TESTS=(
+    "laserbeamFoam/Plate2D"
+)
+
+failures=0
+if [[ -z "${MAX_JOBS}" || "${MAX_JOBS}" == "auto" ]]; then
+    MAX_JOBS="$(get_num_cores)"
+fi
+
+if ! [[ "${MAX_JOBS}" =~ ^[0-9]+$ ]] || [[ "${MAX_JOBS}" -lt 1 ]]; then
+    echo "Invalid job limit: ${MAX_JOBS}" >&2
+    exit 1
+fi
+
+echo "Using up to ${MAX_JOBS} parallel job(s)"
+
+run_regression_test()
+{
+    local test_case="$1"
+    local src_case="${ROOT_DIR}/${test_case}"
+    local dst_case="${REG_ROOT}/${test_case}"
+    local log_file="${REG_ROOT}/$(echo "${test_case}" | tr '/' '_').log"
+    local status_file="${REG_ROOT}/$(echo "${test_case}" | tr '/' '_').status"
+    local status=0
+
+    echo
+    echo "------------------------------------------------------------"
+    echo "Running regression test: ${test_case}"
+    echo "------------------------------------------------------------"
+
+    set +e
+    {
+        rm -rf "${dst_case}"
+        mkdir -p "$(dirname "${dst_case}")"
+        cp -a "${src_case}" "${dst_case}"
+        clean_copied_case_artifacts "${dst_case}"
+
+        cd "${dst_case}"
+
+        if [[ ! -x ./regressionTest.sh ]]; then
+            echo "FAIL: regressionTest.sh not found or not executable in ${test_case}"
+            return 1
+        fi
+
+        ./regressionTest.sh
+    } > "${log_file}" 2>&1
+    status=$?
+    set -e
+
+    echo "${status}" > "${status_file}"
+}
+
+active_jobs=0
+pids=()
+
+wait_for_available_slot()
+{
+    while (( active_jobs >= MAX_JOBS )); do
+        local live_pids=()
+
+        for pid in "${pids[@]}"; do
+            if kill -0 "${pid}" 2>/dev/null; then
+                live_pids+=("${pid}")
+            else
+                active_jobs=$((active_jobs - 1))
+            fi
+        done
+
+        if (( ${#live_pids[@]} > 0 )); then
+            pids=("${live_pids[@]}")
+        else
+            pids=()
+        fi
+
+        if (( active_jobs >= MAX_JOBS )); then
+            sleep 1
+        fi
+    done
+}
+
+for test_case in "${REGRESSION_TESTS[@]}"; do
+    wait_for_available_slot
+    run_regression_test "${test_case}" &
+    pids+=("$!")
+    active_jobs=$((active_jobs + 1))
+done
+
+wait
+
+for test_case in "${REGRESSION_TESTS[@]}"; do
+    log_file="${REG_ROOT}/$(echo "${test_case}" | tr '/' '_').log"
+    status_file="${REG_ROOT}/$(echo "${test_case}" | tr '/' '_').status"
+
+    echo
+    echo "------------------------------------------------------------"
+    echo "Regression test: ${test_case}"
+    echo "------------------------------------------------------------"
+
+    cat "${log_file}"
+
+    if [[ -f "${status_file}" ]] && [[ "$(cat "${status_file}")" == "0" ]]; then
+        echo "Result: PASS"
+    else
+        echo "Result: FAIL"
+        failures=$((failures + 1))
+    fi
+done
+
+echo
+if (( failures == 0 )); then
+    echo "============================================================"
+    echo "All regression tests PASSED"
+    echo "============================================================"
+    exit 0
+else
+    echo "============================================================"
+    echo "Regression suite FAILED (${failures} case(s))"
+    echo "============================================================"
+    exit 1
+fi
