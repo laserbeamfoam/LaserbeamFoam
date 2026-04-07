@@ -1,0 +1,66 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  6
+     \\/     M anipulation  |
+*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      LaserProperties;
+}
+
+
+lasers
+(
+    laser0
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition0";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower0";
+            outOfBounds clamp;
+        }
+
+        V_incident    (0 1 0);
+        laserRadius   0.002;
+        wavelength    1.064e-6;
+        e_num_density 5.83e29;
+
+        materialVelocity (0 0 0);  // Moving frame velocity (m/s)
+
+        profiles
+        {
+            beamShapePattern
+            {
+                type        beamShape;
+                weight      1.0;
+                shapeFile   "beamShape.inp";  // Provided with the tutorial
+                cachePerStep false;            // Reload each step to show usage
+
+                sampling
+                {
+                    type        cartesian;
+                    halfWidthX  7.099084025e-4;
+                    halfWidthZ  7.099084025e-4;
+                    nCartesianX 96;
+                    nCartesianZ 96;
+                }
+            }
+        }
+        pixelSize        2.5814851E-6; // m, size of a pixel in the shape file at the beam 'waist'
+        useLocalSearch   true;
+        maxLocalSearch   200;
+        rayPowerRelTol   0.001;
+        Radius_Flavour   2.0;
+    }
+);

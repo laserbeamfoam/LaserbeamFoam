@@ -27,9 +27,31 @@ timeVsLaserPower
     outOfBounds clamp;
 }
 
+radialPolarHeatSource yes;
+
 V_incident	(0 1 0.5);//(0 1 0);//NORMALISED IN CODE
 
 laserRadius 0.0005;
+
+profiles
+{
+    core
+    {
+        type        superGaussian;
+        radius      0.0003;
+        order       2.0;
+        weight      0.7;
+    }
+
+    ring
+    {
+        type        annular;
+        innerRadius 0.0002;
+        outerRadius 0.0005;
+        falloff     0.00003;
+        weight      0.3;
+    }
+}
 
 
 nRadial	50;

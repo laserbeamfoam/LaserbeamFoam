@@ -1,0 +1,83 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Interface tracking method: isoAdvector or MULES
+interfaceTrackingScheme MULES;
+
+phases          (metal gas);
+
+metal
+{
+    transportModel  Newtonian;
+    // kinematic viscosity (approx. for liquid Al)
+    nu              5e-07;
+
+    // Density (kg/m3) for aluminium 6060
+    rho             2700;
+
+    // Melting range (K) for Al 6060 (approximate)
+    Tsolidus 873;
+    Tliquidus 933;
+
+    // Latent heat of fusion (J/kg)
+    LatentHeat 3.97e5;
+
+    // Volumetric thermal expansion coefficient (1/K)
+    beta    2.4e-5;
+
+    // Thermal conductivity polynomial (W/m/K) — coefficients for polynomial in T (K)
+    // Approximate aluminium 6060: decreases with temperature
+    
+    poly_kappa   ( -137.878 2.23406 -0.00441191 3.53166e-06 -1.25809e-09 1.66188e-13 0.0 0.0 );
+
+    // Specific heat capacity polynomial (J/kg/K)
+    // Approximate aluminium 6060: increases slightly with temperature
+    
+    poly_cp      ( 420.316 2.11951 -0.00231794 1.23276e-06 -3.18555e-10 + 3.19922e-14 0.0 0.0 );
+
+    // Electrical resistivity (Ohm·m)
+    elec_resistivity	0.24e-6;
+}
+
+gas
+{
+    transportModel  Newtonian;
+
+    nu              1.48e-05;
+
+    rho             1;
+
+    poly_kappa      (0.04 0 0 0 0 0 0 0);
+    poly_cp         (520 0 0 0 0 0 0 0);
+
+    Tsolidus    1.0;
+    Tliquidus   10.0;
+    LatentHeat  1;
+    beta    4.0e-5;
+}
+
+// Surface tension (N/m) for liquid aluminium (approx.)
+sigma            0.9;
+Marangoni_Constant	-5e-4;
+p0	1e5;
+Tvap	3068;
+Mm	0.05;
+LatentHeatVap 7.45e6;
+emS                         0.4;
+emL                         0.1;
+TRef                        TRef [0 0 0 1 0 0 0]   300;
+
+// ************************************************************************* //

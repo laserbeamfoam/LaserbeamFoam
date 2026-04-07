@@ -1,0 +1,108 @@
+# Powder loading with SI units; up is -y, gravity is +y
+
+atom_style		granular
+atom_modify		map	array
+boundary		f	f	f
+newton			off
+
+communicate		single vel yes
+
+units 			si
+
+# Domain: x in [-1.0e-3, 1.0e-3], y in [-1.0e-3, 1.5e-4], z in [-1.0e-3, 5.0e-3]
+region			domain block -1.0e-3 1.0e-3 -1.0e-3 1.5e-4 -1.0e-3 5.0e-3 units box
+
+create_box		1 domain
+
+neighbor		2.0e-4 bin
+neigh_modify	delay 1
+
+### Setup
+
+# Material and Interaction Properties
+fix 		m1 all property/global youngsModulus peratomtype 5e7
+fix 		m2 all property/global poissonsRatio peratomtype 0.45
+fix 		m3 all property/global coefficientRestitution peratomtypepair 1 0.1
+fix 		m4 all property/global coefficientFriction peratomtypepair 1 0.065
+
+# New pair style
+pair_style gran model hertz tangential history #Hertzian without cohesion
+pair_coeff	* *
+
+# Integrator
+fix			integrate all nve/sphere
+
+# Time step (s)
+timestep	5.0e-8
+
+# Thermo: needed for KE-based settling checks
+thermo_style	custom step ke
+
+# Gravity along +y (up direction is -y)
+fix		grav all gravity 9.81 vector 0.0 1.0 0.0
+
+# Particle Insertion: approximate Gaussian radius distribution (mean 5e-5 m, std 1e-5 m)
+fix			pts1 all particletemplate/sphere 15485863 atom_type 1 density constant 2700 radius constant 2.0e-5 volume_limit 1e-18
+fix			pts2 all particletemplate/sphere 15485867 atom_type 1 density constant 2700 radius constant 3.0e-5 volume_limit 1e-18
+fix			pts3 all particletemplate/sphere 32452843 atom_type 1 density constant 2700 radius constant 4.0e-5 volume_limit 1e-18
+fix			pts4 all particletemplate/sphere 32452867 atom_type 1 density constant 2700 radius constant 5.0e-5 volume_limit 1e-18
+fix			pts5 all particletemplate/sphere 49979687 atom_type 1 density constant 2700 radius constant 6.0e-5 volume_limit 1e-18
+fix			pts6 all particletemplate/sphere 49979693 atom_type 1 density constant 2700 radius constant 7.0e-5 volume_limit 1e-18
+fix			pts7 all particletemplate/sphere 67867967 atom_type 1 density constant 2700 radius constant 8.0e-5 volume_limit 1e-18
+
+# Weights approximate a normal distribution (-3..+3 sigma around mean)
+fix 			pdd all particledistribution/discrete 78593 7 pts1 0.004 pts2 0.054 pts3 0.242 pts4 0.400 pts5 0.242 pts6 0.054 pts7 0.004
+
+
+region 			factory block -1.0e-3 1.0e-3 -1.0e-3 0.0 -1.0e-3 5.0e-3 units box
+fix 				ins all insert/rate/region seed 51869 distributiontemplate pdd &
+			nparticles 4000 particlerate 100000 insert_every 20 &
+			overlapcheck yes vel constant 0. 0. 0.0 region factory ntry_mc 40000
+				
+			
+# Boundary (primitive planes, no STL overlap). Separate fixes because LIGGGHTS 3.8 expects one plane per fix.
+fix wall_xlo all wall/gran model hertz tangential history primitive type 1 xplane -1.0e-3
+fix wall_xhi all wall/gran model hertz tangential history primitive type 1 xplane 1.0e-3
+fix wall_ylo all wall/gran model hertz tangential history primitive type 1 yplane 1.5e-4
+fix wall_yhi all wall/gran model hertz tangential history primitive type 1 yplane -1.0e-3
+fix wall_zlo all wall/gran model hertz tangential history primitive type 1 zplane -1.0e-3
+fix wall_zhi all wall/gran model hertz tangential history primitive type 1 zplane 5.0e-3
+
+variable x1 atom x
+variable y1 atom y
+variable z1 atom z
+
+
+compute 1 all property/atom radius
+variable rad1 atom "c_1"
+
+# Check time step and initialize dump file
+#fix ctg all check/timestep/gran 1 0.01 0.01
+run 1
+#unfix ctg
+
+#insert the first particles so that dump is not empty
+dump		dmp all custom/vtk 7500 post/trial_*.vtk id type type x y z ix iy iz vx vy vz fx fy fz omegax omegay omegaz radius
+dump		mydump all custom 750000 post/location v_x1 v_y1 v_z1 v_rad1
+dump		mydump2 all custom 750000 post/parDist.xls v_rad1
+
+# Settling loop before trimming: run until per-atom KE is small
+label			settle
+run				2000000
+variable		keper equal ke/(atoms+1e-30)
+if "${keper} > 1e-8" then "jump SELF settle"
+
+# Trim everything with center below y=0 after settling
+variable        below0 atom "y < 0.0"
+group           low variable below0
+delete_atoms group low compress yes
+
+compute         2 all reduce sum c_1
+thermo_style    custom step ke c_2
+run             0
+# Post-trim settling: run until motion ceases
+label			settlePost
+run				500000
+variable		keperPost equal ke/(atoms+1e-30)
+if "${keperPost} > 1e-8" then "jump SELF settlePost"
+

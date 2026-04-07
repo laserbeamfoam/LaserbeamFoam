@@ -35,6 +35,43 @@ namespace Foam
     );
 }
 
+namespace
+{
+    void appendPathPoint
+    (
+        Foam::laserRayParticle& ray,
+        const Foam::point& pt,
+        const Foam::scalar segmentPower
+    )
+    {
+        if (ray.path_.empty())
+        {
+            ray.path_.append(pt);
+            return;
+        }
+
+        if (Foam::mag(ray.path_.last() - pt) > Foam::SMALL)
+        {
+            ray.path_.append(pt);
+            ray.segmentPowers_.append(Foam::max(segmentPower, Foam::scalar(0)));
+        }
+    }
+
+
+    void finishRay
+    (
+        Foam::laserRayParticle& ray,
+        Foam::laserRayParticle::trackingData& td
+    )
+    {
+        td.finishedRayIDs_.append(ray.globalRayIndex_);
+        td.finishedRayPaths_.append(ray.path_);
+        td.finishedRaySegmentPowers_.append(ray.segmentPowers_);
+        ray.active_ = false;
+        td.keepParticle = false;
+    }
+}
+
 
 // * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * * //
 
@@ -57,7 +94,8 @@ Foam::laserRayParticle::laserRayParticle
     bounceCount_(0),
     globalRayIndex_(globalRayIndex),
     active_(true),
-    path_()
+    path_(),
+    segmentPowers_()
 {
     path_.append(position);
 }
@@ -79,7 +117,8 @@ Foam::laserRayParticle::laserRayParticle
     bounceCount_(0),
     globalRayIndex_(-1),
     active_(true),
-    path_()
+    path_(),
+    segmentPowers_()
 {
     if (readFields)
     {
@@ -156,11 +195,8 @@ bool Foam::laserRayParticle::move
         // Check if power is exhausted
         if (power_ < td.rayPowerAbsTol_ || power_ < SMALL)
         {
-            path_.append(position());
-            td.finishedRayIDs_.append(globalRayIndex_);
-            td.finishedRayPaths_.append(path_);
-            active_ = false;
-            td.keepParticle = false;
+            appendPathPoint(*this, position(), power_);
+            finishRay(*this, td);
             break;
         }
 
@@ -185,6 +221,8 @@ bool Foam::laserRayParticle::move
                 td.resistivity_[cellI]
             );
 
+            const scalar incidentSegmentPower = power_;
+
             // Deposit absorbed fraction
             td.deposition_[cellI] += absorptivity * power_ / VI[cellI];
 
@@ -205,15 +243,12 @@ bool Foam::laserRayParticle::move
             direction_ /= mag(direction_) + VSMALL;
 
             bounceCount_++;
-            path_.append(position());
+            appendPathPoint(*this, position(), incidentSegmentPower);
 
             // If power is now below tolerance, kill the ray
             if (power_ < td.rayPowerAbsTol_)
             {
-                td.finishedRayIDs_.append(globalRayIndex_);
-                td.finishedRayPaths_.append(path_);
-                active_ = false;
-                td.keepParticle = false;
+                finishRay(*this, td);
                 break;
             }
         }
@@ -223,13 +258,11 @@ bool Foam::laserRayParticle::move
             // Bulk metal - full absorption, ray dies
             // ================================================
 
+            const scalar incidentSegmentPower = power_;
             td.deposition_[cellI] += power_ / VI[cellI];
             power_ = 0.0;
-            path_.append(position());
-            td.finishedRayIDs_.append(globalRayIndex_);
-            td.finishedRayPaths_.append(path_);
-            active_ = false;
-            td.keepParticle = false;
+            appendPathPoint(*this, position(), incidentSegmentPower);
+            finishRay(*this, td);
             break;
         }
 
@@ -258,9 +291,13 @@ bool Foam::laserRayParticle::hitPatch
     trackingData& td
 )
 {
-    // Return false: not handled here, proceed to specific patch handler
-    // (hitProcessorPatch, hitWallPatch, etc.)
-    return false;
+    // Generic patch boundaries (eg atmosphere / side patches) are not
+    // handled by the base particle class beyond deleting the particle.
+    // Finalise the path here so exiting rays still appear in the VTK output.
+    appendPathPoint(*this, position(), power_);
+    finishRay(*this, td);
+
+    return true;
 }
 
 
@@ -273,9 +310,10 @@ void Foam::laserRayParticle::hitProcessorPatch
     // Store the path segment accumulated so far BEFORE the particle
     // is serialized and transferred (path_ is not serialized, so it
     // would be lost). Append current position as the end of this segment.
-    path_.append(position());
+    appendPathPoint(*this, position(), power_);
     td.finishedRayIDs_.append(globalRayIndex_);
     td.finishedRayPaths_.append(path_);
+    td.finishedRaySegmentPowers_.append(segmentPowers_);
 
     // The Cloud infrastructure will automatically transfer this
     // particle to the neighbouring processor. We just need to flag
@@ -293,6 +331,7 @@ void Foam::laserRayParticle::hitWallPatch
     // Wall boundary - absorb remaining power into the boundary cell
     // (or simply kill the ray if the wall is outside the material)
     const label cellI = cell();
+    const scalar incidentSegmentPower = power_;
 
     if (cellI >= 0 && power_ > SMALL)
     {
@@ -301,11 +340,8 @@ void Foam::laserRayParticle::hitWallPatch
         power_ = 0.0;
     }
 
-    path_.append(position());
-    td.finishedRayIDs_.append(globalRayIndex_);
-    td.finishedRayPaths_.append(path_);
-    active_ = false;
-    td.keepParticle = false;
+    appendPathPoint(*this, position(), incidentSegmentPower);
+    finishRay(*this, td);
 }
 
 

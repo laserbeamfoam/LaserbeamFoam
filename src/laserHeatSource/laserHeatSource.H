@@ -50,6 +50,7 @@ SourceFiles
 #include "OFstream.H"
 #include "Cloud.H"
 #include "laserRayParticle.H"
+#include "HeatSourceProfiles.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -98,14 +99,26 @@ class laserHeatSource
         //- Copy of the laser dicts
         PtrList<dictionary> laserDicts_;
 
+        //- Heat source profile sets per laser
+        PtrList<HeatSourceProfileSet> profileSets_;
+
         //- List of the time vs laser position interpolation series
         PtrList<interpolationTable<vector>> timeVsLaserPosition_;
 
         //- List of the time vs laser power interpolation series
         PtrList<interpolationTable<scalar>> timeVsLaserPower_;
 
+        //- Moving-frame toggle per laser
+        List<Switch> movingFrame_;
+
+        //- Fixed deposition position per laser when moving-frame is enabled
+        List<vector> fixedLaserPositions_;
+
         //- Record the ray paths for each laser
         List<List<DynamicList<point>>> rayPaths_;
+
+        //- Record the power carried along each stored ray segment
+        List<List<DynamicList<scalar>>> raySegmentPowers_;
 
         //- Record of times when VTK files were written
         HashSet<scalar> vtkTimes_;
@@ -131,10 +144,27 @@ class laserHeatSource
             const label nRadial,
             const label nAngular,
             const vector& V_incident,
+            const Switch radialPolarHeatSource,
             const scalar Radius_Flavour,
+            const scalar perturbationFraction,
             const scalar Q_cond,
             const scalar beam_radius,
             label& nTotalRays
+        ) const;
+
+        //- Seed the ray cloud for a single explicit profile sampling spec.
+        void seedProfileRayCloud
+        (
+            Cloud<laserRayParticle>& cloud,
+            const fvMesh& mesh,
+            const vector& currentLaserPosition,
+            const HeatSourceProfile& profile,
+            const vector& V_incident,
+            const scalar perturbationFraction,
+            const scalar allocatedPower,
+            const label rayIndexOffset,
+            const label maxLocalSearch,
+            label& nProfileRays
         ) const;
 
         //- Disallow default bitwise copy construct
@@ -185,6 +215,12 @@ public:
             return radialPolarHeatSource_;
         }
 
+        //- Return the current moving-frame velocity, or zero if disabled
+        vector materialVelocity() const;
+
+        //- Return the moving-frame velocity at a given time
+        vector materialVelocity(const scalar time) const;
+
         //- Update the deposition field for all lasers
         //  The function takes three arguments
         //  The filtered volume of metal field  (alphaFiltered), the normal
@@ -214,6 +250,7 @@ public:
             const scalar e_num_density,
             const scalar dep_cutoff,
             const scalar Radius_Flavour,
+            const scalar perturbationFraction,
             const Switch useLocalSearch,
             const label maxLocalSearch,
             const scalar rayPowerRelTol,
@@ -230,6 +267,7 @@ public:
         void writeRayPathsToVTK
         (
             const List<DynamicList<point>>& rays,
+            const List<DynamicList<scalar>>& segmentPowers,
             const fileName& filename
         );
 

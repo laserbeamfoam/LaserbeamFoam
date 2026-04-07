@@ -1,0 +1,53 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dynamicMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dynamicFvMesh   dynamicRefineFvMesh;
+
+// Update refinement every time step for this short diagnostic case.
+refineInterval  1;
+
+// Solver-side refineFlag excludes rayQ so refinement tracks the melt/interface.
+field           refineFlag;
+lowerRefineLevel 0.5;
+upperRefineLevel 1.5;
+
+// Keep refined beam cells instead of oscillating between levels.
+unrefineLevel   -1;
+
+nBufferLayers   2;
+
+// One level beyond the other beam-profile gallery cases.
+maxRefinement   3;
+
+maxCells        20000000;
+
+correctFluxes
+(
+    (phi none)
+    (nHatf none)
+    (rhoPhi none)
+    (alphaPhi0.metal none)
+    (ghf none)
+    (alphaPhiUn none)
+    (rhophicp none)
+    (dVf_ none)
+    (alphaPhi_ none)
+);
+
+dumpLevel       true;
+
+
+// ************************************************************************* //

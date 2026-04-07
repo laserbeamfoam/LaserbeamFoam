@@ -34,6 +34,27 @@ volVectorField U
 Info<< "Constructing multiphaseMixtureThermo\n" << endl;
 multiphaseMixtureThermo mixture(U, phi);
 
+IOdictionary thermophysicalProperties
+(
+    IOobject
+    (
+        "thermophysicalProperties",
+        runTime.constant(),
+        mesh,
+        IOobject::MUST_READ_IF_MODIFIED,
+        IOobject::NO_WRITE
+    )
+);
+
+typedef HashTable
+<
+    scalar,
+    multiphaseMixtureThermo::interfacePair,
+    multiphaseMixtureThermo::interfacePair::hash
+> boilTable;
+
+const boilTable boils(thermophysicalProperties.lookup("boils"));
+
 volScalarField rho
 (
     IOobject
@@ -254,6 +275,20 @@ volScalarField TSolidus
         mesh,
         dimensionedScalar("LatentHeat",dimensionSet(0, 2, -2, 0, 0),2.7e5)
         //(cp*(Temperature-((fluid.Tliquidus()+fluid.Tsolidus())/(scalar(2)))) + delta1*fluid.Latentheat())
+    );
+
+    volScalarField Tvap
+    (
+        IOobject
+        (
+            "Tvap",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("Tvap",dimensionSet(0, 0, 0, 1, 0),0.0)
     );
 
 
@@ -655,3 +690,59 @@ volScalarField Tcorr
 
 #include "createMRF.H"
 #include "createK.H"
+
+    volScalarField heatingRate
+    (
+        IOobject
+        (
+            "heatingRate",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("heatingRate",dimensionSet(0, 0, -1, 1, 0), 0.0)
+    );
+
+    volScalarField State
+    (
+        IOobject
+        (
+            "State",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("State", dimless, 0.0)
+    );
+
+    volScalarField transitionState
+    (
+        IOobject
+        (
+            "transitionState",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("transitionState", dimless, 0.0)
+    );
+
+    volScalarField refineFlag
+    (
+        IOobject
+        (
+            "refineFlag",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("refineFlag", dimless, 0.0)
+    );

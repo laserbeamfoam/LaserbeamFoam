@@ -1,0 +1,296 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2006
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      alpha.air;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    top
+    {
+	type            alphaContactAngle;
+        thetaProperties
+        (
+        	(metal1vapour metal1) 90 0 0 0
+	(metal1 metal2) 90 0 0 0
+	(metal2vapour metal1) 90 0 0 0
+	(metal1 metal3) 90 0 0 0
+	(metal3vapour metal1) 90 0 0 0
+	(metal1 metal4) 90 0 0 0
+	(metal4vapour metal1) 90 0 0 0
+	(air metal1) 90 0 0 0
+	
+	(metal1vapour metal2) 90 0 0 0
+	(metal1vapour metal2vapour) 90 0 0 0
+	(metal1vapour metal3) 90 0 0 0
+	(metal1vapour metal3vapour) 90 0 0 0
+	(metal1vapour metal4) 90 0 0 0
+	(metal1vapour metal4vapour) 90 0 0 0
+	(metal1vapour air) 90 0 0 0
+	
+	(metal2vapour metal2) 90 0 0 0
+	(metal2 metal3) 90 0 0 0
+	(metal3vapour metal2) 90 0 0 0
+	(metal2 metal4) 90 0 0 0
+	(metal4vapour metal2) 90 0 0 0
+	(air metal2) 90 0 0 0
+	
+	(metal2vapour metal3) 90 0 0 0
+	(metal2vapour metal3vapour) 90 0 0 0
+	(metal2vapour metal4) 90 0 0 0
+	(metal2vapour metal4vapour) 90 0 0 0
+	(metal2vapour air) 90 0 0 0
+	
+	(metal3vapour metal3) 90 0 0 0
+	(metal3 metal4) 90 0 0 0
+	(metal4vapour metal3) 90 0 0 0
+	(air metal3) 90 0 0 0
+	
+	(metal3vapour metal4) 90 0 0 0
+	(metal3vapour metal4vapour) 90 0 0 0
+	(metal3vapour air) 90 0 0 0
+	
+	(metal4vapour metal4) 90 0 0 0
+	(air metal4) 90 0 0 0
+	
+	(metal4vapour air) 90 0 0 0
+        );
+        value           uniform 0;
+    }
+    
+    bottom
+    {
+        type            alphaContactAngle;
+        thetaProperties
+        (
+            
+        	(metal1vapour metal1) 90 0 0 0
+	(metal1 metal2) 90 0 0 0
+	(metal2vapour metal1) 90 0 0 0
+	(metal1 metal3) 90 0 0 0
+	(metal3vapour metal1) 90 0 0 0
+	(metal1 metal4) 90 0 0 0
+	(metal4vapour metal1) 90 0 0 0
+	(air metal1) 90 0 0 0
+	
+	(metal1vapour metal2) 90 0 0 0
+	(metal1vapour metal2vapour) 90 0 0 0
+	(metal1vapour metal3) 90 0 0 0
+	(metal1vapour metal3vapour) 90 0 0 0
+	(metal1vapour metal4) 90 0 0 0
+	(metal1vapour metal4vapour) 90 0 0 0
+	(metal1vapour air) 90 0 0 0
+	
+	(metal2vapour metal2) 90 0 0 0
+	(metal2 metal3) 90 0 0 0
+	(metal3vapour metal2) 90 0 0 0
+	(metal2 metal4) 90 0 0 0
+	(metal4vapour metal2) 90 0 0 0
+	(air metal2) 90 0 0 0
+	
+	(metal2vapour metal3) 90 0 0 0
+	(metal2vapour metal3vapour) 90 0 0 0
+	(metal2vapour metal4) 90 0 0 0
+	(metal2vapour metal4vapour) 90 0 0 0
+	(metal2vapour air) 90 0 0 0
+	
+	(metal3vapour metal3) 90 0 0 0
+	(metal3 metal4) 90 0 0 0
+	(metal4vapour metal3) 90 0 0 0
+	(air metal3) 90 0 0 0
+	
+	(metal3vapour metal4) 90 0 0 0
+	(metal3vapour metal4vapour) 90 0 0 0
+	(metal3vapour air) 90 0 0 0
+	
+	(metal4vapour metal4) 90 0 0 0
+	(air metal4) 90 0 0 0
+	
+	(metal4vapour air) 90 0 0 0
+    	
+        );
+        value           uniform 0;
+    }
+    
+    right
+    {
+        type            alphaContactAngle;
+        thetaProperties
+        (
+        	(metal1vapour metal1) 90 0 0 0
+	(metal1 metal2) 90 0 0 0
+	(metal2vapour metal1) 90 0 0 0
+	(metal1 metal3) 90 0 0 0
+	(metal3vapour metal1) 90 0 0 0
+	(metal1 metal4) 90 0 0 0
+	(metal4vapour metal1) 90 0 0 0
+	(air metal1) 90 0 0 0
+	
+	(metal1vapour metal2) 90 0 0 0
+	(metal1vapour metal2vapour) 90 0 0 0
+	(metal1vapour metal3) 90 0 0 0
+	(metal1vapour metal3vapour) 90 0 0 0
+	(metal1vapour metal4) 90 0 0 0
+	(metal1vapour metal4vapour) 90 0 0 0
+	(metal1vapour air) 90 0 0 0
+	
+	(metal2vapour metal2) 90 0 0 0
+	(metal2 metal3) 90 0 0 0
+	(metal3vapour metal2) 90 0 0 0
+	(metal2 metal4) 90 0 0 0
+	(metal4vapour metal2) 90 0 0 0
+	(air metal2) 90 0 0 0
+	
+	(metal2vapour metal3) 90 0 0 0
+	(metal2vapour metal3vapour) 90 0 0 0
+	(metal2vapour metal4) 90 0 0 0
+	(metal2vapour metal4vapour) 90 0 0 0
+	(metal2vapour air) 90 0 0 0
+	
+	(metal3vapour metal3) 90 0 0 0
+	(metal3 metal4) 90 0 0 0
+	(metal4vapour metal3) 90 0 0 0
+	(air metal3) 90 0 0 0
+	
+	(metal3vapour metal4) 90 0 0 0
+	(metal3vapour metal4vapour) 90 0 0 0
+	(metal3vapour air) 90 0 0 0
+	
+	(metal4vapour metal4) 90 0 0 0
+	(air metal4) 90 0 0 0
+	
+	(metal4vapour air) 90 0 0 0
+        );
+        value           uniform 0;
+    }
+
+    left
+    {
+        type            alphaContactAngle;
+        thetaProperties
+        (
+        	(metal1vapour metal1) 90 0 0 0
+	(metal1 metal2) 90 0 0 0
+	(metal2vapour metal1) 90 0 0 0
+	(metal1 metal3) 90 0 0 0
+	(metal3vapour metal1) 90 0 0 0
+	(metal1 metal4) 90 0 0 0
+	(metal4vapour metal1) 90 0 0 0
+	(air metal1) 90 0 0 0
+	
+	(metal1vapour metal2) 90 0 0 0
+	(metal1vapour metal2vapour) 90 0 0 0
+	(metal1vapour metal3) 90 0 0 0
+	(metal1vapour metal3vapour) 90 0 0 0
+	(metal1vapour metal4) 90 0 0 0
+	(metal1vapour metal4vapour) 90 0 0 0
+	(metal1vapour air) 90 0 0 0
+	
+	(metal2vapour metal2) 90 0 0 0
+	(metal2 metal3) 90 0 0 0
+	(metal3vapour metal2) 90 0 0 0
+	(metal2 metal4) 90 0 0 0
+	(metal4vapour metal2) 90 0 0 0
+	(air metal2) 90 0 0 0
+	
+	(metal2vapour metal3) 90 0 0 0
+	(metal2vapour metal3vapour) 90 0 0 0
+	(metal2vapour metal4) 90 0 0 0
+	(metal2vapour metal4vapour) 90 0 0 0
+	(metal2vapour air) 90 0 0 0
+	
+	(metal3vapour metal3) 90 0 0 0
+	(metal3 metal4) 90 0 0 0
+	(metal4vapour metal3) 90 0 0 0
+	(air metal3) 90 0 0 0
+	
+	(metal3vapour metal4) 90 0 0 0
+	(metal3vapour metal4vapour) 90 0 0 0
+	(metal3vapour air) 90 0 0 0
+	
+	(metal4vapour metal4) 90 0 0 0
+	(air metal4) 90 0 0 0
+	
+	(metal4vapour air) 90 0 0 0
+        );
+        value           uniform 0;
+    }
+    
+    front
+    {
+        type            alphaContactAngle;
+        thetaProperties
+        (
+        	(metal1vapour metal1) 90 0 0 0
+	(metal1 metal2) 90 0 0 0
+	(metal2vapour metal1) 90 0 0 0
+	(metal1 metal3) 90 0 0 0
+	(metal3vapour metal1) 90 0 0 0
+	(metal1 metal4) 90 0 0 0
+	(metal4vapour metal1) 90 0 0 0
+	(air metal1) 90 0 0 0
+	
+	(metal1vapour metal2) 90 0 0 0
+	(metal1vapour metal2vapour) 90 0 0 0
+	(metal1vapour metal3) 90 0 0 0
+	(metal1vapour metal3vapour) 90 0 0 0
+	(metal1vapour metal4) 90 0 0 0
+	(metal1vapour metal4vapour) 90 0 0 0
+	(metal1vapour air) 90 0 0 0
+	
+	(metal2vapour metal2) 90 0 0 0
+	(metal2 metal3) 90 0 0 0
+	(metal3vapour metal2) 90 0 0 0
+	(metal2 metal4) 90 0 0 0
+	(metal4vapour metal2) 90 0 0 0
+	(air metal2) 90 0 0 0
+	
+	(metal2vapour metal3) 90 0 0 0
+	(metal2vapour metal3vapour) 90 0 0 0
+	(metal2vapour metal4) 90 0 0 0
+	(metal2vapour metal4vapour) 90 0 0 0
+	(metal2vapour air) 90 0 0 0
+	
+	(metal3vapour metal3) 90 0 0 0
+	(metal3 metal4) 90 0 0 0
+	(metal4vapour metal3) 90 0 0 0
+	(air metal3) 90 0 0 0
+	
+	(metal3vapour metal4) 90 0 0 0
+	(metal3vapour metal4vapour) 90 0 0 0
+	(metal3vapour air) 90 0 0 0
+	
+	(metal4vapour metal4) 90 0 0 0
+	(air metal4) 90 0 0 0
+	
+	(metal4vapour air) 90 0 0 0
+        );
+        value           uniform 0;
+    }
+    
+    back
+    {
+    
+        type            fixedValue;
+        value           uniform 1;
+        
+        
+    }
+    
+}
+
+// ************************************************************************* //

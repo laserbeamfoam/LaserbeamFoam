@@ -48,6 +48,13 @@ if (damperSwitch)
 pVap = 0.54*p0*Foam::exp(LatentHeatVap*Mm*((T - Tvap)/(R*T*Tvap)));
 pVap.correctBoundaryConditions();  // ADDED
 
+const dimensionedVector materialVelocity
+(
+    "materialVelocity",
+    dimVelocity,
+    laser.materialVelocity()
+);
+const volVectorField materialVelocityInMetal(alpha1*materialVelocity);
 
     fvVectorMatrix UEqn
     (
@@ -55,6 +62,7 @@ pVap.correctBoundaryConditions();  // ADDED
       + MRF.DDt(rho, U)
       + turbulence->divDevRhoReff(rho, U)
       + fvm::Sp(DC, U)
+      - DC*materialVelocityInMetal
       - Marangoni*damper
      ==
         fvOptions(rho, U)

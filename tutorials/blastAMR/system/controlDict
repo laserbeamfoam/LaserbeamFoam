@@ -1,0 +1,71 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  v2006
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+libs
+(
+    libamrDynamicFvMesh.so
+    libamrIndicators.so
+    libamrDynamicMesh.so
+);
+
+application		ultraLaserbeamFoam;
+
+startFrom       latestTime;
+
+startTime       0;
+
+stopAt          endTime;
+
+endTime         1000e-9;
+
+deltaT          1e-10; // Pre 25ns deltaT 1e-11
+
+writeControl    adjustableRunTime;
+
+writeInterval   1e-9;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  6;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable yes;
+
+adjustTimeStep  yes;
+
+maxCo           0.1;   // Pre 25ns maxCo 0.3
+maxAlphaCo      0.1;   // Pre 25ns maxAlphaCo 0.3
+maxDeltaT       1e-10; // Pre 25ns MaxDeltaT 1e-11
+
+
+// ************************************************************************* //
+
+
+
+
+
+
+
+
+

@@ -41,8 +41,15 @@ lasers
         wavelength      1.064e-6;
         e_num_density   5.83e29;
 
-        // Laser profile type (defaults to 2)
-        //Radius_Flavour 2.0;
+        profiles
+        {
+            core
+            {
+                type    superGaussian;
+                radius  55e-6;
+                order   2.0;
+            }
+        }
     }
 
     laser1
@@ -69,8 +76,16 @@ lasers
         wavelength      1.064e-6;
         e_num_density   5.83e29;
 
-        // Laser profile type (defaults to 2)
-        //Radius_Flavour 2.0;
+        profiles
+        {
+            ring
+            {
+                type        annular;
+                innerRadius 20e-6;
+                outerRadius 55e-6;
+                falloff     5e-6;
+            }
+        }
     }
         laser2
     {
@@ -96,8 +111,16 @@ lasers
         wavelength      1.064e-6;
         e_num_density   5.83e29;
 
-        // Laser profile type (defaults to 2)
-        //Radius_Flavour 2.0;
+        profiles
+        {
+            rings
+            {
+                type    bessel;
+                radius  35e-6;
+                order   0;
+                cutoff  1e-4;
+            }
+        }
     }
         laser3
     {
@@ -123,8 +146,15 @@ lasers
         wavelength      1.064e-6;
         e_num_density   5.83e29;
 
-        // Laser profile type (defaults to 2)
-        //Radius_Flavour 2.0;
+        profiles
+        {
+            core
+            {
+                type    superGaussian;
+                radius  45e-6;
+                order   4.0;
+            }
+        }
     }
         laser4
     {
@@ -150,7 +180,24 @@ lasers
         wavelength      1.064e-6;
         e_num_density   5.83e29;
 
-        // Laser profile type (defaults to 2)
-        //Radius_Flavour 2.0;
+        profiles
+        {
+            core
+            {
+                type    superGaussian;
+                radius  35e-6;
+                order   2.0;
+                weight  0.6;
+            }
+
+            ring
+            {
+                type        annular;
+                innerRadius 25e-6;
+                outerRadius 55e-6;
+                falloff     5e-6;
+                weight      0.4;
+            }
+        }
     }
 );

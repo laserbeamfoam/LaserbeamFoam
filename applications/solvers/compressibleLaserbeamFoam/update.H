@@ -7,6 +7,7 @@
     TSolidus *= 0.0;
     TLiquidus *= 0.0;
     LatentHeat *= 0.0;
+    Tvap *= 0.0;
 
     // electrical resistivity of condensed mixture/
     electrical_resistivity *= 0.0;
@@ -50,6 +51,26 @@
             readScalar(phasedictionary.lookup("LatentHeat"))
         );
 
+        scalar phaseTvapValue = 1.0e10;
+        if (phase1.isCondensed())
+        {
+            const word vapourName(phase1.name() + "vapour");
+            const auto boilIter =
+                boils.cfind
+                (
+                    multiphaseMixtureThermo::interfacePair
+                    (
+                        phase1.name(),
+                        vapourName
+                    )
+                );
+
+            if (boilIter.found())
+            {
+                phaseTvapValue = boilIter();
+            }
+        }
+
         dimensionedScalar phaseconductivity
         (
             "phaseconductivity",
@@ -68,6 +89,7 @@
         TSolidus += alpha1*phaseTSolidus;
         TLiquidus += alpha1*phaseTLiquidus;
         LatentHeat += alpha1*phaseLH;
+        Tvap += alpha1*phaseTvapValue;
         eleccond += alpha1*phaseconductivity;
         magperm += alpha1*phasepermeability;
 
@@ -111,6 +133,7 @@
     LatentHeat.correctBoundaryConditions();
     TLiquidus.correctBoundaryConditions();
     TSolidus.correctBoundaryConditions();
+    Tvap.correctBoundaryConditions();
 
 
     // Update the cell size fields

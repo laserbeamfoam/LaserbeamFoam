@@ -1,0 +1,71 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  10
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      LaserProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Single laser with Cailabs ring-core CSV beam profile
+// 10mm straight weld at constant velocity
+// Experimental beam profile from FocusMonitor data
+// Shipped dataset is 151x191 samples on a 2.55um x 3.325um grid
+
+lasers
+(
+    laser0
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition0";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower0";
+            outOfBounds clamp;
+        }
+        
+        // Laser beam parameters
+        V_incident                      (0 1 0);
+        laserRadius                     0.0005;    // Ray tracing region radius (m) - 0.5mm
+        wavelength                      1030e-9;   // Wavelength (m) - typical fiber laser
+        e_num_density                   10;        // Number density for ray tracing
+        
+        // Beam profile: CSV from FocusMonitor experimental data
+        profiles
+        {
+            referenceBeam
+            {
+                type        csv;
+                file        "$FOAM_CASE/constant/intensity_ReferenceBeam.csv";
+                nx          151;
+                nz          191;
+                dx          2.550000e-06;  // 2.55 microns
+                dy          3.325000e-06;  // 3.325 microns
+
+                sampling
+                {
+                    type        cartesian;
+                    halfWidthX  1.9125e-4;
+                    halfWidthZ  3.15875e-4;
+                    nCartesianX 151;
+                    nCartesianZ 191;
+                }
+            }
+        }
+        
+        // Ray tracing settings
+        useLocalSearch                  false;
+        Radius_Flavour                  1;
+    }
+);

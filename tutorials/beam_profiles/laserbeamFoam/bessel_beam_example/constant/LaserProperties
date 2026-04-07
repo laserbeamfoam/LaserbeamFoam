@@ -1,0 +1,250 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  10
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      LaserProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+lasers
+(
+    laser0
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition0";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower0";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     0.9e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            centerSpot
+            {
+                type        bessel;
+                firstZeroRadius 0.55e-3;
+                supportRadius   1.65e-3;
+                order       0;
+                cutoff      0.20;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   1.65e-3;
+                    nRadial  120;
+                    nAngular 240;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser1
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition1";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower1";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     0.9e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            donut
+            {
+                type        bessel;
+                firstZeroRadius 0.90e-3;
+                supportRadius   1.80e-3;
+                order       1;
+                cutoff      0.20;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   1.8e-3;
+                    nRadial  120;
+                    nAngular 240;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser2
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition2";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower2";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     0.9e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            doubleRing
+            {
+                type        bessel;
+                firstZeroRadius 1.20e-3;
+                supportRadius   1.95e-3;
+                order       2;
+                cutoff      0.20;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   1.95e-3;
+                    nRadial  120;
+                    nAngular 240;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser3
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition3";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower3";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     0.9e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            besselComponent
+            {
+                type        bessel;
+                firstZeroRadius 0.95e-3;
+                supportRadius   1.85e-3;
+                order       1;
+                cutoff      0.20;
+                weight      0.70;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   1.85e-3;
+                    nRadial  120;
+                    nAngular 240;
+                }
+            }
+            
+            gaussianEnvelope
+            {
+                type        superGaussian;
+                radius      0.75e-3;
+                order       4.0;
+                cutoff      1e-3;
+                weight      0.30;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   1.22e-3;
+                    nRadial  120;
+                    nAngular 240;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser4
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition4";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower4";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     0.9e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            gaussianReference
+            {
+                type        superGaussian;
+                radius      0.72e-3;
+                order       6.0;
+                cutoff      1e-4;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   1.04e-3;
+                    nRadial  120;
+                    nAngular 240;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+);

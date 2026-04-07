@@ -1,0 +1,233 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+phases (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal4vapour air);
+
+pMin            1000;
+
+P0	1e5;
+interface_thickness	1e-5;
+
+
+sigmas
+(
+
+	(metal1vapour metal1)	1.0
+	(metal1 metal2)	0.0
+	(metal2vapour metal1)	1.0
+	(metal1 metal3)	0.0
+	(metal3vapour metal1)	1.0
+	(metal1 metal4)	0.0
+	(metal4vapour metal1)	1.0
+	(air metal1)	1.0
+	
+	(metal1vapour metal2)	1.0
+	(metal1vapour metal2vapour)	0.0
+	(metal1vapour metal3)	1.0
+	(metal1vapour metal3vapour)	0.0
+	(metal1vapour metal4)	1.0
+	(metal1vapour metal4vapour)	0.0
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	1.0
+	(metal2 metal3)	0.0
+	(metal3vapour metal2)	1.0
+	(metal2 metal4)	0.0
+	(metal4vapour metal2)	1.0
+	(air metal2)	1.0
+	
+	(metal2vapour metal3)	1.0
+	(metal2vapour metal3vapour)	0.0
+	(metal2vapour metal4)	1.0
+	(metal2vapour metal4vapour)	0.0
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	1.0
+	(metal3 metal4)	0.0
+	(metal4vapour metal3)	1.0
+	(air metal3)	1.0
+	
+	(metal3vapour metal4)	1.0
+	(metal3vapour metal4vapour)	0.0
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	1.0
+	(air metal4)	1.0
+	
+	(metal4vapour air)	0.0
+	
+);
+
+dsigmadT
+(
+	(metal1vapour metal1)	-1.0e-4
+	(metal1 metal2)	0.0
+	(metal2vapour metal1)	-1.0e-4
+	(metal1 metal3)	0.0
+	(metal3vapour metal1)	-1.0e-4
+	(metal1 metal4)	0.0
+	(metal4vapour metal1)	-1.0e-4
+	(air metal1)	-1.0e-4
+	
+	(metal1vapour metal2)	-1.0e-4
+	(metal1vapour metal2vapour)	0.0
+	(metal1vapour metal3)	-1.0e-4
+	(metal1vapour metal3vapour)	0.0
+	(metal1vapour metal4)	-1.0e-4
+	(metal1vapour metal4vapour)	0.0
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	-1.0e-4
+	(metal2 metal3)	0.0
+	(metal3vapour metal2)	-1.0e-4
+	(metal2 metal4)	0.0
+	(metal4vapour metal2)	-1.0e-4
+	(air metal2)	-1.0e-4
+	
+	(metal2vapour metal3)	-1.0e-4
+	(metal2vapour metal3vapour)	0.0
+	(metal2vapour metal4)	-1.0e-4
+	(metal2vapour metal4vapour)	0.0
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	-1.0e-4
+	(metal3 metal4)	0.0
+	(metal4vapour metal3)	-1.0e-4
+	(air metal3)	-1.0e-4
+	
+	(metal3vapour metal4)	-1.0e-4
+	(metal3vapour metal4vapour)	0.0
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	-1.0e-4
+	(air metal4)	-1.0e-4
+	
+	(metal4vapour air)	0.0
+);
+
+boils
+(
+(metal1vapour metal1) 2900.0
+(metal2vapour metal2) 3000.0
+(metal3vapour metal3) 3100.0
+(metal4vapour metal4) 3200.0
+);
+
+LatentHeatGas
+(
+(metal1vapour metal1) 1.0e6
+(metal2vapour metal2) 1.0e6
+(metal3vapour metal3) 1.0e6
+(metal4vapour metal4) 1.0e6
+);
+
+interfaceCompression
+(
+	(metal1vapour metal1)	1.0
+	(metal1 metal2)	0.0
+	(metal2vapour metal1)	1.0
+	(metal1 metal3)	0.0
+	(metal3vapour metal1)	1.0
+	(metal1 metal4)	0.0
+	(metal4vapour metal1)	1.0
+	(air metal1)	1.0
+	
+	(metal1vapour metal2)	1.0
+	(metal1vapour metal2vapour)	0.0
+	(metal1vapour metal3)	1.0
+	(metal1vapour metal3vapour)	0.0
+	(metal1vapour metal4)	1.0
+	(metal1vapour metal4vapour)	0.0
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	1.0
+	(metal2 metal3)	0.0
+	(metal3vapour metal2)	1.0
+	(metal2 metal4)	0.0
+	(metal4vapour metal2)	1.0
+	(air metal2)	1.0
+	
+	(metal2vapour metal3)	1.0
+	(metal2vapour metal3vapour)	0.0
+	(metal2vapour metal4)	1.0
+	(metal2vapour metal4vapour)	0.0
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	1.0
+	(metal3 metal4)	0.0
+	(metal4vapour metal3)	1.0
+	(air metal3)	1.0
+	
+	(metal3vapour metal4)	1.0
+	(metal3vapour metal4vapour)	0.0
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	1.0
+	(air metal4)	1.0
+	
+	(metal4vapour air)	0.0
+);
+
+interfaceDiffusion
+(
+	(metal1vapour metal1)	0.0
+	(metal1 metal2)	1e-9
+	(metal2vapour metal1)	0.0
+	(metal1 metal3)	1e-9
+	(metal3vapour metal1)	0.0
+	(metal1 metal4)	1e-9
+	(metal4vapour metal1)	0.0
+	(air metal1)	0.0
+	
+	(metal1vapour metal2)	0.0
+	(metal1vapour metal2vapour)	1e-6
+	(metal1vapour metal3)	0.0
+	(metal1vapour metal3vapour)	1e-6
+	(metal1vapour metal4)	0.0
+	(metal1vapour metal4vapour)	1e-6
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	0.0
+	(metal2 metal3)	1e-9
+	(metal3vapour metal2)	0.0
+	(metal2 metal4)	1e-9
+	(metal4vapour metal2)	0.0
+	(air metal2)	0.0
+	
+	(metal2vapour metal3)	0.0
+	(metal2vapour metal3vapour)	1e-6
+	(metal2vapour metal4)	0.0
+	(metal2vapour metal4vapour)	1e-6
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	0.0
+	(metal3 metal4)	1e-9
+	(metal4vapour metal3)	0.0
+	(air metal3)	0.0
+	
+	(metal3vapour metal4)	0.0
+	(metal3vapour metal4vapour)	1e-6
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	0.0
+	(air metal4)	0.0
+	
+	(metal4vapour air)	0.0
+);
+
+
+// ************************************************************************* //

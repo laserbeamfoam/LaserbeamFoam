@@ -1,0 +1,6 @@
+#!/bin/sh
+
+liggghts < input.liggghts
+# mpirun -np 20 lmp_auto < input.liggghts
+
+# cp /post/location ../constant

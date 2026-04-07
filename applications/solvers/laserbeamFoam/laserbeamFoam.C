@@ -65,6 +65,7 @@ Authors
 
 #include "Polynomial.H"
 #include "laserHeatSource.H"
+#include "updateRefineFlag.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -90,6 +91,65 @@ int main(int argc, char *argv[])
     #include "MULES/createAlphaFluxes.H"
     #include "initCorrectPhi.H"
     #include "createUfIfPresent.H"
+
+    if (isA<dynamicRefineFvMesh>(mesh))
+    {
+        #include "cellMasks.H"
+        Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+
+        if (interfaceTrackingScheme == "isoAdvector")
+        {
+            advector.surf().reconstruct();
+        }
+
+        mesh.update();
+
+        if (mesh.changing())
+        {
+            if (interfaceTrackingScheme == "MULES")
+            {
+                if (mesh.topoChanging())
+                {
+                    talphaPhi1Corr0.clear();
+                }
+            }
+            else if (interfaceTrackingScheme == "isoAdvector")
+            {
+                advector.surf().mapAlphaField();
+                alpha2 = 1.0 - alpha1;
+                alpha2.correctBoundaryConditions();
+                rho == alpha1*rho1 + alpha2*rho2;
+                rho.correctBoundaryConditions();
+                rho.oldTime() = rho;
+                alpha2.oldTime() = alpha2;
+            }
+
+            gh = (g & mesh.C()) - ghRef;
+            ghf = (g & mesh.Cf()) - ghRef;
+
+            MRF.update();
+
+            if (correctPhi)
+            {
+                phi = mesh.Sf() & Uf();
+
+                #include "correctPhi.esi.H"
+
+                fvc::makeRelative(phi, U);
+
+                mixture.correct();
+            }
+
+            if (checkMeshCourantNo)
+            {
+                #include "meshCourantNo.H"
+            }
+        }
+
+        #include "updateProps.H"
+        #include "cellMasks.H"
+        Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+    }
 
     if (interfaceTrackingScheme == "MULES")
     {
@@ -137,6 +197,9 @@ int main(int argc, char *argv[])
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
+        #include "cellMasks.H"
+        Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
         {
@@ -155,6 +218,8 @@ int main(int argc, char *argv[])
             }
 
             #include "updateProps.H"
+            #include "cellMasks.H"
+            Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
 
             // Update the laser deposition field
             laser.updateDeposition
@@ -171,6 +236,11 @@ int main(int argc, char *argv[])
 
             #include "UEqn.H"
             #include "TEqn.H"
+
+            heatingRate = fvc::ddt(T);
+            heatingRate.correctBoundaryConditions();
+            #include "cellMasks.H"
+            Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
 
             // --- Pressure corrector loop
             while (pimple.correct())

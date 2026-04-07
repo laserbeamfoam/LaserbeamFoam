@@ -46,7 +46,9 @@ void laserHeatSource::seedRayCloud
     const label nRadial,
     const label nAngular,
     const vector& V_incident,
+    const Switch radialPolarHeatSource,
     const scalar Radius_Flavour,
+    const scalar perturbationFraction,
     const scalar Q_cond,
     const scalar beam_radius,
     label& nTotalRays
@@ -61,17 +63,13 @@ void laserHeatSource::seedRayCloud
 
     const scalarField& yDimI = yDim_;
     const scalar pi = constant::mathematical::pi;
-
-    // -- Build global list of ray positions and powers --
+    const scalar sampleRadius = 1.5*beam_radius;
 
     DynamicList<vector> initial_points;
     DynamicList<scalar> point_assoc_power;
 
-    // All seed points will be perturbed by a small amount to avoid landing
-    // exactly on a face
-    // The magnitude of the perturbation is calculated as a small fraction of
-    // the smallest cell dimension, as opposed to an absolute value, and we take
-    // care to perturb in the ray direction and transverse to the ray direction
+    // The ray seed point perturbation is user-controlled and expressed as a
+    // fraction of the smallest cell length scale.
 
     // Ray direction
     const vector d = V_incident/(mag(V_incident) + VSMALL);
@@ -84,21 +82,20 @@ void laserHeatSource::seedRayCloud
     vector t = d ^ a;
     t /= (mag(t) + VSMALL);
 
-    // Minimum length scale
     const scalar lCell = cbrt(gMin(mesh.V()));
-    const scalar eps = sqrt(SMALL)*lCell;
-
-    // Safe perturbation in the ray direction and transverse ray direction
-    const vector perturbation = eps*(d + t);
-    Info<< "    Perturbation vector for ray seed points = " << perturbation
+    const scalar perturbationScale =
+        max(perturbationFraction, scalar(0))*lCell;
+    const vector perturbation = perturbationScale*(d + t);
+    Info<< "    Perturbation fraction = " << perturbationFraction << nl
+        << "    Perturbation vector for ray seed points = " << perturbation
         << endl;
 
-    if (radialPolarHeatSource())
+    if (radialPolarHeatSource)
     {
         Info<< "nRadial: " << nRadial << nl
             << "nAngular: " << nAngular << endl;
 
-        const scalar rMax = 1.5*beam_radius;
+        const scalar rMax = sampleRadius;
 
         // ================================================================
         // Improved radial discretisation for smoother Gaussian
@@ -116,7 +113,9 @@ void laserHeatSource::seedRayCloud
             radialBoundaries[iR] = rMax * scalar(iR) / scalar(nRadial);
         }
 
-        // Compute sample points (area-weighted centroid of each annulus)
+        // Compute sample points (area-weighted centroid of each annulus).
+        // The innermost disc is handled separately with a single ray on the
+        // beam axis so the centreline is always explicitly sampled.
         // For an annulus from r1 to r2, the centroid is at:
         //   r_centroid = (2/3) * (r2^3 - r1^3) / (r2^2 - r1^2)
         List<scalar> radialPoints(nRadial);
@@ -133,8 +132,8 @@ void laserHeatSource::seedRayCloud
             // Area-weighted centroid for sample position
             if (r_inner < SMALL)
             {
-                // Central disc: centroid at 2/3 * r_outer
-                radialPoints[iR] = (2.0/3.0) * r_outer;
+                // Central disc is seeded by a dedicated axis ray.
+                radialPoints[iR] = 0.0;
             }
             else
             {
@@ -146,7 +145,10 @@ void laserHeatSource::seedRayCloud
             }
         }
 
-        const label totalSamples = nRadial * nAngular;
+        const label totalSamples =
+            nRadial > 0
+          ? 1 + (nRadial - 1) * nAngular
+          : 0;
         const label samplesPerProc = totalSamples/Pstream::nProcs();
         const label remainder = totalSamples % Pstream::nProcs();
         const label myRank = Pstream::myProcNo();
@@ -174,23 +176,36 @@ void laserHeatSource::seedRayCloud
         for (label localIdx = 0; localIdx < localSamples; ++localIdx)
         {
             const label globalIdx = startIdx + localIdx;
-            const label iTheta = globalIdx/nRadial;
-            const label iR = globalIdx % nRadial;
+            label iR = 0;
+            scalar theta = 0.0;
+            scalar r = 0.0;
+            scalar area = 0.0;
 
-            const scalar theta = 2.0*pi*iTheta/nAngular;
-            const scalar r = radialPoints[iR];
+            if (globalIdx == 0)
+            {
+                // Single on-axis sample representing the full inner disc.
+                iR = 0;
+                r = 0.0;
+                area = annulusAreas[0];
+            }
+            else
+            {
+                const label shiftedIdx = globalIdx - 1;
+                const label ringCount = nRadial - 1;
+                const label iTheta = shiftedIdx/ringCount;
+                iR = 1 + shiftedIdx % ringCount;
+                theta = 2.0*pi*iTheta/nAngular;
+                r = radialPoints[iR];
 
-            // Area element for this ray (annulus sector)
-            const scalar area = annulusAreas[iR] / scalar(nAngular);
+                // Area element for this ray (annulus sector)
+                area = annulusAreas[iR] / scalar(nAngular);
+            }
 
             const scalar x_local = r*cos(theta);
-            const scalar y_local = r*sin(theta);
-
-            const vector globalPos = P0 + x_local*u + y_local*v;
+            const scalar z_local = r*sin(theta);
+            const vector globalPos = P0 + x_local*u + z_local*v;
 
             initial_points.append(globalPos + perturbation);
-
-            // Gaussian power distribution using the sample point radius
             point_assoc_power.append
             (
                 area
@@ -224,7 +239,7 @@ void laserHeatSource::seedRayCloud
 
             if
             (
-                r <= (1.5*beam_radius)
+                r <= sampleRadius
              && laserBoundary_[celli] > SMALL
             )
             {
@@ -243,9 +258,7 @@ void laserHeatSource::seedRayCloud
                           + ((yDimI[celli]/(N_sub_divisions+1))*(Ray_k+1))
                         );
 
-                        // Perturb the point
                         p_1 += perturbation;
-
                         initial_points.append(p_1);
 
                         point_assoc_power.append
@@ -270,8 +283,6 @@ void laserHeatSource::seedRayCloud
         }
     }
 
-    // List with size equal to number of processors
-    // Gather all initial points/powers to all processors
     List<pointField> gatheredData(Pstream::nProcs());
     List<scalarField> gatheredPowers(Pstream::nProcs());
 
@@ -344,6 +355,344 @@ void laserHeatSource::seedRayCloud
 
     Info<< "    Total rays: " << nTotalRays
         << ", local particles: " << cloud.size() << endl;
+}
+
+
+void laserHeatSource::seedProfileRayCloud
+(
+    Cloud<laserRayParticle>& cloud,
+    const fvMesh& mesh,
+    const vector& currentLaserPosition,
+    const HeatSourceProfile& profile,
+    const vector& V_incident,
+    const scalar perturbationFraction,
+    const scalar allocatedPower,
+    const label rayIndexOffset,
+    const label maxLocalSearch,
+    label& nProfileRays
+) const
+{
+    const HeatSourceProfileSampling& sampling = profile.sampling();
+    DynamicList<vector> initialPoints;
+    DynamicList<vector> localPositions;
+    DynamicList<scalar> localAreas;
+
+    const vector d = V_incident/(mag(V_incident) + VSMALL);
+    const vector a =
+        (mag(d & vector(1,0,0)) < 0.9) ? vector(1,0,0) : vector(0,0,1);
+    vector t = d ^ a;
+    t /= (mag(t) + VSMALL);
+
+    const scalar lCell = cbrt(gMin(mesh.V()));
+    const scalar perturbationScale =
+        max(perturbationFraction, scalar(0))*lCell;
+    const vector perturbation = perturbationScale*(d + t);
+
+    const point P0
+    (
+        currentLaserPosition.x(),
+        currentLaserPosition.y(),
+        currentLaserPosition.z()
+    );
+
+    const vector V_i(V_incident/(mag(V_incident) + SMALL));
+    const vector ref =
+        (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
+    vector u = (V_i ^ ref);
+    u = u/mag(u);
+    const vector v = (V_i ^ u);
+
+    if (sampling.type() == SamplingStrategy::RADIAL_POLAR)
+    {
+        const scalar pi = constant::mathematical::pi;
+        const scalar rMax = sampling.radius();
+        const label nRadial = sampling.nRadial();
+        const label nAngular = sampling.nAngular();
+
+        Info<< "    sampling.type = radialPolar" << nl
+            << "    nRadial = " << nRadial << nl
+            << "    nAngular = " << nAngular << nl
+            << "    sampling.radius = " << rMax << endl;
+
+        List<scalar> radialBoundaries(nRadial + 1);
+        for (label iR = 0; iR <= nRadial; ++iR)
+        {
+            radialBoundaries[iR] = rMax * scalar(iR) / scalar(nRadial);
+        }
+
+        List<scalar> radialPoints(nRadial);
+        List<scalar> annulusAreas(nRadial);
+
+        for (label iR = 0; iR < nRadial; ++iR)
+        {
+            const scalar r_inner = radialBoundaries[iR];
+            const scalar r_outer = radialBoundaries[iR + 1];
+            annulusAreas[iR] = pi * (sqr(r_outer) - sqr(r_inner));
+
+            if (r_inner < SMALL)
+            {
+                radialPoints[iR] = 0.0;
+            }
+            else
+            {
+                radialPoints[iR] =
+                    (2.0/3.0)
+                   * (pow3(r_outer) - pow3(r_inner))
+                   / (sqr(r_outer) - sqr(r_inner));
+            }
+        }
+
+        const label totalSamples =
+            nRadial > 0
+          ? 1 + (nRadial - 1) * nAngular
+          : 0;
+        const label samplesPerProc = totalSamples/Pstream::nProcs();
+        const label remainder = totalSamples % Pstream::nProcs();
+        const label myRank = Pstream::myProcNo();
+        const label startIdx =
+            myRank * samplesPerProc + min(myRank, remainder);
+        const label endIdx =
+            startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
+
+        for (label globalIdx = startIdx; globalIdx < endIdx; ++globalIdx)
+        {
+            scalar theta = 0.0;
+            scalar r = 0.0;
+            scalar area = 0.0;
+
+            if (globalIdx == 0)
+            {
+                area = annulusAreas[0];
+            }
+            else
+            {
+                const label shiftedIdx = globalIdx - 1;
+                const label ringCount = nRadial - 1;
+                const label iTheta = shiftedIdx/ringCount;
+                const label iR = 1 + shiftedIdx % ringCount;
+                theta = 2.0*pi*iTheta/nAngular;
+                r = radialPoints[iR];
+                area = annulusAreas[iR] / scalar(nAngular);
+            }
+
+            const vector localPosition(r*cos(theta), scalar(0), r*sin(theta));
+            const scalar intensity =
+                profile.evaluate(localPosition, Foam::sqrt(max(area, SMALL)));
+
+            if (intensity <= SMALL)
+            {
+                continue;
+            }
+
+            initialPoints.append(P0 + localPosition.x()*u + localPosition.z()*v + perturbation);
+            localPositions.append(localPosition);
+            localAreas.append(area);
+        }
+    }
+    else
+    {
+        const scalar halfWidthX = sampling.halfWidthX();
+        const scalar halfWidthZ = sampling.halfWidthZ();
+        const label nCartesianX = sampling.nCartesianX();
+        const label nCartesianZ = sampling.nCartesianZ();
+        const label totalSamples = nCartesianX*nCartesianZ;
+        const label samplesPerProc = totalSamples/Pstream::nProcs();
+        const label remainder = totalSamples % Pstream::nProcs();
+        const label myRank = Pstream::myProcNo();
+        const label startIdx =
+            myRank * samplesPerProc + min(myRank, remainder);
+        const label endIdx =
+            startIdx + samplesPerProc + (myRank < remainder ? 1 : 0);
+        const scalar dx = scalar(2)*halfWidthX/scalar(nCartesianX);
+        const scalar dz = scalar(2)*halfWidthZ/scalar(nCartesianZ);
+        const scalar area = dx*dz;
+
+        Info<< "    sampling.type = cartesian" << nl
+            << "    nCartesianX = " << nCartesianX << nl
+            << "    nCartesianZ = " << nCartesianZ << nl
+            << "    halfWidthX = " << halfWidthX << nl
+            << "    halfWidthZ = " << halfWidthZ << endl;
+
+        for (label globalIdx = startIdx; globalIdx < endIdx; ++globalIdx)
+        {
+            const label ix = globalIdx % nCartesianX;
+            const label iz = globalIdx / nCartesianX;
+            const scalar xLocal =
+                -halfWidthX + (scalar(ix) + scalar(0.5))*dx;
+            const scalar zLocal =
+                -halfWidthZ + (scalar(iz) + scalar(0.5))*dz;
+            const vector localPosition(xLocal, scalar(0), zLocal);
+            const scalar intensity =
+                profile.evaluate(localPosition, Foam::sqrt(max(area, SMALL)));
+
+            if (intensity <= SMALL)
+            {
+                continue;
+            }
+
+            initialPoints.append(P0 + xLocal*u + zLocal*v + perturbation);
+            localPositions.append(localPosition);
+            localAreas.append(area);
+        }
+    }
+
+    List<pointField> gatheredData(Pstream::nProcs());
+    List<vectorField> gatheredLocalPos(Pstream::nProcs());
+    List<scalarField> gatheredAreas(Pstream::nProcs());
+
+    gatheredData[Pstream::myProcNo()] = initialPoints;
+    Pstream::gatherList(gatheredData);
+    Pstream::broadcastList(gatheredData);
+
+    gatheredLocalPos[Pstream::myProcNo()] = localPositions;
+    Pstream::gatherList(gatheredLocalPos);
+    Pstream::broadcastList(gatheredLocalPos);
+
+    gatheredAreas[Pstream::myProcNo()] = localAreas;
+    Pstream::gatherList(gatheredAreas);
+    Pstream::broadcastList(gatheredAreas);
+
+    pointField rayCoords
+    (
+        ListListOps::combine<Field<vector>>
+        (
+            gatheredData,
+            accessOp<Field<vector>>()
+        )
+    );
+
+    vectorField rayLocalPositions
+    (
+        ListListOps::combine<Field<vector>>
+        (
+            gatheredLocalPos,
+            accessOp<Field<vector>>()
+        )
+    );
+
+    scalarField rayAreas
+    (
+        ListListOps::combine<Field<scalar>>
+        (
+            gatheredAreas,
+            accessOp<Field<scalar>>()
+        )
+    );
+
+    scalarField rayPowers(rayCoords.size(), scalar(0));
+    scalar maxRayPower = 0.0;
+
+    forAll(rayCoords, pointI)
+    {
+        rayPowers[pointI] =
+            rayAreas[pointI]
+           *max
+            (
+                profile.evaluate
+                (
+                    rayLocalPositions[pointI],
+                    Foam::sqrt(max(rayAreas[pointI], SMALL))
+                ),
+                scalar(0)
+            );
+        maxRayPower = max(maxRayPower, rayPowers[pointI]);
+    }
+
+    const scalar minRayPowerFraction = sampling.minRayPowerFraction();
+
+    if (minRayPowerFraction > 0 && maxRayPower > SMALL)
+    {
+        const scalar minRayPower = minRayPowerFraction*maxRayPower;
+        pointField gatedCoords(rayCoords.size());
+        vectorField gatedLocalPositions(rayLocalPositions.size());
+        scalarField gatedAreas(rayAreas.size(), scalar(0));
+        scalarField gatedPowers(rayPowers.size(), scalar(0));
+        label gatedCount = 0;
+
+        forAll(rayPowers, pointI)
+        {
+            if (rayPowers[pointI] + SMALL < minRayPower)
+            {
+                continue;
+            }
+
+            gatedCoords[gatedCount] = rayCoords[pointI];
+            gatedLocalPositions[gatedCount] = rayLocalPositions[pointI];
+            gatedAreas[gatedCount] = rayAreas[pointI];
+            gatedPowers[gatedCount] = rayPowers[pointI];
+            ++gatedCount;
+        }
+
+        gatedCoords.setSize(gatedCount);
+        gatedLocalPositions.setSize(gatedCount);
+        gatedAreas.setSize(gatedCount);
+        gatedPowers.setSize(gatedCount);
+
+        rayCoords.transfer(gatedCoords);
+        rayLocalPositions.transfer(gatedLocalPositions);
+        rayAreas.transfer(gatedAreas);
+        rayPowers.transfer(gatedPowers);
+
+        Info<< "    minRayPowerFraction = " << minRayPowerFraction << nl
+            << "    minRayPower = " << minRayPower << nl
+            << "    retained rays after gating = " << rayCoords.size()
+            << endl;
+    }
+
+    scalar integral = 0.0;
+
+    forAll(rayPowers, pointI)
+    {
+        integral += rayPowers[pointI];
+    }
+
+    if (integral <= SMALL)
+    {
+        FatalErrorInFunction
+            << "Heat source profile could not be normalised because its "
+            << "sampled intensity integrates to zero after any gating. Check "
+            << "the configured sampling block, modifiers, and "
+            << "sampling.minRayPowerFraction."
+            << exit(FatalError);
+    }
+
+    const scalar normalisation = allocatedPower/integral;
+
+    nProfileRays = rayCoords.size();
+    label seedCellI = -1;
+
+    forAll(rayCoords, i)
+    {
+        const label cellI = findLocalCell
+        (
+            rayCoords[i],
+            seedCellI,
+            mesh,
+            maxLocalSearch,
+            false
+        );
+
+        if (cellI >= 0)
+        {
+            seedCellI = cellI;
+
+            laserRayParticle* pPtr = new laserRayParticle
+            (
+                mesh,
+                rayCoords[i],
+                cellI,
+                V_incident,
+                rayPowers[i]*normalisation,
+                0.0,
+                rayIndexOffset + i
+            );
+
+            cloud.addParticle(pPtr);
+        }
+    }
+
+    Info<< "    Sampled rays for profile: " << nProfileRays
+        << ", cumulative local particles: " << cloud.size() << endl;
 }
 
 
@@ -454,9 +803,13 @@ laserHeatSource::laserHeatSource
     ),
     laserNames_(0),
     laserDicts_(0),
+    profileSets_(0),
     timeVsLaserPosition_(0),
     timeVsLaserPower_(0),
+    movingFrame_(0),
+    fixedLaserPositions_(0),
     rayPaths_(0),
+    raySegmentPowers_(0),
     vtkTimes_(),
     globalBB_(mesh.bounds())
 {
@@ -483,13 +836,13 @@ laserHeatSource::laserHeatSource
 
         laserNames_.setSize(laserEntries.size());
         laserDicts_.setSize(laserEntries.size());
+        profileSets_.setSize(laserEntries.size());
         timeVsLaserPosition_.setSize(laserEntries.size());
         timeVsLaserPower_.setSize(laserEntries.size());
-
-        if (Pstream::master())
-        {
-            rayPaths_.setSize(laserEntries.size());
-        }
+        movingFrame_.setSize(laserEntries.size());
+        fixedLaserPositions_.setSize(laserEntries.size(), vector::zero);
+        rayPaths_.setSize(laserEntries.size());
+        raySegmentPowers_.setSize(laserEntries.size());
 
         forAll(laserEntries, laserI)
         {
@@ -499,6 +852,17 @@ laserHeatSource::laserHeatSource
             laserDicts_.set
             (
                 laserI, new dictionary(laserEntries[laserI].dict())
+            );
+
+            profileSets_.set
+            (
+                laserI,
+                buildHeatSourceProfileSet
+                (
+                    laserDicts_[laserI],
+                    mesh,
+                    *this
+                ).ptr()
             );
 
             timeVsLaserPosition_.set
@@ -518,6 +882,31 @@ laserHeatSource::laserHeatSource
                     laserEntries[laserI].dict().subDict("timeVsLaserPower")
                 )
             );
+
+            movingFrame_[laserI] =
+                laserEntries[laserI].dict().lookupOrDefault<Switch>
+                (
+                    "movingFrame",
+                    false
+                );
+
+            if (movingFrame_[laserI])
+            {
+                if (!laserEntries[laserI].dict().found("fixedLaserPosition"))
+                {
+                    FatalErrorInFunction
+                        << "Laser '" << laserNames_[laserI] << "' enables "
+                        << "'movingFrame' but does not define "
+                        << "'fixedLaserPosition'."
+                        << exit(FatalError);
+                }
+
+                fixedLaserPositions_[laserI] =
+                    laserEntries[laserI].dict().get<vector>
+                    (
+                        "fixedLaserPosition"
+                    );
+            }
         }
 
             // Check that a single laser is not also defined
@@ -541,15 +930,30 @@ laserHeatSource::laserHeatSource
         // There is no lists of lasers, just one
         // Backward compatibility: single laser specified in main dict
         rayPaths_.setSize(1);
+        raySegmentPowers_.setSize(1);
         laserNames_.setSize(1);
         laserDicts_.setSize(1);
+        profileSets_.setSize(1);
         timeVsLaserPosition_.setSize(1);
         timeVsLaserPower_.setSize(1);
+        movingFrame_.setSize(1);
+        fixedLaserPositions_.setSize(1, vector::zero);
 
         laserNames_[0] = "laser0";
 
         // Copy the main dict
         laserDicts_.set(0, new dictionary(*this));
+
+        profileSets_.set
+        (
+            0,
+            buildHeatSourceProfileSet
+            (
+                laserDicts_[0],
+                mesh,
+                *this
+            ).ptr()
+        );
 
         timeVsLaserPosition_.set
         (
@@ -562,6 +966,39 @@ laserHeatSource::laserHeatSource
             0,
             new interpolationTable<scalar>(subDict("timeVsLaserPower"))
         );
+
+        movingFrame_[0] = lookupOrDefault<Switch>("movingFrame", false);
+
+        if (movingFrame_[0])
+        {
+            if (!found("fixedLaserPosition"))
+            {
+                FatalErrorInFunction
+                    << "'movingFrame' is enabled but 'fixedLaserPosition' is "
+                    << "not defined."
+                    << exit(FatalError);
+            }
+
+            fixedLaserPositions_[0] = get<vector>("fixedLaserPosition");
+        }
+    }
+
+    label nMovingFrame = 0;
+    forAll(movingFrame_, laserI)
+    {
+        if (movingFrame_[laserI])
+        {
+            ++nMovingFrame;
+        }
+    }
+
+    if (nMovingFrame && laserNames_.size() > 1)
+    {
+        FatalErrorInFunction
+            << "Moving-frame laser support currently requires a single laser "
+            << "configuration. Found " << laserNames_.size() << " lasers with "
+            << nMovingFrame << " moving-frame entries."
+            << exit(FatalError);
     }
 
         // Update laserBoundary - only used in old boundary based initialisation
@@ -619,6 +1056,26 @@ laserHeatSource::laserHeatSource
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
 
+Foam::vector Foam::laserHeatSource::materialVelocity() const
+{
+    return materialVelocity(deposition_.time().value());
+}
+
+
+Foam::vector Foam::laserHeatSource::materialVelocity(const scalar time) const
+{
+    forAll(movingFrame_, laserI)
+    {
+        if (movingFrame_[laserI])
+        {
+            return -timeVsLaserPosition_[laserI].rateOfChange(time);
+        }
+    }
+
+    return vector::zero;
+}
+
+
 void laserHeatSource::updateDeposition
 (
     const volScalarField& alphaFiltered,
@@ -636,21 +1093,40 @@ void laserHeatSource::updateDeposition
     rayQ_ *= 0.0;
 
     const scalar time = deposition_.time().value();
+    const scalar deltaT = deposition_.time().deltaTValue();
 
     forAll(laserNames_, laserI)
     {
-        // Lookup the current laser position and power
-        vector currentLaserPosition =
+        // Lookup the programmed laser position and power
+        const vector programmedLaserPosition =
             timeVsLaserPosition_[laserI](time);
+        vector currentLaserPosition =
+            movingFrame_[laserI]
+          ? fixedLaserPositions_[laserI]
+          : programmedLaserPosition;
         const scalar currentLaserPower =
             timeVsLaserPower_[laserI](time);
 
         Info<< "Laser: " << laserNames_[laserI] << nl
-            << "    mean position = " << currentLaserPosition << nl
+            << "    programmed position = " << programmedLaserPosition << nl
             << "    power = " << currentLaserPower << endl;
+
+        if (movingFrame_[laserI])
+        {
+            Info<< "    moving frame deposition anchor = "
+                << currentLaserPosition << nl
+                << "    moving frame velocity = "
+                << materialVelocity(time) << endl;
+        }
 
             // Dict for current laser
         const dictionary& dict = laserDicts_[laserI];
+        HeatSourceProfileSet& profiles = profileSets_[laserI];
+
+        if (!profiles.empty())
+        {
+            profiles.update(time, deltaT);
+        }
 
         // If defined, add oscillation to laser position
         if (dict.found("HS_oscAmpX"))
@@ -718,6 +1194,15 @@ void laserHeatSource::updateDeposition
         (
             dict.lookupOrDefault<scalar>("Radius_Flavour", 2.0)
         );
+        scalar perturbationFraction =
+            this->lookupOrDefault<scalar>("perturbation", scalar(0));
+
+        if (dict.found("perturbation"))
+        {
+            perturbationFraction =
+                dict.lookupOrDefault<scalar>("perturbation", scalar(0));
+        }
+
         const Switch useLocalSearch
         (
             dict.lookupOrDefault<Switch>("useLocalSearch", true)
@@ -748,6 +1233,7 @@ void laserHeatSource::updateDeposition
             e_num_density,
             dep_cutoff,
             Radius_Flavour,
+            perturbationFraction,
             useLocalSearch,
             maxLocalSearch,
             rayPowerRelTol,
@@ -790,6 +1276,7 @@ void laserHeatSource::updateDeposition
     const scalar e_num_density,
     const scalar dep_cutoff,
     const scalar Radius_Flavour,
+    const scalar perturbationFraction,
     const Switch useLocalSearch,
     const label maxLocalSearch,
     const scalar rayPowerRelTol,
@@ -797,6 +1284,9 @@ void laserHeatSource::updateDeposition
 )
 {
     const fvMesh& mesh = deposition_.mesh();
+    const dictionary& dict = laserDicts_[laserID];
+    const HeatSourceProfileSet& profiles = profileSets_[laserID];
+    const bool useProfiles = !profiles.empty();
     const scalar pi = constant::mathematical::pi;
     const scalar beam_radius = laserRadius;
 
@@ -836,21 +1326,124 @@ void laserHeatSource::updateDeposition
 
     label nTotalRays = 0;
 
-    seedRayCloud
-    (
-        rayCloud,
-        mesh,
-        currentLaserPosition,
-        laserRadius,
-        N_sub_divisions,
-        nRadial,
-        nAngular,
-        V_incident,
-        Radius_Flavour,
-        currentLaserPower,
-        beam_radius,
-        nTotalRays
-    );
+    if (useProfiles)
+    {
+        if
+        (
+            dict.found("radialPolarHeatSource")
+         || dict.found("Radial_Polar_HS")
+         || dict.found("nRadial")
+         || dict.found("nAngular")
+         || dict.found("N_sub_divisions")
+        )
+        {
+            FatalErrorInFunction
+                << "Laser '" << laserNames_[laserID] << "' uses the new "
+                << "profile-based sampling format. Remove legacy laser-level "
+                << "sampling controls and define 'sampling' inside each "
+                << "profile instead."
+                << exit(FatalError);
+        }
+
+        const PtrList<HeatSourceProfile>& profileList = profiles.profiles();
+        scalar positiveWeightSum = 0.0;
+
+        forAll(profileList, profileI)
+        {
+            const scalar weight = profileList[profileI].weight();
+
+            if (weight > SMALL)
+            {
+                positiveWeightSum += weight;
+            }
+        }
+
+        if (positiveWeightSum <= SMALL)
+        {
+            FatalErrorInFunction
+                << "Laser '" << laserNames_[laserID] << "' must have at least "
+                << "one profile with positive weight."
+                << exit(FatalError);
+        }
+
+        forAll(profileList, profileI)
+        {
+            const HeatSourceProfile& profile = profileList[profileI];
+            const scalar weight = profile.weight();
+
+            if (weight <= SMALL)
+            {
+                continue;
+            }
+
+            const scalar allocatedPower =
+                currentLaserPower*weight/positiveWeightSum;
+            label nProfileRays = 0;
+
+            seedProfileRayCloud
+            (
+                rayCloud,
+                mesh,
+                currentLaserPosition,
+                profile,
+                V_incident,
+                perturbationFraction,
+                allocatedPower,
+                nTotalRays,
+                maxLocalSearch,
+                nProfileRays
+            );
+
+            nTotalRays += nProfileRays;
+        }
+    }
+    else
+    {
+        Switch useRadialPolar = radialPolarHeatSource_;
+
+        if (found("radialPolarHeatSource") || found("Radial_Polar_HS"))
+        {
+            useRadialPolar =
+                found("radialPolarHeatSource")
+              ? Switch(lookup("radialPolarHeatSource"))
+              : Switch(lookup("Radial_Polar_HS"));
+        }
+
+        if (dict.found("radialPolarHeatSource"))
+        {
+            useRadialPolar = Switch(dict.lookup("radialPolarHeatSource"));
+        }
+        else if (dict.found("Radial_Polar_HS"))
+        {
+            useRadialPolar = Switch(dict.lookup("Radial_Polar_HS"));
+        }
+
+        seedRayCloud
+        (
+            rayCloud,
+            mesh,
+            currentLaserPosition,
+            laserRadius,
+            N_sub_divisions,
+            nRadial,
+            nAngular,
+            V_incident,
+            useRadialPolar,
+            Radius_Flavour,
+            perturbationFraction,
+            currentLaserPower,
+            beam_radius,
+            nTotalRays
+        );
+    }
+
+    if (nTotalRays <= 0)
+    {
+        FatalErrorInFunction
+            << "No rays were seeded for laser '" << laserNames_[laserID]
+            << "'. Check the sampling settings and beam position."
+            << exit(FatalError);
+    }
 
     // Compute absolute power tolerance from relative tolerance
     // (Based on average ray power, not total power)
@@ -871,6 +1464,7 @@ void laserHeatSource::updateDeposition
 
     DynamicList<label> finishedRayIDs;
     DynamicList<DynamicList<point>> finishedRayPaths;
+    DynamicList<DynamicList<scalar>> finishedRaySegmentPowers;
 
     laserRayParticle::trackingData td
     (
@@ -886,7 +1480,8 @@ void laserHeatSource::updateDeposition
         angular_frequency,
         rayPowerAbsTol,
         finishedRayIDs,
-        finishedRayPaths
+        finishedRayPaths,
+        finishedRaySegmentPowers
     );
 
     // Move all ray particles through the mesh.
@@ -909,6 +1504,8 @@ void laserHeatSource::updateDeposition
     {
         rayPaths_[laserID].clear();
         rayPaths_[laserID].setSize(nTotalRays);
+        raySegmentPowers_[laserID].clear();
+        raySegmentPowers_[laserID].setSize(nTotalRays);
     }
 
     {
@@ -921,12 +1518,18 @@ void laserHeatSource::updateDeposition
         allPaths[Pstream::myProcNo()] = finishedRayPaths;
         Pstream::gatherList(allPaths);
 
+        List<List<DynamicList<scalar>>> allSegmentPowers(Pstream::nProcs());
+        allSegmentPowers[Pstream::myProcNo()] = finishedRaySegmentPowers;
+        Pstream::gatherList(allSegmentPowers);
+
         if (Pstream::master())
         {
             for (label procI = 0; procI < Pstream::nProcs(); ++procI)
             {
                 const labelList& ids = allIDs[procI];
                 const List<DynamicList<point>>& paths = allPaths[procI];
+                const List<DynamicList<scalar>>& segmentPowers =
+                    allSegmentPowers[procI];
 
                 forAll(ids, i)
                 {
@@ -935,12 +1538,17 @@ void laserHeatSource::updateDeposition
                     {
                         DynamicList<point>& existing =
                             rayPaths_[laserID][rayID];
+                        DynamicList<scalar>& existingPowers =
+                            raySegmentPowers_[laserID][rayID];
                         const DynamicList<point>& segment = paths[i];
+                        const DynamicList<scalar>& segmentPower =
+                            segmentPowers[i];
 
                         if (existing.empty())
                         {
                             // First segment for this ray
                             existing = segment;
+                            existingPowers = segmentPower;
                         }
                         else if (segment.size() > 0)
                         {
@@ -955,9 +1563,21 @@ void laserHeatSource::updateDeposition
                             {
                                 startJ = 1;
                             }
+                            else if (segment.size() > 1)
+                            {
+                                WarningInFunction
+                                    << "Encountered a non-contiguous ray "
+                                    << "segment for ray " << rayID
+                                    << ". Segment powers may be ambiguous."
+                                    << endl;
+                            }
                             for (label j = startJ; j < segment.size(); ++j)
                             {
                                 existing.append(segment[j]);
+                            }
+                            forAll(segmentPower, powerI)
+                            {
+                                existingPowers.append(segmentPower[powerI]);
                             }
                         }
                     }
@@ -994,14 +1614,28 @@ void laserHeatSource::writeRayPathsToVTK()
 
         forAll(laserNames_, laserI)
         {
+            label nonEmptyRays = 0;
+            forAll(rayPaths_[laserI], rayJ)
+            {
+                if (!rayPaths_[laserI][rayJ].empty())
+                {
+                    ++nonEmptyRays;
+                }
+            }
+
             const fileName vtkFileName
             (
                 vtkDir/"rays_" + laserNames_[laserI] + "_"
               + Foam::name(runTime.value()) + ".vtk"
             );
-            Info<< "Writing " << rayPaths_[laserI].size()
-                << " ray paths to " << vtkFileName << endl;
-            writeRayPathsToVTK(rayPaths_[laserI], vtkFileName);
+            Info<< "Writing " << nonEmptyRays
+                << " non-empty ray paths to " << vtkFileName << endl;
+            writeRayPathsToVTK
+            (
+                rayPaths_[laserI],
+                raySegmentPowers_[laserI],
+                vtkFileName
+            );
         }
     }
 }
@@ -1010,6 +1644,7 @@ void laserHeatSource::writeRayPathsToVTK()
 void laserHeatSource::writeRayPathsToVTK
 (
     const List<DynamicList<point>>& rays,
+    const List<DynamicList<scalar>>& segmentPowers,
     const fileName& filename
 )
 {
@@ -1030,12 +1665,19 @@ void laserHeatSource::writeRayPathsToVTK
         totalPoints += rays[rayI].size();
         if (rays[rayI].size() > 1)
         {
+            if (segmentPowers[rayI].size() != rays[rayI].size() - 1)
+            {
+                FatalErrorInFunction
+                    << "Ray " << rayI << " has " << rays[rayI].size()
+                    << " path points but " << segmentPowers[rayI].size()
+                    << " segment power values." << exit(FatalError);
+            }
             totalLines += (rays[rayI].size() - 1);
         }
     }
 
     file<< "# vtk DataFile Version 3.0" << nl;
-    file<< "Multiple ray data" << nl;
+    file<< "Ray paths with power data" << nl;
     file<< "ASCII" << nl;
     file<< "DATASET POLYDATA" << nl;
 
@@ -1064,6 +1706,52 @@ void laserHeatSource::writeRayPathsToVTK
         }
 
         pointOffset += ray.size();
+    }
+
+    file<< "POINT_DATA " << totalPoints << nl;
+    file<< "SCALARS rayPower float 1" << nl;
+    file<< "LOOKUP_TABLE default" << nl;
+
+    forAll(rays, rayI)
+    {
+        const DynamicList<point>& ray = rays[rayI];
+        const DynamicList<scalar>& raySegmentPowers = segmentPowers[rayI];
+
+        if (ray.empty())
+        {
+            continue;
+        }
+
+        if (ray.size() == 1)
+        {
+            file<< 0.0 << nl;
+            continue;
+        }
+
+        forAll(ray, pointI)
+        {
+            scalar pointPower = raySegmentPowers[0];
+
+            if (pointI == 0)
+            {
+                pointPower = raySegmentPowers[0];
+            }
+            else if (pointI == ray.size() - 1)
+            {
+                pointPower = raySegmentPowers[raySegmentPowers.size() - 1];
+            }
+            else
+            {
+                pointPower =
+                    0.5
+                   *(
+                        raySegmentPowers[pointI - 1]
+                      + raySegmentPowers[pointI]
+                    );
+            }
+
+            file<< pointPower << nl;
+        }
     }
 }
 

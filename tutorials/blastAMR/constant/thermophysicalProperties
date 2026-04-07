@@ -1,0 +1,253 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// 316L Stainless Steel components:
+//   metal1 = Iron (Fe)
+//   metal2 = Chromium (Cr)
+//   metal3 = Nickel (Ni)
+//   metal4 = Molybdenum (Mo)
+
+phases (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal4vapour air);
+
+pMin            100;
+
+P0	1e5;
+interface_thickness	1e-7;
+
+
+sigmas
+(
+
+	(metal1vapour metal1)	1.0
+	(metal1 metal2)	0.0
+	(metal2vapour metal1)	1.0
+	(metal1 metal3)	0.0
+	(metal3vapour metal1)	1.0
+	(metal1 metal4)	0.0
+	(metal4vapour metal1)	1.0
+	(air metal1)	1.0
+	
+	(metal1vapour metal2)	1.0
+	(metal1vapour metal2vapour)	0.0
+	(metal1vapour metal3)	1.0
+	(metal1vapour metal3vapour)	0.0
+	(metal1vapour metal4)	1.0
+	(metal1vapour metal4vapour)	0.0
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	1.0
+	(metal2 metal3)	0.0
+	(metal3vapour metal2)	1.0
+	(metal2 metal4)	0.0
+	(metal4vapour metal2)	1.0
+	(air metal2)	1.0
+	
+	(metal2vapour metal3)	1.0
+	(metal2vapour metal3vapour)	0.0
+	(metal2vapour metal4)	1.0
+	(metal2vapour metal4vapour)	0.0
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	1.0
+	(metal3 metal4)	0.0
+	(metal4vapour metal3)	1.0
+	(air metal3)	1.0
+	
+	(metal3vapour metal4)	1.0
+	(metal3vapour metal4vapour)	0.0
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	1.0
+	(air metal4)	1.0
+	
+	(metal4vapour air)	0.0
+	
+);
+
+// Element-specific dsigmadT values (N/m/K):
+//   Fe:  -4.3e-4
+//   Cr:  -2.9e-4
+//   Ni:  -3.8e-4
+//   Mo:  -2.2e-4
+dsigmadT
+(
+	(metal1vapour metal1)	-4.3e-4
+	(metal1 metal2)	0.0
+	(metal2vapour metal1)	-4.3e-4
+	(metal1 metal3)	0.0
+	(metal3vapour metal1)	-4.3e-4
+	(metal1 metal4)	0.0
+	(metal4vapour metal1)	-4.3e-4
+	(air metal1)	-4.3e-4
+	
+	(metal1vapour metal2)	-2.9e-4
+	(metal1vapour metal2vapour)	0.0
+	(metal1vapour metal3)	-3.8e-4
+	(metal1vapour metal3vapour)	0.0
+	(metal1vapour metal4)	-2.2e-4
+	(metal1vapour metal4vapour)	0.0
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	-2.9e-4
+	(metal2 metal3)	0.0
+	(metal3vapour metal2)	-2.9e-4
+	(metal2 metal4)	0.0
+	(metal4vapour metal2)	-2.9e-4
+	(air metal2)	-2.9e-4
+	
+	(metal2vapour metal3)	-3.8e-4
+	(metal2vapour metal3vapour)	0.0
+	(metal2vapour metal4)	-2.2e-4
+	(metal2vapour metal4vapour)	0.0
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	-3.8e-4
+	(metal3 metal4)	0.0
+	(metal4vapour metal3)	-3.8e-4
+	(air metal3)	-3.8e-4
+	
+	(metal3vapour metal4)	-2.2e-4
+	(metal3vapour metal4vapour)	0.0
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	-2.2e-4
+	(air metal4)	-2.2e-4
+	
+	(metal4vapour air)	0.0
+);
+
+// Boiling points (K):
+//   Fe:  3134 K
+//   Cr:  2944 K
+//   Ni:  3186 K
+//   Mo:  4912 K
+boils
+(
+(metal1vapour metal1) 3134.0
+(metal2vapour metal2) 2944.0
+(metal3vapour metal3) 3186.0
+(metal4vapour metal4) 4912.0
+);
+
+// Latent heat of vaporisation (J/kg):
+//   Fe:  6.09e6
+//   Cr:  6.29e6
+//   Ni:  6.04e6
+//   Mo:  5.98e6
+LatentHeatGas
+(
+(metal1vapour metal1) 6.09e6
+(metal2vapour metal2) 6.29e6
+(metal3vapour metal3) 6.04e6
+(metal4vapour metal4) 5.98e6
+);
+
+interfaceCompression
+(
+	(metal1vapour metal1)	1.0
+	(metal1 metal2)	0.0
+	(metal2vapour metal1)	1.0
+	(metal1 metal3)	0.0
+	(metal3vapour metal1)	1.0
+	(metal1 metal4)	0.0
+	(metal4vapour metal1)	1.0
+	(air metal1)	1.0
+	
+	(metal1vapour metal2)	1.0
+	(metal1vapour metal2vapour)	0.0
+	(metal1vapour metal3)	1.0
+	(metal1vapour metal3vapour)	0.0
+	(metal1vapour metal4)	1.0
+	(metal1vapour metal4vapour)	0.0
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	1.0
+	(metal2 metal3)	0.0
+	(metal3vapour metal2)	1.0
+	(metal2 metal4)	0.0
+	(metal4vapour metal2)	1.0
+	(air metal2)	1.0
+	
+	(metal2vapour metal3)	1.0
+	(metal2vapour metal3vapour)	0.0
+	(metal2vapour metal4)	1.0
+	(metal2vapour metal4vapour)	0.0
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	1.0
+	(metal3 metal4)	0.0
+	(metal4vapour metal3)	1.0
+	(air metal3)	1.0
+	
+	(metal3vapour metal4)	1.0
+	(metal3vapour metal4vapour)	0.0
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	1.0
+	(air metal4)	1.0
+	
+	(metal4vapour air)	0.0
+);
+
+interfaceDiffusion
+(
+	(metal1vapour metal1)	0.0
+	(metal1 metal2)	1e-9
+	(metal2vapour metal1)	0.0
+	(metal1 metal3)	1e-9
+	(metal3vapour metal1)	0.0
+	(metal1 metal4)	1e-9
+	(metal4vapour metal1)	0.0
+	(air metal1)	0.0
+	
+	(metal1vapour metal2)	0.0
+	(metal1vapour metal2vapour)	1e-6
+	(metal1vapour metal3)	0.0
+	(metal1vapour metal3vapour)	1e-6
+	(metal1vapour metal4)	0.0
+	(metal1vapour metal4vapour)	1e-6
+	(metal1vapour air)	0.0
+	
+	(metal2vapour metal2)	0.0
+	(metal2 metal3)	1e-9
+	(metal3vapour metal2)	0.0
+	(metal2 metal4)	1e-9
+	(metal4vapour metal2)	0.0
+	(air metal2)	0.0
+	
+	(metal2vapour metal3)	0.0
+	(metal2vapour metal3vapour)	1e-6
+	(metal2vapour metal4)	0.0
+	(metal2vapour metal4vapour)	1e-6
+	(metal2vapour air)	0.0
+	
+	(metal3vapour metal3)	0.0
+	(metal3 metal4)	1e-9
+	(metal4vapour metal3)	0.0
+	(air metal3)	0.0
+	
+	(metal3vapour metal4)	0.0
+	(metal3vapour metal4vapour)	1e-6
+	(metal3vapour air)	0.0
+	
+	(metal4vapour metal4)	0.0
+	(air metal4)	0.0
+	
+	(metal4vapour air)	0.0
+);
+
+
+// ************************************************************************* //

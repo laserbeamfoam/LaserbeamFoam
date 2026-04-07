@@ -49,6 +49,7 @@ Description
 #include "CorrectPhi.H"
 
 #include "laserHeatSource.H"
+#include "updateRefineFlag.H"
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 int main(int argc, char *argv[])
@@ -87,6 +88,8 @@ int main(int argc, char *argv[])
     turbulence->validate();
 
     #include "update.H"
+    #include "cellMasks.H"
+    Foam::updateRefineFlag(refineFlag, State, condensateFiltered);
 
 
     #include "CourantNo.H"
@@ -109,6 +112,9 @@ int main(int argc, char *argv[])
         ++runTime;
 
         Info<< "Time = " << runTime.timeName() << nl << endl;
+
+        #include "cellMasks.H"
+        Foam::updateRefineFlag(refineFlag, State, condensateFiltered);
 
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
@@ -161,6 +167,8 @@ int main(int argc, char *argv[])
             rho=mixture.rho();
 
             #include "update.H"
+            #include "cellMasks.H"
+            Foam::updateRefineFlag(refineFlag, State, condensateFiltered);
 
             // Update the laser deposition field
             laser.updateDeposition
@@ -171,6 +179,18 @@ int main(int argc, char *argv[])
 
             #include "UEqn.H"
             #include "TEqn.H"
+
+            if (runTime.time().timeIndex() > 1)
+            {
+                heatingRate = fvc::ddt(T);
+            }
+            else
+            {
+                heatingRate *= 0.0;
+            }
+            heatingRate.correctBoundaryConditions();
+            #include "cellMasks.H"
+            Foam::updateRefineFlag(refineFlag, State, condensateFiltered);
 
             // --- Pressure corrector loop
             while (pimple.correct())

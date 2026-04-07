@@ -1,0 +1,247 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  10
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      LaserProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Five CSV-shaped beams laid out from -x to +x.
+// Powers are intentionally staggered so the peak intensity of each
+// normalised CSV profile lands in a similar range when visualised.
+
+lasers
+(
+    laser0
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition0";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower0";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     1.4e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            moon
+            {
+                type        csv;
+                file        "$FOAM_CASE/constant/intensity_moon.csv";
+                nx          161;
+                nz          161;
+                dx          2e-5;
+                dy          2e-5;
+
+                sampling
+                {
+                    type        cartesian;
+                    halfWidthX  1.6e-3;
+                    halfWidthZ  1.6e-3;
+                    nCartesianX 161;
+                    nCartesianZ 161;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser1
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition1";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower1";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     1.4e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            starburst
+            {
+                type        csv;
+                file        "$FOAM_CASE/constant/intensity_star.csv";
+                nx          161;
+                nz          161;
+                dx          2e-5;
+                dy          2e-5;
+
+                sampling
+                {
+                    type        cartesian;
+                    halfWidthX  1.6e-3;
+                    halfWidthZ  1.6e-3;
+                    nCartesianX 161;
+                    nCartesianZ 161;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser2
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition2";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower2";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     1.4e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            ifswMark
+            {
+                type        csv;
+                file        "$FOAM_CASE/constant/intensity_ifsw.csv";
+                nx          161;
+                nz          161;
+                dx          2e-5;
+                dy          2e-5;
+
+                sampling
+                {
+                    type        cartesian;
+                    halfWidthX  1.6e-3;
+                    halfWidthZ  1.6e-3;
+                    nCartesianX 161;
+                    nCartesianZ 161;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser3
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition3";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower3";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     1.4e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            pinwheel
+            {
+                type        csv;
+                file        "$FOAM_CASE/constant/intensity_pinwheel.csv";
+                nx          161;
+                nz          161;
+                dx          2e-5;
+                dy          2e-5;
+
+                sampling
+                {
+                    type        cartesian;
+                    halfWidthX  1.6e-3;
+                    halfWidthZ  1.6e-3;
+                    nCartesianX 161;
+                    nCartesianZ 161;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser4
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition4";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower4";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     1.4e-3;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            clover
+            {
+                type        csv;
+                file        "$FOAM_CASE/constant/intensity_clover.csv";
+                nx          161;
+                nz          161;
+                dx          2e-5;
+                dy          2e-5;
+
+                sampling
+                {
+                    type        cartesian;
+                    halfWidthX  1.6e-3;
+                    halfWidthZ  1.6e-3;
+                    nCartesianX 161;
+                    nCartesianZ 161;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+);

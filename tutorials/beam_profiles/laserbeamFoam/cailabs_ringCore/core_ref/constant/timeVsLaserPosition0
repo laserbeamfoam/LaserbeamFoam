@@ -1,0 +1,4 @@
+(
+    (0.0       (0.0    0.0    0.00))    // Start: centered, 1mm above substrate
+    (0.00167   (0.0    0.0    0.01))    // End: 10mm weld at 6 m/s
+)

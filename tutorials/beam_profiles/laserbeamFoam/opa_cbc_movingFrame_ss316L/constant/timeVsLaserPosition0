@@ -1,0 +1,5 @@
+(
+    // Short moving-frame sweep for quick smoke testing.
+    (0.0    (0 -2e-3 -5e-4))
+    (2e-5   (0 -2e-3  5e-4))
+)

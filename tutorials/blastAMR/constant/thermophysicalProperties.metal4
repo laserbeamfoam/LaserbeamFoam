@@ -1,0 +1,56 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties.Molybdenum;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+phaseState      condensed;  // or: gaseous, solid
+
+thermoType
+{
+    type            heRhoThermo;
+    mixture         pureMixture;
+    transport       const;
+    thermo          hConst;
+    equationOfState adiabaticPerfectFluid;//rhoConst;//perfectFluid;
+    specie          specie;
+    energy          sensibleInternalEnergy;
+}
+
+// 316L alloy-specific phase change (Keep identical in all metal files)
+TSolidus                1648.0;   // Solidus [K]
+TLiquidus               1673.0;   // Liquidus [K]
+LatentHeat              2.9e5;    // [J/kg]
+
+// Electromagnetic properties (MHD)
+elec_conductivity       7e5;   // [S/m]
+magnetic_permeability   1.257e-6; // [H/m]
+
+mixture
+    {
+        specie { molWeight 95.95; }
+        equationOfState
+        {
+           p0      1e5;
+           rho0    10280;
+           gamma   1.1;
+           B       2.3e11;
+		   // rho 10280;
+        }
+        thermodynamics { Cp 250; Hf 0; }
+        transport { mu 5.5e-3; Pr 0.025; }
+    }
+
+
+// ************************************************************************* //

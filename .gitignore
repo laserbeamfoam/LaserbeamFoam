@@ -70,8 +70,11 @@ lnInclude
 
 # VScode files
 .vscode
+.codex
 
 # build folders - anywhere
+__pycache__/
+.build/
 linux*Gcc*/
 linux*Icc*/
 darwin*Gcc*/

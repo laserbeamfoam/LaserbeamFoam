@@ -846,3 +846,59 @@ mesh.setFluxRequired(alpha1.name());
 
 #include "isoAdvector/createPorosity.H"
 isoAdvection advector(alpha1, phi, U);
+
+volScalarField heatingRate
+(
+    IOobject
+    (
+        "heatingRate",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("heatingRate", dimensionSet(0, 0, -1, 1, 0, 0, 0), 0.0)
+);
+
+volScalarField State
+(
+    IOobject
+    (
+        "State",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("State", dimless, 0.0)
+);
+
+volScalarField transitionState
+(
+    IOobject
+    (
+        "transitionState",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("transitionState", dimless, 0.0)
+);
+
+volScalarField refineFlag
+(
+    IOobject
+    (
+        "refineFlag",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("refineFlag", dimless, 0.0)
+);

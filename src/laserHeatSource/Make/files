@@ -1,4 +1,6 @@
 laserRayParticle.C
+$(wildcard beamShaper.C)
+HeatSourceProfiles.C
 laserHeatSource.C
 
 

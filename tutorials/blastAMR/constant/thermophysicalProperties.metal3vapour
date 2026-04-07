@@ -1,0 +1,62 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties.nickelVapour;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+phaseState      gaseous;  // or: gaseous, solid
+
+thermoType
+{
+    type            heRhoThermo;
+    mixture         pureMixture;
+    transport       const;
+    thermo          eConst;//hConst;
+    equationOfState perfectFluid; //perfectGas;
+    specie          specie;
+    energy          sensibleInternalEnergy;
+}
+
+
+TSolidus	5.0;
+TLiquidus	10.0;
+LatentHeat	1.0;
+elec_conductivity	1.0;
+magnetic_permeability	1.256e-6;
+
+mixture
+{
+    specie
+    {
+        molWeight   58.69; // Atomic weight of Nickel
+    }
+    equationOfState
+        {
+           rho0	1;
+           R	10.0;
+        }
+        thermodynamics
+    {
+        Cv          520;        // J/kg/K - monatomic, constant over wide T range
+        Hf          0;
+    }
+    transport
+    {
+        mu          2.27e-05;   // Pa.s - dynamic viscosity at 300 K
+        Pr          0.67;       // Prandtl number at 300 K
+    }
+}
+
+
+// ************************************************************************* //

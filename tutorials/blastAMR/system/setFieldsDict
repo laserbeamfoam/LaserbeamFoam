@@ -1,0 +1,48 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+defaultFieldValues
+(
+    volScalarFieldValue alpha.air 1
+    volScalarFieldValue alpha.metal1 0
+    volScalarFieldValue alpha.metal2 0
+    volScalarFieldValue alpha.metal3 0
+    volScalarFieldValue alpha.metal4 0
+    volScalarFieldValue alpha.metal1vapour 0
+    volScalarFieldValue alpha.metal2vapour 0
+    volScalarFieldValue alpha.metal3vapour 0
+    volScalarFieldValue alpha.metal4vapour 0
+    volVectorFieldValue U (0 0 0)
+);
+
+regions
+(
+    boxToCell
+    {
+        box (-0.5 0 -0.5) (0.5 0.5 0.5); // Your substrate dimensions
+        fieldValues
+        (
+			volScalarFieldValue alpha.air			0
+            volScalarFieldValue alpha.metal1        0.68 // Iron (Main carrier)
+            volScalarFieldValue alpha.metal2        0.17  // Chromium
+            volScalarFieldValue alpha.metal3        0.12  // Nickel
+            volScalarFieldValue alpha.metal4        0.03 // Molybdenum
+        );
+    }
+);
+
+// ************************************************************************* //

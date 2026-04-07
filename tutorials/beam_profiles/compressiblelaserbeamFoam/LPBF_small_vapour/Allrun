@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+# If liggghts is installed and the sub-case is present, run the DEM model
+if command -v liggghts > /dev/null && [ -d DEM_small ]; then
+    echo "LIGGGHTS is available: running DEM_small"
+    (cd DEM_small && ./Allrun)
+else
+    echo "Skipping DEM_small: liggghts or DEM_small directory not available"
+fi
+
+runApplication blockMesh
+runApplication setSolidFraction -compressible -alpha.phase1 "alpha.metal1" -alpha.phase2 "alpha.air"
+runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
+runApplication compressibleLaserbeamFoam

@@ -100,6 +100,9 @@ public:
         //- Accumulated path points for VTK visualisation
         DynamicList<point> path_;
 
+        //- Power carried along each stored path segment
+        DynamicList<scalar> segmentPowers_;
+
 
     //- Class used to pass tracking data to the trackToFace function
     class trackingData
@@ -145,6 +148,7 @@ public:
             //   since dead particles are removed from the cloud)
             DynamicList<label>& finishedRayIDs_;
             DynamicList<DynamicList<point>>& finishedRayPaths_;
+            DynamicList<DynamicList<scalar>>& finishedRaySegmentPowers_;
 
 
         // Constructor
@@ -162,7 +166,8 @@ public:
             const scalar angularFrequency,
             const scalar rayPowerAbsTol,
             DynamicList<label>& finishedRayIDs,
-            DynamicList<DynamicList<point>>& finishedRayPaths
+            DynamicList<DynamicList<point>>& finishedRayPaths,
+            DynamicList<DynamicList<scalar>>& finishedRaySegmentPowers
         )
         :
             particle::trackingData(cloud),
@@ -177,7 +182,8 @@ public:
             angularFrequency_(angularFrequency),
             rayPowerAbsTol_(rayPowerAbsTol),
             finishedRayIDs_(finishedRayIDs),
-            finishedRayPaths_(finishedRayPaths)
+            finishedRayPaths_(finishedRayPaths),
+            finishedRaySegmentPowers_(finishedRaySegmentPowers)
         {}
     };
 

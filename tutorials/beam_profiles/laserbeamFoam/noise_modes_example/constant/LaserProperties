@@ -1,0 +1,361 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  10
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      LaserProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Five equal-power beams laid out from -x to +x.
+// The progression isolates the effect of dynamic drum-mode noise:
+// baseline, axisymmetric mode, azimuthal mode, continuous multimode noise,
+// and stepwise multimode noise.
+
+lasers
+(
+    laser0
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition0";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower0";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     170e-6;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            baseline
+            {
+                type        superGaussian;
+                radius      170e-6;
+                order       2.0;
+                cutoff      1e-6;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   6.32e-4;
+                    nRadial  72;
+                    nAngular 144;
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser1
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition1";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower1";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     170e-6;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            axisymmetricMode
+            {
+                type        superGaussian;
+                radius      170e-6;
+                order       2.0;
+                cutoff      1e-6;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   6.32e-4;
+                    nRadial  72;
+                    nAngular 144;
+                }
+
+                modifiers
+                {
+                    noise
+                    {
+                        type        drumNoise;
+                        radius      170e-6;
+                        evolution   continuous;
+                        minFactor   0.05;
+
+                        modes
+                        {
+                            breathing
+                            {
+                                azimuthalOrder  0;
+                                radialOrder     1;
+                                amplitude       0.28;
+                                frequency       1.5e6;
+                                phase           0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser2
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition2";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower2";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     170e-6;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            azimuthalMode
+            {
+                type        superGaussian;
+                radius      170e-6;
+                order       2.0;
+                cutoff      1e-6;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   6.32e-4;
+                    nRadial  72;
+                    nAngular 144;
+                }
+
+                modifiers
+                {
+                    noise
+                    {
+                        type        drumNoise;
+                        radius      170e-6;
+                        evolution   continuous;
+                        minFactor   0.05;
+
+                        modes
+                        {
+                            lobed
+                            {
+                                azimuthalOrder  2;
+                                radialOrder     1;
+                                amplitude       0.22;
+                                frequency       2.1e6;
+                                phase           30;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser3
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition3";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower3";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     170e-6;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            continuousMultimode
+            {
+                type        superGaussian;
+                radius      170e-6;
+                order       2.0;
+                cutoff      1e-6;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   6.32e-4;
+                    nRadial  72;
+                    nAngular 144;
+                }
+
+                modifiers
+                {
+                    noise
+                    {
+                        type        drumNoise;
+                        radius      170e-6;
+                        evolution   continuous;
+                        minFactor   0.05;
+
+                        modes
+                        {
+                            core
+                            {
+                                azimuthalOrder  0;
+                                radialOrder     1;
+                                amplitude       0.12;
+                                frequency       1.2e6;
+                                phase           0;
+                            }
+
+                            pair
+                            {
+                                azimuthalOrder  2;
+                                radialOrder     1;
+                                amplitude       0.11;
+                                frequency       2.4e6;
+                                phase           35;
+                            }
+
+                            swirl
+                            {
+                                azimuthalOrder  3;
+                                radialOrder     1;
+                                amplitude       0.08;
+                                frequency       3.6e6;
+                                phase           90;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+
+    laser4
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition4";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower4";
+            outOfBounds clamp;
+        }
+
+        V_incident      (0 1 0);
+        laserRadius     170e-6;
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+        profiles
+        {
+            stepwiseMultimode
+            {
+                type        superGaussian;
+                radius      170e-6;
+                order       2.0;
+                cutoff      1e-6;
+
+                sampling
+                {
+                    type     radialPolar;
+                    radius   6.32e-4;
+                    nRadial  72;
+                    nAngular 144;
+                }
+
+                modifiers
+                {
+                    noise
+                    {
+                        type            drumNoise;
+                        radius          170e-6;
+                        evolution       stepwise;
+                        randomPhase     true;
+                        randomAmplitude true;
+                        amplitudeJitter 0.18;
+                        seed            12345;
+                        minFactor       0.05;
+
+                        modes
+                        {
+                            core
+                            {
+                                azimuthalOrder  0;
+                                radialOrder     1;
+                                amplitude       0.12;
+                            }
+
+                            pair
+                            {
+                                azimuthalOrder  2;
+                                radialOrder     1;
+                                amplitude       0.10;
+                                phase           20;
+                            }
+
+                            clover
+                            {
+                                azimuthalOrder  4;
+                                radialOrder     1;
+                                amplitude       0.08;
+                                phase           45;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        useLocalSearch   true;
+        Radius_Flavour   2.0;
+    }
+);

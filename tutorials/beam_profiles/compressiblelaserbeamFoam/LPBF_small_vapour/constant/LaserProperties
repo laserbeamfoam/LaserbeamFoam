@@ -1,0 +1,60 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  6
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      LaserProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+timeVsLaserPosition
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPosition";
+    outOfBounds clamp;
+}
+
+timeVsLaserPower
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPower";
+    outOfBounds clamp;
+}
+
+V_incident	(0 1 0);//(0 1 0);//NORMALISED IN CODE
+
+laserRadius 10e-6;
+
+wavelength	1.064e-6;
+e_num_density	5.83e29;
+//elec_resistivity	1.0e-6;
+
+profiles
+{
+    core
+    {
+        type    superGaussian;
+        radius  8e-6;
+        order   2.0;
+
+        sampling
+        {
+            type     radialPolar;
+            radius   3.0e-5;
+            nRadial  64;
+            nAngular 128;
+        }
+    }
+}
+
+Radius_Flavour	2.0;
+
+useLocalSearch    false;//false;
+
+//N_sub_divisions    6;

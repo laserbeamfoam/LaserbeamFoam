@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Beam Profile Capability Gallery</title>
+<style>
+:root { color-scheme: light; --bg: #f4efe6; --card: #fffdfa; --ink: #221c17; --muted: #64584d; --line: #d7cbb9; --accent: #935a2d; }
+body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: radial-gradient(circle at top, #fbf7ef 0%, var(--bg) 58%, #e9e0d4 100%); color: var(--ink); }
+main { max-width: 1360px; margin: 0 auto; padding: 28px 24px 60px; }
+h1 { margin: 0 0 10px; font-size: 34px; }
+p.lead { max-width: 980px; color: var(--muted); line-height: 1.5; margin: 0 0 28px; }
+section { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); }
+h2 { margin: 0 0 6px; font-size: 22px; }
+p.section-copy { margin: 0 0 16px; color: var(--muted); line-height: 1.45; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.card { background: linear-gradient(180deg, #fffdfa 0%, #f6f0e5 100%); border: 1px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: 0 10px 30px rgba(66, 45, 17, 0.06); }
+.card h3 { margin: 0 0 8px; font-size: 17px; }
+.card p { margin: 10px 0 0; line-height: 1.45; color: var(--muted); font-size: 14px; }
+img { display: block; width: 100%; height: auto; border-radius: 8px; background: #fff; }
+code { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.95em; color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<h1>Beam Profile Capability Gallery</h1>
+<p class='lead'>This gallery mirrors the beam profile machinery implemented in <code>src/laserHeatSource/HeatSourceProfiles.C</code>. It covers profile-local sampling, the base profile families, modifier stacking, additive weighted combinations, and both bare and applied noise fields. Imported <code>csv</code> and <code>beamShape</code> examples are loaded from the tutorial assets already in this repository.</p>
+<section>
+<h2>Sampling strategies</h2>
+<p class='section-copy'>The seeding logic is now profile-local. Each profile carries its own `sampling` block.</p>
+<div class='grid'>
+<article class='card'>
+<h3>Radial-polar sample layout</h3>
+<img src='sampling_radial_polar_layout.bmp' alt='Radial-polar sample layout'>
+<p>Matches the ring-sector seeding used by `sampling.type radialPolar`.</p>
+</article>
+<article class='card'>
+<h3>Radial-polar gated rays</h3>
+<img src='sampling_radial_polar_gated_rays.bmp' alt='Radial-polar gated rays'>
+<p>Power-based gating removes the dim outer sectors while keeping the on-axis sample.</p>
+</article>
+<article class='card'>
+<h3>Cartesian sample lattice</h3>
+<img src='sampling_cartesian_lattice.bmp' alt='Cartesian sample lattice'>
+<p>The sampling block supplies `halfWidth{X,Z}` and `nCartesian{X,Z}` directly.</p>
+</article>
+<article class='card'>
+<h3>Cartesian gated rays from CSV beam</h3>
+<img src='sampling_cartesian_csv_gated_rays.bmp' alt='Cartesian gated rays from CSV beam'>
+<p>Cartesian sampling is the practical fit for imported spatial maps such as CSV intensity fields.</p>
+</article>
+</div>
+</section>
+<section>
+<h2>Profiles and modifiers</h2>
+<p class='section-copy'>These panels map directly to the base profile types and multiplicative modifier stack in `HeatSourceProfiles.C`.</p>
+<div class='grid'>
+<article class='card'>
+<h3>Circular Gaussian</h3>
+<img src='profile_panel_01.bmp' alt='Circular Gaussian'>
+<p>The `gaussian` alias is the super-Gaussian implementation with order = 2.</p>
+</article>
+<article class='card'>
+<h3>Rotated elliptic super-Gaussian</h3>
+<img src='profile_panel_02.bmp' alt='Rotated elliptic super-Gaussian'>
+<p>Elliptic support with rotation and center shift.</p>
+</article>
+<article class='card'>
+<h3>Soft annular ring</h3>
+<img src='profile_panel_03.bmp' alt='Soft annular ring'>
+<p>Soft inner and outer transitions from the annular profile.</p>
+</article>
+<article class='card'>
+<h3>First-order Bessel beam</h3>
+<img src='profile_panel_04.bmp' alt='First-order Bessel beam'>
+<p>Ring structure from `bessel` with explicit first-zero radius.</p>
+</article>
+<article class='card'>
+<h3>CSV crescent import</h3>
+<img src='profile_panel_05.bmp' alt='CSV crescent import'>
+<p>Imported intensity map from `csv_example/intensity_moon.csv`.</p>
+</article>
+<article class='card'>
+<h3>Beam-shape import map</h3>
+<img src='profile_panel_06.bmp' alt='Beam-shape import map'>
+<p>Imported primitive beam-shape data from `opa_cbc_example/beamShape.inp`.</p>
+</article>
+<article class='card'>
+<h3>Plane-biased super-Gaussian</h3>
+<img src='profile_panel_07.bmp' alt='Plane-biased super-Gaussian'>
+<p>Modifiers multiply the base profile. Plane bias applies a directed linear tilt.</p>
+</article>
+<article class='card'>
+<h3>Drum-noise annular ring</h3>
+<img src='profile_panel_08.bmp' alt='Drum-noise annular ring'>
+<p>Drum noise redistributes ring intensity in radial and azimuthal modes.</p>
+</article>
+<article class='card'>
+<h3>Cartesian-mode super-Gaussian</h3>
+<img src='profile_panel_09.bmp' alt='Cartesian-mode super-Gaussian'>
+<p>Cartesian modal noise is useful when the support is naturally rectangular.</p>
+</article>
+<article class='card'>
+<h3>Grid-noise CSV beam</h3>
+<img src='profile_panel_10.bmp' alt='Grid-noise CSV beam'>
+<p>Grid noise applies a smoothly correlated random mask on top of an imported map.</p>
+</article>
+</div>
+</section>
+<section>
+<h2>Weighted combinations</h2>
+<p class='section-copy'>Combinations are additive. The physically relevant part is that the weights distribute power between individually normalized components.</p>
+<div class='grid'>
+<article class='card'>
+<h3>Core-ring mix 100/0</h3>
+<img src='combination_core_ring_01.bmp' alt='Core-ring mix 100/0'>
+<p>Weights act on per-profile power allocation after each component is normalized.</p>
+</article>
+<article class='card'>
+<h3>Core-ring mix 75/25</h3>
+<img src='combination_core_ring_02.bmp' alt='Core-ring mix 75/25'>
+<p>Weights act on per-profile power allocation after each component is normalized.</p>
+</article>
+<article class='card'>
+<h3>Core-ring mix 50/50</h3>
+<img src='combination_core_ring_03.bmp' alt='Core-ring mix 50/50'>
+<p>Weights act on per-profile power allocation after each component is normalized.</p>
+</article>
+<article class='card'>
+<h3>Core-ring mix 25/75</h3>
+<img src='combination_core_ring_04.bmp' alt='Core-ring mix 25/75'>
+<p>Weights act on per-profile power allocation after each component is normalized.</p>
+</article>
+<article class='card'>
+<h3>Core-ring mix 0/100</h3>
+<img src='combination_core_ring_05.bmp' alt='Core-ring mix 0/100'>
+<p>Weights act on per-profile power allocation after each component is normalized.</p>
+</article>
+<article class='card'>
+<h3>Bessel-superGaussian hybrid 70/30</h3>
+<img src='combination_bessel_supergaussian_hybrid.bmp' alt='Bessel-superGaussian hybrid 70/30'>
+<p>A mixed beam using the same additive weighting mechanics as the multi-profile path.</p>
+</article>
+</div>
+</section>
+<section>
+<h2>Noise fields</h2>
+<p class='section-copy'>The bare fields are shown as signed modulation. The applied fields show the same modulation after multiplication with a base profile. Time-sequence panels read left to right.</p>
+<div class='grid'>
+<article class='card'>
+<h3>Bare drum-mode field</h3>
+<img src='noise_bare_01.bmp' alt='Bare drum-mode field'>
+<p>Signed modulation field: `drumNoise.evaluate(...) - 1`.</p>
+</article>
+<article class='card'>
+<h3>Bare Cartesian modal field</h3>
+<img src='noise_bare_02.bmp' alt='Bare Cartesian modal field'>
+<p>Signed modulation field from orthogonal cosine modes.</p>
+</article>
+<article class='card'>
+<h3>Bare correlated grid field</h3>
+<img src='noise_bare_03.bmp' alt='Bare correlated grid field'>
+<p>Signed correlated random mask sampled bilinearly from a smoothed grid.</p>
+</article>
+<article class='card'>
+<h3>Drum-mode super-Gaussian</h3>
+<img src='noise_applied_01.bmp' alt='Drum-mode super-Gaussian'>
+<p>Same modifier field as above, now multiplied by a base profile.</p>
+</article>
+<article class='card'>
+<h3>Cartesian-mode super-Gaussian beam</h3>
+<img src='noise_applied_02.bmp' alt='Cartesian-mode super-Gaussian beam'>
+<p>Same modifier field as above, now multiplied by a base profile.</p>
+</article>
+<article class='card'>
+<h3>Correlated grid noise on CSV beam</h3>
+<img src='noise_applied_03.bmp' alt='Correlated grid noise on CSV beam'>
+<p>Same modifier field as above, now multiplied by a base profile.</p>
+</article>
+<article class='card'>
+<h3>Continuous drum-mode evolution</h3>
+<img src='noise_time_sequence_01.bmp' alt='Continuous drum-mode evolution'>
+<p>Left to right: t = 0.00, 0.20, 0.40, 0.60. Same plasma scale across all frames.</p>
+</article>
+<article class='card'>
+<h3>Continuous Cartesian-mode evolution</h3>
+<img src='noise_time_sequence_02.bmp' alt='Continuous Cartesian-mode evolution'>
+<p>Left to right: t = 0.00, 0.25, 0.50, 0.75. The phase motion comes from the modal frequencies.</p>
+</article>
+<article class='card'>
+<h3>Stepwise drum noise on super-Gaussian</h3>
+<img src='noise_time_sequence_03.bmp' alt='Stepwise drum noise on super-Gaussian'>
+<p>Left to right: four discrete updates representing successive stepwise random refreshes.</p>
+</article>
+</div>
+</section>
+</main>
+</body>
+</html>
