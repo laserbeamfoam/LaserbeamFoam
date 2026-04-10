@@ -1,25 +1,29 @@
 /*---------------------------------------------------------------------------*\
 License
-    This file is part of solids4foam.
+    This file is part of laserbeamFoam.
 
-    solids4foam is free software: you can redistribute it and/or modify it
+    laserbeamFoam is free software: you can redistribute it and/or modify it
     under the terms of the GNU General Public License as published by the
     Free Software Foundation, either version 3 of the License, or (at your
     option) any later version.
 
-    solids4foam is distributed in the hope that it will be useful, but
+    laserbeamFoam is distributed in the hope that it will be useful, but
     WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
     General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with solids4foam.  If not, see <http://www.gnu.org/licenses/>.
+    along with laserbeamFoam.  If not, see <http://www.gnu.org/licenses/>.
 
 Class
     laserHeatSource
 
 Description
     Calculate the deposition heat source field from a laser using ray-tracing.
+
+    Uses OpenFOAM's Lagrangian particle tracking infrastructure for exact
+    cell-to-cell ray propagation with automatic parallel processor-boundary
+    transfer.
 
     Laser parameters are defined via the provided dictionary.
 
@@ -29,7 +33,7 @@ Description
     Laser rays are written as VTKs for visualisation.
 
 Author
-    Thomas Flint, The University of Manchester.
+    Tom Flint, The University of Manchester.
     Philip Cardiff, University College Dublin.
 
 SourceFiles
@@ -44,7 +48,8 @@ SourceFiles
 #include "dictionary.H"
 #include "interpolationTable.H"
 #include "OFstream.H"
-#include "compactRay.H"
+#include "Cloud.H"
+#include "laserRayParticle.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -82,13 +87,9 @@ class laserHeatSource
         volScalarField yDim_;
 
         //- Powder sim flag
-        //  Needed for cases with spherical particles or spurious currents will
-        //  smear out the particle interface un-physically
         const Switch powderSim_;
 
         //- New laser discretisation flag
-        //  Tell the heat source if you want to discretise the traditional
-        //  laserbeamfoam way or in radial and polar coordinates
         const Switch radialPolarHeatSource_;
 
         //- List of the laser names
@@ -115,14 +116,14 @@ class laserHeatSource
 
     // Private Member Functions
 
-        //- Create the initial rays
-        //  This involves creating a list of points (starting position of the
-        //  laser rays) and their associated power (J/s)
-        //  The rays list should be the same on all
-        //  processors when returned from this function
-        void createInitialRays
+        //- Seed the ray cloud with initial ray particles.
+        //  Creates laserRayParticle objects and adds them to the cloud.
+        //  Only creates particles on the processor that owns the starting
+        //  cell. Returns the total number of rays across all processors
+        //  via nTotalRays.
+        void seedRayCloud
         (
-            List<compactRay>& rays,
+            Cloud<laserRayParticle>& cloud,
             const fvMesh& mesh,
             const vector& currentLaserPosition,
             const scalar laserRadius,
@@ -132,7 +133,8 @@ class laserHeatSource
             const vector& V_incident,
             const scalar Radius_Flavour,
             const scalar Q_cond,
-            const scalar beam_radius
+            const scalar beam_radius,
+            label& nTotalRays
         ) const;
 
         //- Disallow default bitwise copy construct
@@ -149,10 +151,7 @@ public:
     // Constructors
 
         //- Construct from the mesh
-        laserHeatSource
-        (
-            const fvMesh& mesh
-        );
+        laserHeatSource(const fvMesh& mesh);
 
     // Destructor
 
@@ -187,12 +186,9 @@ public:
         }
 
         //- Update the deposition field for all lasers
-        //  The filtered volume frame field (alphaFiltered) and the filtered
-        //  interface normal field are required to define the interface
-        //  The electrical resistivity field is passed as an argument, allowing
-        //  a general laser heat source for multi-component and temperature
-        //  dependent resistivity solvers
-        //  This resets the deposition field to zero before updating it
+        //  The function takes three arguments
+        //  The filtered volume of metal field  (alphaFiltered), the normal
+        //  vector field nFiltered and the scalar resistivity field
         void updateDeposition
         (
             const volScalarField& alphaFiltered,
@@ -201,8 +197,6 @@ public:
         );
 
         //- Update the deposition for the given laser parameters
-        //  This adds to the existing deposition field and does not reset it to
-        //  zero first
         void updateDeposition
         (
             const volScalarField& alphaFiltered,
@@ -223,7 +217,7 @@ public:
             const Switch useLocalSearch,
             const label maxLocalSearch,
             const scalar rayPowerRelTol,
-            const boundBox& globalBB  // FOR ACCESS TO BOUNDING BOX GLOBALLY
+            const boundBox& globalBB
         );
 
         //- Const access to the global bounding box
@@ -242,9 +236,7 @@ public:
         //- Write rayPath_ to a VTK file with the given name
         void writeRayPathsToVTK();
 
-        //- Write a "vtk.series" file with details about the VTK files written
-        //  so far. This file can be conveniently opened in ParaView and will
-        //  load the rays at the correct physical times
+        //- Write a "vtk.series" file
         void writeRayPathVTKSeriesFile() const;
 };
 

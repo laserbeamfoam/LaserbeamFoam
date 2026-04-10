@@ -1,0 +1,54 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                  
+  \\      /  F ield           OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration       Website:  www.openfoam.com
+    \\  /    A nd             Version:  v2506
+     \\/     M anipulation   
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       volScalarField;
+    object      p_rgh;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// #include "../system/flow_region_geom"
+
+dimensions      [1 -1 -2 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    inlet
+    {
+        type            totalPressure;
+        p0              uniform 1;    
+    }
+
+    outlet
+    {
+        type            totalPressure;
+        p0              uniform 0; // i.e., 1e5 - 1
+    }
+
+    lowerWall
+    {
+        type            fixedFluxPressure;
+        value           $internalField;
+    }
+
+    upperWall
+    {
+        type            fixedFluxPressure;
+        value           $internalField;
+    }
+
+    defaultFaces
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

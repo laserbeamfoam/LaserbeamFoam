@@ -1,6 +1,17 @@
 {
     TSolidus = alpha1*Tsolidus1 + (1.0 - alpha1)*Tsolidus2;
     TLiquidus = alpha1*Tliquidus1 + (1.0 - alpha1)*Tliquidus2;
+
+    if (mthd.valid())
+    {
+        mthd->correctIncompressibleProperties
+        (
+            alpha1,
+            transportPropertiesMetal,
+            transportPropertiesGas
+        );
+    }
+
     beta = alpha1*beta1 + (1.0 - alpha1)*beta2;
     rhok = (1.0 - max(epsilon1*(beta)*(T - TSolidus), 0.0));
 
@@ -25,29 +36,7 @@
 
     #include "updateKappaCp.H"
 
-    // Update the cell size fields
-    const faceList & ff = mesh.faces();
-    const pointField & pp = mesh.points();
     const vectorField& CI = mesh.C();
-    scalarField& yDimI = laser.yDim();
-    forAll(CI, celli)
-    {
-        const cell& cc = mesh.cells()[celli];
-        labelList pLabels(cc.labels(ff));
-        pointField pLocal(pLabels.size(), vector::zero);
-
-        forAll(pLabels, pointi)
-        {
-            pLocal[pointi] = pp[pLabels[pointi]];
-        }
-
-        yDimI[celli] =
-            Foam::max(pLocal & vector(0, 1, 0))
-          - Foam::min(pLocal & vector(0, 1, 0));
-    }
-
-    laser.yDim().correctBoundaryConditions();
-
     metalaverage = fvc::average(alpha1);
     metalaverage.correctBoundaryConditions();  // ADDED
 

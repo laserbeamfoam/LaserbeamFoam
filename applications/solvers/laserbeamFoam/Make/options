@@ -1,4 +1,5 @@
 EXE_INC = \
+    -I../../../src/MTHD/lnInclude \
     -I../../../src/laserHeatSource/lnInclude \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/incompressibleInterPhaseTransportModel/lnInclude \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/VoFphaseIncompressibleTurbulenceModels/lnInclude \
@@ -16,11 +17,13 @@ EXE_INC = \
     -I$(LIB_SRC)/TurbulenceModels/turbulenceModels/lnInclude \
     -I$(LIB_SRC)/TurbulenceModels/incompressible/lnInclude \
     -I$(LIB_SRC)/TurbulenceModels/phaseIncompressible/lnInclude \
-    -I$(LIB_SRC)/transportModels/immiscibleIncompressibleTwoPhaseMixture/lnInclude
+    -I$(LIB_SRC)/transportModels/immiscibleIncompressibleTwoPhaseMixture/lnInclude \
+    -I$(LIB_SRC)/lagrangian/basic/lnInclude
 
 EXE_LIBS = \
     -lfiniteVolume \
     -L$(FOAM_USER_LIBBIN) \
+    -lMTHD \
     -llaserHeatSource \
     -lfvOptions \
     -lsurfMesh \
@@ -36,4 +39,5 @@ EXE_LIBS = \
     -lincompressibleTurbulenceModels \
     -lwaveModels \
     -lVoFphaseTurbulentTransportModels \
-    -lincompressibleInterPhaseTransportModels
+    -lincompressibleInterPhaseTransportModels \
+    -llagrangian

@@ -34,6 +34,7 @@ License
 #include "fvcDiv.H"
 #include "fvcGrad.H"
 #include "fvcSnGrad.H"
+#include "fvcDdt.H"
 #include "fvcFlux.H"
 #include "fvcMeshPhi.H"
 #include "surfaceInterpolate.H"
@@ -1594,7 +1595,15 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
     *massdotterm+=massgen;
 
 
-        Sps.set(phasei,new volScalarField(divU));//
+
+        const volScalarField& rhoK = alpha.thermo().rho();
+        volScalarField densityCorr
+        (
+            -fvc::ddt(rhoK)
+          / Foam::max(rhoK, dimensionedScalar("rhoMin", dimDensity, 1e-6))
+        );
+
+        Sps.set(phasei, new volScalarField(divU + densityCorr));
         volScalarField& Sp=Sps[phasei];
         Sus.set(phasei,new volScalarField(alphagen));//
         volScalarField& Su=Sus[phasei];
@@ -1674,40 +1683,35 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
             -PCR*(min(alpha, scalar(1)))//double counting divU - need to seperate out div(U) due to phase change
         );
 
+        // -----------------------------------------------------------
+        // Direct density correction (replaces dgdt loops).
+        //
+        // Sp = −(1/ρ_k)(∂ρ_k/∂t)
+        //
+        // When multiplied by α in MULES, this gives the exact
+        // correction needed for mass conservation.  Unlike the
+        // dgdt mechanism from pEqn.H, this uses the CURRENT
+        // thermodynamic state — not a one-timestep-lagged value.
+        //
+        // On the first PIMPLE iteration, ρ_k has not yet been
+        // updated, so ∂ρ_k/∂t reflects changes from the previous
+        // timestep.  On subsequent iterations, pEqn updates ρ_k,
+        // so the correction captures the latest density changes.
+        // -----------------------------------------------------------
         {
-            const scalarField& dgdt = alpha.dgdt();
+            const volScalarField& rhoK = alpha.thermo().rho();
+            const scalarField& rhoNew = rhoK.primitiveField();
+            const scalarField& rhoOld = rhoK.oldTime().primitiveField();
+            const scalar dt = mesh_.time().deltaTValue();
 
-            forAll(dgdt, celli)
+            forAll(Sp, celli)
             {
-                if (dgdt[celli] < 0.0 && alpha[celli] > 0.0)
-                {
-                    Sp[celli] += dgdt[celli]*alpha[celli];
-                    Su[celli] -= dgdt[celli]*alpha[celli];
-                }
-                else if (dgdt[celli] > 0.0 && alpha[celli] < 1.0)
-                {
-                    Sp[celli] -= dgdt[celli]*(1.0 - alpha[celli]);
-                }
-            }
-        }
+                const scalar drhodt =
+                    (rhoNew[celli] - rhoOld[celli]) / dt;
+                const scalar rhoSafe =
+                    Foam::max(rhoNew[celli], scalar(1e-6));
 
-        for (const phaseModel& alpha2 : phases_)
-        {
-            if (&alpha2 == &alpha) continue;
-
-            const scalarField& dgdt2 = alpha2.dgdt();
-
-            forAll(dgdt2, celli)
-            {
-                if (dgdt2[celli] > 0.0 && alpha2[celli] < 1.0)
-                {
-                    Sp[celli] -= dgdt2[celli]*(1.0 - alpha2[celli]);
-                    Su[celli] += dgdt2[celli]*alpha[celli];
-                }
-                else if (dgdt2[celli] < 0.0 && alpha2[celli] > 0.0)
-                {
-                    Sp[celli] += dgdt2[celli]*alpha2[celli];
-                }
+                Sp[celli] -= drhodt / rhoSafe;
             }
         }
 

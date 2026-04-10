@@ -1,0 +1,170 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvSolution;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+std_tol     1e-7;
+final_tol   1e-8;
+
+solvers
+{
+    "alpha.*"
+    {
+        nAlphaSubCycles 4;
+        cAlpha          1;
+        tolerance 1e-12;
+    }
+
+    "pcorr.*"
+    {
+        solver          PCG;
+        preconditioner
+        {
+            preconditioner  GAMG;
+            tolerance       $std_tol;
+            relTol          0.05;
+            smoother        GaussSeidel;
+        }
+        tolerance       $std_tol;
+        relTol          0;
+        maxIter         1000;
+    }
+
+    ".*(rho|rhoFinal)"
+    {
+        solver          diagonal;
+    }
+
+    p_rgh
+    {
+        solver          GAMG;
+        tolerance       $std_tol;
+        relTol          0.0;
+        smoother        GaussSeidel;
+    }
+
+    p_rghFinal
+    {
+        solver          PCG;
+        preconditioner
+        {
+            preconditioner  GAMG;
+            tolerance       $final_tol;
+            relTol          0;
+            nVcycles        5;
+            smoother        GaussSeidel;
+        }
+        tolerance       $final_tol;
+        relTol          0;
+        maxIter         2000;
+    }
+
+    "(U|T|k|B|nuTilda)"
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-012;
+        relTol          0.0;
+        nSweeps         1;
+    }
+
+    "(U|T|k|B|nuTilda)Final"
+    {
+        $U;
+        relTol          0;
+    }
+
+    // ----------------------------------------------------------------------------- //
+    H
+    {
+        /*
+        solver          smoothSolver;
+        smoother        GaussSeidel;//GaussSeidel;//DICGaussSeidel;//
+        tolerance       1e-09;
+        relTol          0.0;//0.1;
+        nSweeps         2;//1;
+        maxIter         5000;
+        */
+        solver          PBiCG;
+        preconditioner  DILU;
+        tolerance       $std_tol;
+        minIter         1;
+        maxIter         500;//2
+
+
+    }
+
+    HFinal
+    {
+        $H;
+        tolerance       $final_tol;
+        relTol          0;
+    }
+
+    pH
+    {
+        /*
+        $p_rgh;
+        tolerance       $std_tol;
+        relTol          0.0;
+        maxIter         5000;
+        */
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       $std_tol;
+        relTol          0.0;
+
+    }
+
+    pHFinal
+    {
+        $pH;
+        relTol          0;
+    }
+}
+
+relaxationFactors
+{
+    equations
+    {
+        ".*"            1;
+    }
+}
+
+MELTING
+{
+    minTempCorrector 1;
+    maxTempCorrector 50;    // 20;
+    epsilonTolerance 1e-12; // 1e-9;
+    epsilonRelaxation 0.9;
+}
+
+PIMPLE
+{
+    nOuterCorrectors            1; // always 1
+    nCorrectors                 4;
+    nNonOrthogonalCorrectors    2; // >0 when AMR used.
+}
+
+// MHD Specific
+BPISO
+{
+    nOuterCorrectors            1; // always 1 
+    nCorrectors                 3;
+    nNonOrthogonalCorrectors    2; // >0 when AMR used.
+    pRefCell                    0;
+    pRefValue                   0.0;
+}
+
+// ************************************************************************* //

@@ -1,5 +1,6 @@
 EXE_INC = \
     -I./VoF \
+    -I../../../src/MTHD/lnInclude \
     -I../../../src/laserHeatSource/lnInclude \
     -ImultiphaseMixtureThermo/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
@@ -11,7 +12,8 @@ EXE_INC = \
     -I$(LIB_SRC)/transportModels/twoPhaseMixture/lnInclude \
     -I$(LIB_SRC)/transportModels/interfaceProperties/lnInclude \
     -I$(LIB_SRC)/TurbulenceModels/turbulenceModels/lnInclude \
-    -I$(LIB_SRC)/TurbulenceModels/compressible/lnInclude
+    -I$(LIB_SRC)/TurbulenceModels/compressible/lnInclude \
+    -I$(LIB_SRC)/lagrangian/basic/lnInclude
 
 EXE_LIBS = \
     -lfiniteVolume \
@@ -27,5 +29,7 @@ EXE_LIBS = \
     -lthermoTools \
     -ldynamicFvMesh \
     -L$(FOAM_USER_LIBBIN) \
+    -lMTHD \
     -llaserHeatSource \
-    -lmultiphaseVapMixtureThermo
+    -lmultiphaseVapMixtureThermo \
+    -llagrangian

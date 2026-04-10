@@ -1,0 +1,94 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      physicalProperties.air; // this is Argon
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+thermoType
+{
+    type            heRhoThermo;
+    mixture         pureMixture;
+    transport       const;
+    thermo          hConst;
+    equationOfState perfectFluid;
+    specie          specie;
+    energy          sensibleInternalEnergy;
+}
+/* Citations
+    [3] https://www.matweb.com/search/DataSheet.aspx?MatGUID=c9a1da836836434d8caa78c23dfeb10f&ckck=1
+    For thermal conductivity interpolated as 0.01755586
+*/
+#include "propertiesReference"
+
+// ARGON
+
+magnetic_permeability	$magnetic_permeability_argon_;
+elec_conductivity       $elec_conductivity_argon_;
+TSolidus	1.0;
+TLiquidus	1.0001;
+LatentHeat	1.0;
+
+mixture
+{
+    specie
+    {
+        molWeight   39.948;
+    }
+    equationOfState
+    {
+        rho         1.784;   // kg/m^3
+
+        // perfectFluid
+        rho0        1.0e-4;  // Artificial for numerics
+        R           208.13307299489338; // J / kg / K
+    }
+    thermodynamics
+    {
+        Cp          0.5204265545208772e+3;
+        //- Notes on Cp calculation:
+        //  Cp [J / mol K]= 20.79; M = 39.948 [GRAMS! / M] ->  *1e+3 at end!
+        //  => Cp/M = 0.52... [J / kg K]
+
+        Cv          0.5e+3;
+        Hf          0;
+    }
+    transport
+    {
+        mu          2.23e-5; // Argon from engineering toolbox // 1.84e-05;
+        Pr          0.0006610620006664924; // (cp * mu / kappa)
+
+        // kappa 0.01755586;
+    }
+}
+
+// viscosityModel constant;
+
+// nu [0 2 -1 0 0 0 0] 1.48e-05;
+// rho [1 -3 0 0 0 0 0] 1.78;
+// kappa [1 1 -3 -1 0] 0.04;
+// kappasolid [1 1 -3 -1 0] 0.04;
+// Cp [0 2 -2 -1 0] 520;
+// Cpsolid [0 2 -2 -1 0] 520.0;
+// Tsolidus [0 0 0 1 0] 0.1;
+// Tliquidus [0 0 0 1 0] 20.0;
+// Tvap [0 0 0 1 0] 25.0;
+// Latentheatgas [0 2 -2 0 0] 0.0;
+// Latentheat [0 2 -2 0 0] 1;
+// beta [0 0 0 -1 0] 1.6e-5;
+// molarmass [1 0 0 0 -1] 0.001;
+// elec_resistivity [1 3 -3 0 0] 0.0;//need to be kept zero for code to make sense
+// e_num_density [0 -3 0 0 0] 0.0;//need to be kept zero for code to make sense
+// v_rate [0 1 0 0 0] 1e-2;
+
+// condelec	1.0e1;
+// permmag	1.256e-6;
+// ************************************************************************* //
