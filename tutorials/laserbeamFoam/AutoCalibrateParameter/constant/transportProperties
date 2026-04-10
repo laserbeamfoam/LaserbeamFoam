@@ -55,7 +55,6 @@ Tvap                    3090.0;
 Mm                      5.593e-2;
 LatentHeatVap           7.45e6;
 recoilCoeff            2.1035921886439914;
-damper                 0.5;
 emS                     0.4;
 emL                     0.1;
 TRef                    TRef [0 0 0 1 0 0 0]   300;

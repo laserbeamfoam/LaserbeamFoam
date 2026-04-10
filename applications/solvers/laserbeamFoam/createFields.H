@@ -538,6 +538,7 @@ const dimensionedScalar recoilCoeff
     transportProperties.lookupOrDefault<scalar>("recoilCoeff", scalar(1.0))
 );
 
+
 // Recoil Pressure
 volScalarField pVap
 (
