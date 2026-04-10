@@ -259,14 +259,19 @@ power levels.
 ## Credits
 
 This calibration framework was developed as part of a collaborative research
-effort between the **University of Galway** and **Nanjing Tech University**.
+effort between the **University of Galway**, **Nanjing Tech University**,
+**University College Dublin (UCD)**, and the **University of Manchester (UoM)**.
 
 **Authors:**
 - **Guanhong Chen**, University of Galway / Nanjing Tech University
 - **Jinhui Wang**, Nanjing Tech University
+- **Simon A. Rodriguez**, University College Dublin (UCD)
+- **Petar Cosic**, University College Dublin (UCD)
+- **Tom Flint**, University of Manchester (UoM)
+- **Philip Cardiff**, University College Dublin (UCD)
 - **Sean Leen**, University of Galway
 
-The authors gratefully acknowledge the support of both institutions and the
+The authors gratefully acknowledge the support of all institutions and the
 open-source communities of **OpenFOAM**, **ParaView**, and
 **scikit-optimize**, whose tools made this workflow possible.
 
