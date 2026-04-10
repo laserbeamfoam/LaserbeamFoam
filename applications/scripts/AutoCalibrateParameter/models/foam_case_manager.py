@@ -1,8 +1,8 @@
 """
-OpenFOAM 案例管理器
+OpenFOAM Case Manager
 
-管理 OpenFOAM 案例的运行和后处理
-从原 meltpool_model.py 迁移
+Manages the running and post-processing of OpenFOAM cases.
+Migrated from the original meltpool_model.py.
 """
 
 from __future__ import annotations
@@ -18,17 +18,17 @@ from typing import Dict, Optional, Tuple
 import pandas as pd
 
 
-# ========== 工具函数 ==========
+# ========== Utility functions ==========
 
 
 def _run(cmd: str, workdir: Path) -> None:
-    """执行 shell 命令"""
+    """Execute a shell command"""
     print(f"[cmd] {cmd}")
     subprocess.run(cmd, cwd=str(workdir), shell=True, check=True)
 
 
 def _run_script(script: str, workdir: Path, runner: Optional[str]) -> None:
-    """执行脚本，支持自定义 runner"""
+    """Execute a script with optional custom runner"""
     script = script.strip() + ("\n" if not script.endswith("\n") else "")
     label = runner or "bash -lc"
     print(f"[cmd:{label}] <<'EOF'\n{script}EOF")
@@ -42,7 +42,7 @@ def _run_script(script: str, workdir: Path, runner: Optional[str]) -> None:
 
 
 def _update_dict_value(path: Path, key: str, value: float) -> None:
-    """更新 OpenFOAM 字典文件中的值"""
+    """Update a value in an OpenFOAM dictionary file"""
     lines = path.read_text().splitlines()
     pattern = re.compile(rf"^\s*{re.escape(key)}\b")
 
@@ -58,7 +58,7 @@ def _update_dict_value(path: Path, key: str, value: float) -> None:
 
 
 def _update_T_internal(path: Path, temperature: float) -> None:
-    """更新温度场的初始值"""
+    """Update the initial value of the temperature field"""
     lines = path.read_text().splitlines()
     pattern = re.compile(r"^\s*internalField\s+uniform\s+([0-9eE+\-\.]+)")
 
@@ -68,11 +68,11 @@ def _update_T_internal(path: Path, temperature: float) -> None:
             lines[i] = f"{indent}internalField   uniform {temperature};"
             path.write_text("\n".join(lines) + "\n")
             return
-    raise RuntimeError(f"未在 {path} 中找到 internalField 行")
+    raise RuntimeError(f"internalField line not found in {path}")
 
 
 def _rewrite_power_file(path: Path, power_w: float) -> None:
-    """修改激光功率文件"""
+    """Modify the laser power file"""
     lines = path.read_text().splitlines()
     pattern = re.compile(r"\(\s*([0-9eE+\-\.]+)\s+([0-9eE+\-\.]+)\s*\)")
 
@@ -88,27 +88,27 @@ def _rewrite_power_file(path: Path, power_w: float) -> None:
     path.write_text("\n".join(new_lines) + "\n")
 
 
-# ========== OpenFOAM 案例管理器 ==========
+# ========== OpenFOAM Case Manager ==========
 
 
 class OpenFOAMCaseManager:
     """
-    管理 OpenFOAM 案例的运行和后处理
+    Manages the running and post-processing of OpenFOAM cases
 
     Attributes
     ----------
     case_dir : Path
-        案例目录
+        Case directory
     postproc_script : Path
-        后处理脚本路径
+        Post-processing script path
     foam_bashrc : str, optional
-        OpenFOAM bashrc 路径
+        OpenFOAM bashrc path
     foam_runner : str, optional
-        OpenFOAM 运行器命令
+        OpenFOAM runner command
     n_proc : int
-        MPI 并行核数
+        Number of MPI parallel processes
     hpc_mode : bool
-        是否使用 HPC 模式
+        Whether HPC mode is enabled
     """
 
     def __init__(
@@ -132,30 +132,30 @@ class OpenFOAMCaseManager:
         archive_mode: str = "latest",
     ):
         """
-        初始化案例管理器
+        Initialize the case manager
 
         Parameters
         ----------
         case_dir : Path
-            OpenFOAM 案例目录
+            OpenFOAM case directory
         postproc_script : Path
-            后处理脚本路径
+            Post-processing script path
         foam_bashrc : str, optional
-            OpenFOAM bashrc 路径
+            OpenFOAM bashrc path
         postproc_python : str
-            后处理 Python 解释器
+            Post-processing Python interpreter
         postproc_runner : str, optional
-            后处理运行器
+            Post-processing runner
         pvpython : str, optional
-            pvpython 可执行文件路径
+            Path to pvpython executable
         n_proc : int
-            MPI 并行核数
+            Number of MPI parallel processes
         foam_runner : str, optional
-            OpenFOAM 运行器命令 (如 "of2506")
+            OpenFOAM runner command (e.g. "of2506")
         mpirun_flags : tuple
-            mpirun 额外参数
+            Extra mpirun arguments
         hpc_mode : bool
-            是否使用 HPC 模式
+            Whether HPC mode is enabled
         """
         self.case_dir = Path(case_dir).resolve()
         self.postproc_script = Path(postproc_script).expanduser().resolve()
@@ -181,7 +181,7 @@ class OpenFOAMCaseManager:
             raise ValueError("archive_mode must be 'latest' or 'all'")
         self.archive_mode = normalized_archive_mode
 
-        # 关键文件路径
+        # Key file paths
         self.transport_props = self.case_dir / "constant" / "transportProperties"
         self.temp_field = self.case_dir / "initial" / "T"
         self.time_vs_power = self.case_dir / "constant" / "timeVsLaserPower"
@@ -196,12 +196,12 @@ class OpenFOAMCaseManager:
 
     def update_recoil_coeff(self, value: float) -> None:
         """
-        更新transportProperties中的反冲压力系数
+        Update the recoil pressure coefficient in transportProperties
 
         Parameters
         ----------
         value : float
-            反冲压力系数
+            Recoil pressure coefficient
         """
         _update_dict_value(self.transport_props, "recoilCoeff", value)
 
@@ -216,24 +216,24 @@ class OpenFOAMCaseManager:
         laser_radius: float = 50e-6,
     ) -> None:
         """
-        更新材料参数
+        Update material parameters
 
         Parameters
         ----------
         sigma : float
-            表面张力系数
+            Surface tension coefficient
         marangoni : float
-            Marangoni 常数
+            Marangoni constant
         substrate_temp : float
-            基板温度 (K)
+            Substrate temperature (K)
         absorptivity : float, optional
-            激光吸收率系数 (默认: 1.0)
+            Laser absorptivity coefficient (default: 1.0)
         recoil_coeff : float, optional
-            反冲压力系数 (默认: 1.0)
+            Recoil pressure coefficient (default: 1.0)
         radius_flavour : float, optional
-            LaserProperties 中的 Radius_Flavour (默认: 2.0)
+            Radius_Flavour in LaserProperties (default: 2.0)
         laser_radius : float, optional
-            LaserProperties 中的 laserRadius，单位 m (默认: 50e-6)
+            laserRadius in LaserProperties, in meters (default: 50e-6)
         """
         _update_dict_value(self.transport_props, "sigma", sigma)
         _update_dict_value(self.transport_props, "Marangoni_Constant", marangoni)
@@ -245,29 +245,29 @@ class OpenFOAMCaseManager:
 
     def set_power(self, power_w: float, absorptivity: float = 1.0) -> None:
         """
-        设置激光功率（考虑吸收率）
+        Set the laser power (accounting for absorptivity)
 
-        实际功率 = 名义功率 × 吸收率
+        Effective power = nominal power x absorptivity
 
         Parameters
         ----------
         power_w : float
-            名义激光功率 (W)
+            Nominal laser power (W)
         absorptivity : float
-            吸收率系数
+            Absorptivity coefficient
         """
         effective_power = power_w * absorptivity
         _rewrite_power_file(self.time_vs_power, effective_power)
 
     def run_simulation(self) -> None:
-        """运行 OpenFOAM 仿真"""
+        """Run the OpenFOAM simulation"""
         if self.hpc_mode:
             self._run_simulation_hpc()
         else:
             self._run_simulation_pc()
 
     def _run_simulation_hpc(self) -> None:
-        """HPC 模式运行仿真"""
+        """Run simulation in HPC mode"""
         mpirun_cmd = [
             "mpirun",
             *self.mpirun_flags,
@@ -298,7 +298,7 @@ class OpenFOAMCaseManager:
         _run_script("\n".join(lines), self.case_dir, self.foam_runner)
 
     def _run_simulation_pc(self) -> None:
-        """个人电脑模式运行仿真"""
+        """Run simulation in PC (personal computer) mode"""
         DEFAULT_BASHRC = "/usr/lib/openfoam/openfoam2506/etc/bashrc"
         bashrc = shlex.quote(self.foam_bashrc or DEFAULT_BASHRC)
         case_dir = shlex.quote(str(self.case_dir))
@@ -322,7 +322,7 @@ class OpenFOAMCaseManager:
         _run(cmd, self.case_dir)
 
     def run_postprocess(self) -> None:
-        """运行后处理脚本"""
+        """Run the post-processing script"""
         self._write_input_data()
         if self.hpc_mode:
             self._run_postprocess_hpc()
@@ -330,7 +330,7 @@ class OpenFOAMCaseManager:
             self._run_postprocess_pc()
 
     def _write_input_data(self) -> None:
-        """在案例目录生成 input_data.py，覆盖后处理脚本的默认值"""
+        """Generate input_data.py in the case directory, overriding defaults in the post-processing script"""
         path = self.case_dir / "input_data.py"
         of_loc = self.foam_bashrc or ""
         path.write_text(
@@ -344,7 +344,7 @@ class OpenFOAMCaseManager:
         )
 
     def _run_postprocess_hpc(self) -> None:
-        """HPC 模式后处理"""
+        """Run post-processing in HPC mode"""
         if not self.main_foam.exists():
             self.main_foam.touch()
 
@@ -359,7 +359,7 @@ class OpenFOAMCaseManager:
         subprocess.run(cmd, cwd=str(self.case_dir), check=True, env=env)
 
     def _run_postprocess_pc(self) -> None:
-        """个人电脑模式后处理"""
+        """Run post-processing in PC mode"""
         _run(
             f"{self.postproc_python} {shlex.quote(str(self.postproc_script))}",
             self.case_dir,
@@ -367,16 +367,16 @@ class OpenFOAMCaseManager:
 
     def read_metrics(self) -> Dict[str, float]:
         """
-        读取后处理结果
+        Read post-processing results
 
         Returns
         -------
         dict
-            包含 width_mean_m, depth_mean_m, area_mean_m2 的字典
+            Dictionary containing width_mean_m, depth_mean_m, area_mean_m2
         """
         metrics_path = self.case_dir / "cross_sections_statistics.csv"
         if not metrics_path.exists():
-            raise FileNotFoundError(f"缺少 {metrics_path}，后处理是否成功？")
+            raise FileNotFoundError(f"Missing {metrics_path}; did post-processing succeed?")
 
         df = pd.read_csv(metrics_path)
         return {
@@ -386,7 +386,7 @@ class OpenFOAMCaseManager:
         }
 
     def _get_numeric_time_dirs(self) -> list[Path]:
-        """获取并排序案例目录下的数字时间步目录。"""
+        """Get and sort the numeric time-step directories under the case directory."""
         time_dirs: list[Path] = []
         for path in self.case_dir.iterdir():
             if not path.is_dir():
@@ -400,47 +400,47 @@ class OpenFOAMCaseManager:
 
     def archive_latest_time(self, dest_parent: Path, new_name: Optional[str] = None) -> None:
         """
-        归档最后一个时间步的目录
+        Archive the last time-step directory
 
         Parameters
         ----------
         dest_parent : Path
-            目标父目录
+            Destination parent directory
         new_name : str, optional
-            新目录名，如果为 None 则保持原名
+            New directory name; if None, keep original name
         """
         import shutil
 
-        # 找到最新的数字目录
+        # Find the latest numeric directory
         time_dirs = self._get_numeric_time_dirs()
 
         if not time_dirs:
-            print("  [Archive] 未找到时间目录")
+            print("  [Archive] No time directories found")
             return
 
-        # 按数值排序
+        # Sort by numeric value
         latest_dir = sorted(time_dirs, key=lambda p: float(p.name))[-1]
-        
+
         dest_name = new_name if new_name else latest_dir.name
         dest_path = dest_parent / dest_name
 
         if dest_path.exists():
             shutil.rmtree(dest_path)
-            
+
         try:
             shutil.copytree(latest_dir, dest_path)
-            print(f"  [Archive] 已保存 {latest_dir.name} -> {dest_path}")
+            print(f"  [Archive] Saved {latest_dir.name} -> {dest_path}")
         except Exception as e:
-            print(f"  [Archive] 保存失败: {e}")
+            print(f"  [Archive] Save failed: {e}")
 
     def archive_all_results(self, dest_parent: Path) -> None:
         """
-        归档全部结果（所有时间步 + 关键输出文件）。
+        Archive all results (all time steps + key output files).
 
         Parameters
         ----------
         dest_parent : Path
-            目标目录
+            Destination directory
         """
         import shutil
 
@@ -448,17 +448,17 @@ class OpenFOAMCaseManager:
         dest_parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # 1) 所有数字时间步
+            # 1) All numeric time steps
             time_dirs = self._get_numeric_time_dirs()
             if not time_dirs:
-                print("  [Archive] 未找到时间目录")
+                print("  [Archive] No time directories found")
             for src in time_dirs:
                 dst = dest_parent / src.name
                 if dst.exists():
                     shutil.rmtree(dst)
                 shutil.copytree(src, dst)
 
-            # 2) 关键目录
+            # 2) Key directories
             for dirname in ("constant", "system"):
                 src = self.case_dir / dirname
                 if not src.is_dir():
@@ -468,32 +468,32 @@ class OpenFOAMCaseManager:
                     shutil.rmtree(dst)
                 shutil.copytree(src, dst)
 
-            # 3) 日志与结果 CSV
+            # 3) Logs and result CSVs
             for pattern in ("log.*", "*.csv"):
                 for src in self.case_dir.glob(pattern):
                     if src.is_file():
                         shutil.copy2(src, dest_parent)
 
-            # 4) 便于可视化/复现的附加文件
+            # 4) Additional files for visualization/reproduction
             for filename in ("main.foam", "input_data.py"):
                 src = self.case_dir / filename
                 if src.is_file():
                     shutil.copy2(src, dest_parent)
 
-            print(f"  [Archive] 已保存全部结果 -> {dest_parent}")
+            print(f"  [Archive] All results saved -> {dest_parent}")
         except Exception as e:
-            print(f"  [Archive] 保存失败: {e}")
+            print(f"  [Archive] Save failed: {e}")
 
     def archive_results(self, dest_parent: Path, mode: str = "latest") -> None:
         """
-        根据归档模式保存结果。
+        Save results according to the archive mode.
 
         Parameters
         ----------
         dest_parent : Path
-            目标目录
+            Destination directory
         mode : str
-            归档模式："latest" 或 "all"
+            Archive mode: "latest" or "all"
         """
         normalized = str(mode).strip().lower()
         if normalized == "all":
@@ -507,12 +507,12 @@ class OpenFOAMCaseManager:
     @classmethod
     def from_config(cls, config) -> "OpenFOAMCaseManager":
         """
-        从配置对象创建案例管理器
+        Create a case manager from a configuration object
 
         Parameters
         ----------
         config : BaseConfig
-            配置对象
+            Configuration object
 
         Returns
         -------

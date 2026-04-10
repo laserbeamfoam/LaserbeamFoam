@@ -1,4 +1,4 @@
-"""模型模块"""
+"""Models module"""
 
 from .foam_case_manager import OpenFOAMCaseManager
 from .meltpool_params import PARAM_NAMES, PARAM_LABELS, DEFAULT_BOUNDS

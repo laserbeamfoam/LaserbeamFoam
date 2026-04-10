@@ -1,5 +1,5 @@
 """
-实验与仿真对比图
+Experiment vs simulation comparison plots
 """
 
 from pathlib import Path
@@ -22,31 +22,31 @@ def save_comparison_plot(
     title: str = "Experiment vs Simulation",
 ) -> Path:
     """
-    保存实验与仿真对比图
+    Save experiment vs simulation comparison plot
 
     Parameters
     ----------
     output_dir : Path
-        输出目录
+        Output directory
     power_points : np.ndarray
-        功率点
+        Power points
     exp_observations : np.ndarray, shape (n, 3)
-        实验观测值 [width, depth, area]
+        Experimental observations [width, depth, area]
     sim_predictions : np.ndarray, shape (n, 3)
-        仿真预测值 [width, depth, area]
+        Simulation predictions [width, depth, area]
     output_names : list
-        输出名称
+        Output names
     output_units : list
-        输出单位
+        Output units
     nrmse : float, optional
-        NRMSE 值
+        NRMSE value
     title : str
-        图表标题
+        Plot title
 
     Returns
     -------
     Path
-        图片路径
+        Image path
     """
     setup_plot_style()
 
@@ -62,11 +62,11 @@ def save_comparison_plot(
         exp_vals = exp_observations[:, i]
         sim_vals = sim_predictions[:, i]
 
-        # 绘制对比
+        # Plot comparison
         ax.plot(power_points, exp_vals, "ko-", markersize=8, label="Experiment")
         ax.plot(power_points, sim_vals, "rs--", markersize=8, label="Simulation")
 
-        # 填充误差区域
+        # Fill error region
         ax.fill_between(
             power_points,
             exp_vals,
@@ -80,7 +80,7 @@ def save_comparison_plot(
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        # 计算各输出的 RMSE
+        # Compute per-output RMSE
         rmse = np.sqrt(np.mean((exp_vals - sim_vals) ** 2))
         ax.set_title(f"{name} (RMSE: {rmse:.2f} {unit})")
 
@@ -107,27 +107,27 @@ def plot_predictions_vs_experiments(
     title: str = "Predictions vs Experiments",
 ) -> Path:
     """
-    绘制预测值 vs 实验值散点图（45度线）
+    Plot predictions vs experiments scatter plot (45-degree line)
 
     Parameters
     ----------
     output_dir : Path
-        输出目录
+        Output directory
     exp_observations : np.ndarray
-        实验观测值
+        Experimental observations
     sim_predictions : np.ndarray
-        仿真预测值
+        Simulation predictions
     output_names : list
-        输出名称
+        Output names
     output_units : list
-        输出单位
+        Output units
     title : str
-        图表标题
+        Plot title
 
     Returns
     -------
     Path
-        图片路径
+        Image path
     """
     setup_plot_style()
 
@@ -143,17 +143,17 @@ def plot_predictions_vs_experiments(
         exp_vals = exp_observations[:, i]
         sim_vals = sim_predictions[:, i]
 
-        # 散点图
+        # Scatter plot
         ax.scatter(exp_vals, sim_vals, s=80, c="steelblue", edgecolor="black", alpha=0.7)
 
-        # 45度线
+        # 45-degree line
         min_val = min(exp_vals.min(), sim_vals.min())
         max_val = max(exp_vals.max(), sim_vals.max())
         margin = (max_val - min_val) * 0.1
         line_range = [min_val - margin, max_val + margin]
         ax.plot(line_range, line_range, "k--", lw=1, label="Perfect fit")
 
-        # ±10% 区域
+        # ±10% region
         ax.fill_between(
             line_range,
             [v * 0.9 for v in line_range],
@@ -171,7 +171,7 @@ def plot_predictions_vs_experiments(
         ax.set_aspect("equal")
         ax.grid(True, alpha=0.3)
 
-        # R² 值
+        # R² value
         ss_res = np.sum((exp_vals - sim_vals) ** 2)
         ss_tot = np.sum((exp_vals - np.mean(exp_vals)) ** 2)
         r2 = 1 - ss_res / (ss_tot + 1e-10)
@@ -196,27 +196,27 @@ def plot_residuals(
     title: str = "Residuals Analysis",
 ) -> Path:
     """
-    绘制残差分析图
+    Plot residual analysis chart
 
     Parameters
     ----------
     output_dir : Path
-        输出目录
+        Output directory
     power_points : np.ndarray
-        功率点
+        Power points
     residuals : np.ndarray
-        残差 (simulation - experiment)
+        Residuals (simulation - experiment)
     output_names : list
-        输出名称
+        Output names
     output_units : list
-        输出单位
+        Output units
     title : str
-        图表标题
+        Plot title
 
     Returns
     -------
     Path
-        图片路径
+        Image path
     """
     setup_plot_style()
 
@@ -229,7 +229,7 @@ def plot_residuals(
     for i, (name, unit) in enumerate(zip(output_names, output_units)):
         res = residuals[:, i]
 
-        # 上图：残差 vs 功率
+        # Top plot: residuals vs power
         ax1 = axes[0, i] if n_outputs > 1 else axes[0]
         ax1.bar(power_points, res, width=15, color="steelblue", edgecolor="black")
         ax1.axhline(0, color="r", linestyle="--", lw=1)
@@ -238,7 +238,7 @@ def plot_residuals(
         ax1.set_title(f"{name} Residuals")
         ax1.grid(True, alpha=0.3)
 
-        # 下图：残差直方图
+        # Bottom plot: residuals histogram
         ax2 = axes[1, i] if n_outputs > 1 else axes[1]
         ax2.hist(res, bins=10, color="steelblue", edgecolor="black", density=True)
         ax2.axvline(0, color="r", linestyle="--", lw=1)

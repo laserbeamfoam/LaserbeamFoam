@@ -30,7 +30,7 @@ Authors
 
 LASER_DIAMETER = 70e-6 # In meters
 OF_LOCATION = "/usr/lib/openfoam/openfoam2506/etc/bashrc"
-CELL_SIZE = 1e-06  # 1μm - 更精细的网格分辨率，适合小尺寸熔池
+CELL_SIZE = 1e-06  # 1μm - finer mesh resolution, suitable for small-scale melt pools
 X_MIN_AND_MAX_DOMAIN = [0, 0.0003]
 Y_COORD_BEGIN_TRACK = 150e-6
 Y_COORD_END_TRACK = 300e-6

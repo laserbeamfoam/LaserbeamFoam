@@ -1,7 +1,7 @@
 """
-仿真运行器
+Simulation Runner
 
-封装 OpenFOAMCaseManager，提供简化的接口用于优化循环
+Wraps OpenFOAMCaseManager, providing a simplified interface for the optimization loop
 """
 
 from __future__ import annotations
@@ -22,20 +22,20 @@ if TYPE_CHECKING:
 
 class SimulationRunner:
     """
-    统一仿真运行器
+    Unified simulation runner
 
-    封装 OpenFOAMCaseManager，提供简化的接口用于优化循环
+    Wraps OpenFOAMCaseManager, providing a simplified interface for the optimization loop
 
     Attributes
     ----------
     config : BaseConfig
-        配置对象
+        Configuration object
     case_manager : OpenFOAMCaseManager
-        OpenFOAM 案例管理器
+        OpenFOAM case manager
     work_dir : Path
-        工作目录
+        Working directory
     eval_count : int
-        评估计数器
+        Evaluation counter
     """
 
     def __init__(
@@ -44,24 +44,24 @@ class SimulationRunner:
         work_dir: Optional[Path] = None,
     ):
         """
-        初始化仿真运行器
+        Initialize the simulation runner
 
         Parameters
         ----------
         config : BaseConfig
-            配置对象
+            Configuration object
         work_dir : Path, optional
-            工作目录，默认为 config.runs_root / "simulations"
+            Working directory; defaults to config.runs_root / "simulations"
         """
         self.config = config
         self.work_dir = work_dir or config.runs_root / "simulations"
         self.work_dir = Path(self.work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-        # 初始化 OpenFOAM 案例管理器
+        # Initialize the OpenFOAM case manager
         self.case_manager = OpenFOAMCaseManager.from_config(config)
 
-        # 参数过滤配置
+        # Parameter filtering configuration
         self.all_param_names = PARAM_NAMES
         config_bounds = get_param_bounds_from_config(config)
 
@@ -72,15 +72,15 @@ class SimulationRunner:
             config.fixed_values,
         )
 
-        print(f"优化参数: {self.active_names}")
+        print(f"Optimization parameters: {self.active_names}")
         if self.fixed_dict:
-            print(f"固定参数: {self.fixed_dict}")
+            print(f"Fixed parameters: {self.fixed_dict}")
 
-        # 评估计数器
+        # Evaluation counter
         self.eval_count = 0
 
     def get_active_bounds(self) -> List[Tuple[float, float]]:
-        """返回优化参数的边界（供优化器使用）"""
+        """Returns the bounds of the optimization parameters (for use by optimizers)"""
         return self.active_bounds
 
     def run(
@@ -92,31 +92,31 @@ class SimulationRunner:
         start_index: int = 0,
     ) -> np.ndarray:
         """
-        运行仿真并返回预测值
+        Run simulation and return predictions
 
         Parameters
         ----------
         params : np.ndarray, shape (n_active,)
-            优化参数值（只包含active参数）
+            Optimization parameter values (active parameters only)
         power_points : np.ndarray
-            功率点列表 [P1, P2, ...]
+            List of power points [P1, P2, ...]
         job_id : str | int, optional
-            任务 ID，用于归档结果
+            Job ID used for archiving results
         on_power_complete : Callable[[int, float, np.ndarray], None], optional
-            每个功率点完成后的回调函数
-            参数: (power_index, power_value, predictions_so_far)
+            Callback function called after each power point completes
+            Arguments: (power_index, power_value, predictions_so_far)
         start_index : int, optional
-            起始功率点索引（用于断点续传），默认为 0
+            Starting power point index (for resume from checkpoint), defaults to 0
 
         Returns
         -------
         predictions : np.ndarray, shape (n_powers, 3)
-            预测值 [width, depth, area] 单位: μm, μm, μm²
+            Predictions [width, depth, area] in units: μm, μm, μm²
         """
         params = np.asarray(params).flatten()
         power_points = np.asarray(power_points).flatten()
 
-        # 合并active + fixed → 完整参数向量
+        # Merge active + fixed -> full parameter vector
         full_params = merge_active_and_fixed_params(
             self.all_param_names,
             self.active_names,
@@ -139,7 +139,7 @@ class SimulationRunner:
             self.eval_count += 1
 
             try:
-                # 更新参数
+                # Update parameters
                 self.case_manager.update_parameters(
                     sigma,
                     marangoni,
@@ -151,11 +151,11 @@ class SimulationRunner:
                 )
                 self.case_manager.set_power(power, absorptivity)
 
-                # 运行仿真
+                # Run simulation
                 self.case_manager.run_simulation()
                 self.case_manager.run_postprocess()
 
-                # 读取结果 (m → μm)
+                # Read results (m -> μm)
                 metrics = self.case_manager.read_metrics()
                 predictions[i, 0] = metrics["width_mean_m"] * 1e6
                 predictions[i, 1] = metrics["depth_mean_m"] * 1e6
@@ -167,24 +167,24 @@ class SimulationRunner:
                 )
 
             except Exception as e:
-                print(f"  [eval {self.eval_count}] P={power:.0f}W 仿真失败: {e}")
+                print(f"  [eval {self.eval_count}] P={power:.0f}W simulation failed: {e}")
                 predictions[i, :] = np.nan
 
             finally:
-                # 归档结果
+                # Archive results
                 if job_id is not None:
                     archive_dir = self.config.runs_root / f"{job_id}" / f"{int(power)}W"
                     archive_dir.mkdir(parents=True, exist_ok=True)
                     archive_mode = getattr(self.config, "archive_mode", "latest")
                     self.case_manager.archive_results(archive_dir, mode=archive_mode)
 
-                # 调用回调函数（如果提供）
+                # Call callback function (if provided)
                 if on_power_complete is not None:
                     try:
                         global_idx = start_index + i
                         on_power_complete(global_idx, power, predictions[: i + 1].copy())
                     except Exception as e:
-                        print(f"  [警告] 功率点完成回调失败: {e}")
+                        print(f"  [Warning] Power point completion callback failed: {e}")
 
         return predictions
 
@@ -194,19 +194,19 @@ class SimulationRunner:
         power: float,
     ) -> Tuple[float, float, float]:
         """
-        运行单个功率点的仿真
+        Run simulation for a single power point
 
         Parameters
         ----------
         params : np.ndarray
-            参数（active 参数向量）
+            Parameters (active parameter vector)
         power : float
-            激光功率 (W)
+            Laser power (W)
 
         Returns
         -------
         tuple
-            (width, depth, area) 单位: μm, μm, μm²
+            (width, depth, area) in units: μm, μm, μm²
         """
         result = self.run(params, np.array([power]))
         return tuple(result[0])
@@ -217,19 +217,19 @@ class SimulationRunner:
         exp_data: np.ndarray,
     ) -> float:
         """
-        评估目标函数（Bayes 统一 NRMSE%）
+        Evaluate the objective function (Bayes unified NRMSE%)
 
         Parameters
         ----------
         params : np.ndarray
-            参数（active 参数向量）
+            Parameters (active parameter vector)
         exp_data : np.ndarray, shape (n, 4)
-            实验数据 [power, width, depth, area]
+            Experimental data [power, width, depth, area]
 
         Returns
         -------
         float
-            NRMSE 百分比
+            NRMSE percentage
         """
         power_points = exp_data[:, 0]
         observations = exp_data[:, 1:4]
@@ -248,9 +248,10 @@ class SimulationRunner:
         exp_data: np.ndarray,
     ) -> np.ndarray:
         """
-        计算展平的残差向量（用于 scipy.optimize.least_squares）
+        Compute the flattened residual vector (for use with scipy.optimize.least_squares)
 
-        这里返回 Bayes 统一目标对应的归一化残差（支持 output_weights）。
+        Returns the normalized residuals corresponding to the Bayes unified objective
+        (supports output_weights).
         """
         power_points = exp_data[:, 0]
         observations = exp_data[:, 1:4]
@@ -265,5 +266,5 @@ class SimulationRunner:
         return residuals.flatten()
 
     def reset_eval_count(self) -> None:
-        """重置评估计数器"""
+        """Reset the evaluation counter"""
         self.eval_count = 0

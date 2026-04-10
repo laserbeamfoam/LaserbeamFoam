@@ -1,7 +1,7 @@
 """
-基础配置类
+Base configuration class
 
-所有优化方法共享的配置参数
+Configuration parameters shared by all optimization methods
 """
 
 from __future__ import annotations
@@ -16,11 +16,11 @@ import yaml
 
 from ..utils.param_registry import canonical_param_name
 
-# 包根目录 (applications/scripts/AutoCalibrateParameter)
+# Package root directory (applications/scripts/AutoCalibrateParameter)
 _PACKAGE_ROOT = Path(__file__).resolve().parent.parent
-# 仓库根目录 (LaserbeamFoam)
+# Repository root directory (LaserbeamFoam)
 REPO_ROOT = _PACKAGE_ROOT.parent.parent.parent
-# 项目案例根目录 (Project/AutoCalibrateParameter)
+# Project case root directory (Project/AutoCalibrateParameter)
 PROJECT_ROOT = REPO_ROOT / "Project" / "AutoCalibrateParameter"
 
 _INT_LITERAL_RE = re.compile(r"^[+-]?\d+$")
@@ -138,7 +138,7 @@ def _default_runs_root() -> Path:
 
 
 def _registry_param_names_fallback() -> List[str]:
-    """优先从参数注册中心获取参数名，失败时回退到默认顺序。"""
+    """Retrieve parameter names from the parameter registry; fall back to default order on failure."""
     fallback = ["sigma", "marangoni", "substrate_temp", "absorptivity", "recoilCoeff", "radius_flavour"]
     try:
         from ..utils.param_registry import PARAM_NAMES
@@ -149,7 +149,7 @@ def _registry_param_names_fallback() -> List[str]:
 
 
 def _registry_bounds_from_config(config: "BaseConfig") -> Dict[str, Tuple[float, float]]:
-    """优先从参数注册中心提取边界，失败时回退到显式字段。"""
+    """Extract parameter bounds from the config object via the registry; fall back to explicit fields on failure."""
     try:
         from ..utils.param_registry import get_param_bounds_from_config
 
@@ -170,73 +170,73 @@ def _registry_bounds_from_config(config: "BaseConfig") -> Dict[str, Tuple[float,
 @dataclass
 class BaseConfig:
     """
-    所有优化方法共享的基础配置
+    Base configuration shared by all optimization methods
 
     Attributes
     ----------
     case_dir : Path
-        OpenFOAM 案例目录
+        OpenFOAM case directory
     postproc_script : Path
-        后处理脚本路径
+        Post-processing script path
     exp_csv : Path
-        实验数据 CSV 文件路径
+        Experimental data CSV file path
     runs_root : Path
-        运行结果根目录
+        Root directory for run results
     foam_bashrc : str, optional
-        OpenFOAM bashrc 路径
+        OpenFOAM bashrc path
     foam_runner : str, optional
-        OpenFOAM 运行器命令 (如 "of2506")
+        OpenFOAM runner command (e.g. "of2506")
     n_proc : int
-        MPI 并行核数
+        Number of MPI parallel cores
     hpc_mode : bool
-        是否使用 HPC 模式
+        Whether to use HPC mode
     mpirun_flags : tuple
-        mpirun 额外参数
+        Additional mpirun arguments
     postproc_python : str
-        后处理 Python 解释器
+        Post-processing Python interpreter
     postproc_runner : str, optional
-        后处理运行器
+        Post-processing runner
     pvpython : str, optional
-        pvpython 路径
+        pvpython path
     sigma_bounds : tuple
-        sigma 参数边界
+        sigma parameter bounds
     marangoni_bounds : tuple
-        Marangoni 常数边界
+        Marangoni constant bounds
     substrate_temp_bounds : tuple
-        基板温度边界 (K)
+        Substrate temperature bounds (K)
     absorptivity_bounds : tuple
-        吸收率边界
+        Absorptivity bounds
     recoilCoeff_bounds : tuple
-        反冲压力系数边界
+        Recoil pressure coefficient bounds
     radius_flavour_bounds : tuple
-        光斑径向分布因子 Radius_Flavour 边界
+        Spot radial distribution factor Radius_Flavour bounds
     power_range : tuple
-        激光功率范围 (W)
+        Laser power range (W)
     seed : int, optional
-        随机种子（用于可复现性）
+        Random seed (for reproducibility)
     laser_diameter : float
-        激光直径 (m)，用于后处理
+        Laser diameter (m), used for post-processing
     cell_size : float
-        网格单元尺寸 (m)，用于后处理
+        Mesh cell size (m), used for post-processing
     x_domain : tuple
-        计算域 X 方向范围 (m)
+        Computational domain X-direction range (m)
     y_begin_track : float
-        轨迹分析起始 Y 坐标 (m)
+        Track analysis start Y coordinate (m)
     y_end_track : float
-        轨迹分析结束 Y 坐标 (m)
+        Track analysis end Y coordinate (m)
     plot_geometry : bool
-        是否生成后处理图表
+        Whether to generate post-processing plots
     archive_mode : str
-        结果归档模式："latest" 仅保存最后一帧；"all" 保存所有时间步结果
+        Result archiving mode: "latest" saves only the last frame; "all" saves all time-step results
     """
 
-    # === 路径配置 ===
+    # === Path configuration ===
     case_dir: Path = field(default_factory=_default_case_dir)
     postproc_script: Path = field(default_factory=_default_postproc_script)
     exp_csv: Path = field(default_factory=_default_exp_csv)
     runs_root: Path = field(default_factory=_default_runs_root)
 
-    # === OpenFOAM 配置 ===
+    # === OpenFOAM configuration ===
     foam_bashrc: Optional[str] = None
     foam_runner: Optional[str] = None
     n_proc: int = 12
@@ -246,27 +246,27 @@ class BaseConfig:
     postproc_runner: Optional[str] = None
     pvpython: Optional[str] = None
 
-    # === 参数边界 ===
+    # === Parameter bounds ===
     sigma_bounds: Tuple[float, float] = (1.0, 2.0)
     marangoni_bounds: Tuple[float, float] = (-8e-4, -4e-6)
     substrate_temp_bounds: Tuple[float, float] = (300.0, 800.0)
     absorptivity_bounds: Tuple[float, float] = (0.5, 3.0)
     recoilCoeff_bounds: Tuple[float, float] = (0.5, 2.0)
-    damper_bounds: Tuple[float, float] = (0.5, 2.0)  # 兼容旧配置
+    damper_bounds: Tuple[float, float] = (0.5, 2.0)  # compatibility with legacy config
     radius_flavour_bounds: Tuple[float, float] = (1.0, 3.0)
     laser_radius_bounds: Tuple[float, float] = (30e-6, 70e-6)
 
-    # === 功率范围 ===
+    # === Power range ===
     power_range: Tuple[float, float] = (140.0, 260.0)
 
-    # === 输出权重配置 ===
+    # === Output weight configuration ===
     output_weights: List[float] = field(default_factory=lambda: [1.0, 1.0, 0.0])
 
-    # === 参数选择性优化配置 ===
-    active_params: Optional[List[str]] = None  # None表示优化所有参数
+    # === Selective parameter optimization configuration ===
+    active_params: Optional[List[str]] = None  # None means optimize all parameters
     fixed_values: Dict[str, float] = field(default_factory=dict)
 
-    # === 后处理几何参数 ===
+    # === Post-processing geometry parameters ===
     laser_diameter: float = 70e-6
     cell_size: float = 1e-6
     x_domain: Tuple[float, float] = (0.0, 0.0003)
@@ -274,24 +274,24 @@ class BaseConfig:
     y_end_track: float = 300e-6
     plot_geometry: bool = True
 
-    # === 结果归档配置 ===
+    # === Result archiving configuration ===
     archive_mode: str = "latest"
 
-    # === 复现性 ===
+    # === Reproducibility ===
     seed: Optional[int] = 42
 
     def __post_init__(self):
-        """确保路径类型正确并验证配置"""
+        """Ensure correct path types and validate configuration"""
         self.case_dir = Path(self.case_dir)
         self.postproc_script = Path(self.postproc_script)
         self.exp_csv = Path(self.exp_csv)
         self.runs_root = Path(self.runs_root)
 
-        # 验证output_weights长度
+        # Validate output_weights length
         if len(self.output_weights) != 3:
             raise ValueError("output_weights must have 3 elements [width, depth, area]")
 
-        # 验证归档模式
+        # Validate archive mode
         archive_mode = "latest" if self.archive_mode is None else str(self.archive_mode).strip().lower()
         if archive_mode not in {"latest", "all"}:
             raise ValueError("archive_mode must be 'latest' or 'all'")
@@ -299,7 +299,7 @@ class BaseConfig:
 
         all_param_names = _registry_param_names_fallback()
 
-        # 验证active_params
+        # Validate active_params
         if self.active_params is not None:
             canonical_active = [canonical_param_name(name) for name in self.active_params]
             invalid = set(canonical_active) - set(all_param_names)
@@ -307,7 +307,7 @@ class BaseConfig:
                 raise ValueError(f"Invalid active_params: {invalid}")
             self.active_params = canonical_active
 
-        # 验证fixed_values
+        # Validate fixed_values
         if self.fixed_values:
             for name in self.fixed_values:
                 canonical_name = canonical_param_name(name)
@@ -320,7 +320,7 @@ class BaseConfig:
 
     def get_param_bounds(self) -> List[Tuple[float, float]]:
         """
-        返回参数边界列表
+        Return the list of parameter bounds
 
         Returns
         -------
@@ -331,22 +331,22 @@ class BaseConfig:
         return [bounds_map[name] for name in _registry_param_names_fallback()]
 
     def get_param_names(self) -> List[str]:
-        """返回参数名称列表"""
+        """Return the list of parameter names"""
         return _registry_param_names_fallback()
 
     def build_runs_path(self, method: str) -> Path:
         """
-        构建带时间戳的运行目录
+        Build a timestamped run directory
 
         Parameters
         ----------
         method : str
-            优化方法名称 (bayes, gradient)
+            Optimization method name (bayes, gradient)
 
         Returns
         -------
         Path
-            形如 runs/runs_bayes_20250119_120000
+            Path of the form runs/runs_bayes_20250119_120000
         """
         safe_method = method.strip().lower().replace(" ", "_")
         if not safe_method:
@@ -357,41 +357,41 @@ class BaseConfig:
     @classmethod
     def from_yaml(cls, yaml_path: Path) -> "BaseConfig":
         """
-        从 YAML 文件加载配置
+        Load configuration from a YAML file
 
         Parameters
         ----------
         yaml_path : Path
-            YAML 配置文件路径
+            Path to the YAML configuration file
 
         Returns
         -------
         BaseConfig
-            配置实例
+            Configuration instance
         """
         yaml_path = Path(yaml_path)
         if not yaml_path.exists():
-            raise FileNotFoundError(f"配置文件不存在: {yaml_path}")
+            raise FileNotFoundError(f"Configuration file not found: {yaml_path}")
 
         with open(yaml_path, "r") as f:
             data = yaml.safe_load(f) or {}
 
         if not isinstance(data, dict):
-            raise ValueError(f"配置文件格式错误，需为字典: {yaml_path}")
+            raise ValueError(f"Configuration file format error, expected a dictionary: {yaml_path}")
 
-        # 严格校验：禁止未知字段
+        # Strict validation: disallow unknown fields
         valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
         unknown_fields = sorted(set(data.keys()) - valid_fields)
         if unknown_fields:
-            raise ValueError(f"配置文件包含未知字段: {unknown_fields}")
+            raise ValueError(f"Configuration file contains unknown fields: {unknown_fields}")
 
-        # 根据 dataclass 注解做类型安全的数值转换（例如 70e-6 -> float）
+        # Type-safe numeric conversion based on dataclass annotations (e.g. 70e-6 -> float)
         type_hints = get_type_hints(cls)
         for field_name, expected_type in type_hints.items():
             if field_name in data:
                 data[field_name] = _coerce_typed_value(data[field_name], expected_type)
 
-        # 处理路径（相对路径按配置文件目录解析）
+        # Handle paths (relative paths are resolved relative to the config file directory)
         config_dir = yaml_path.parent
         path_fields = {"case_dir", "postproc_script", "exp_csv", "runs_root"}
         for field_name in path_fields:
@@ -400,18 +400,18 @@ class BaseConfig:
                 if not field_path.is_absolute():
                     data[field_name] = config_dir / field_path
 
-        # 转换 mpirun_flags 为元组
+        # Convert mpirun_flags to tuple
         if "mpirun_flags" in data and isinstance(data["mpirun_flags"], list):
             data["mpirun_flags"] = tuple(data["mpirun_flags"])
 
-        # 转换 x_domain 为元组
+        # Convert x_domain to tuple
         if "x_domain" in data and isinstance(data["x_domain"], list):
             data["x_domain"] = tuple(data["x_domain"])
 
         return cls(**data)
 
     def to_dict(self) -> dict:
-        """转换为字典（用于序列化）"""
+        """Convert to dictionary (for serialization)"""
         return {
             "case_dir": str(self.case_dir),
             "postproc_script": str(self.postproc_script),
@@ -448,12 +448,12 @@ class BaseConfig:
 
     def save_yaml(self, yaml_path: Path) -> None:
         """
-        保存配置到 YAML 文件
+        Save configuration to a YAML file
 
         Parameters
         ----------
         yaml_path : Path
-            YAML 文件保存路径
+            Path to save the YAML file
         """
         yaml_path = Path(yaml_path)
         yaml_path.parent.mkdir(parents=True, exist_ok=True)

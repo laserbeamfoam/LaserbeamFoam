@@ -1,9 +1,9 @@
 """
-AutoCalibrateParameter - LaserbeamFoam 熔池仿真参数校准库
+AutoCalibrateParameter - LaserbeamFoam melt pool simulation parameter calibration library
 
-支持两种优化方法:
-- Bayesian: 贝叶斯优化 (skopt 点估计)
-- Gradient: 梯度优化 (scipy 点估计)
+Supports two optimization methods:
+- Bayesian: Bayesian optimization (skopt point estimation)
+- Gradient: gradient optimization (scipy point estimation)
 """
 
 __version__ = "1.0.0"

@@ -1,7 +1,7 @@
 """
-参数过滤工具
+Parameter filtering utilities
 
-用于支持选择性参数优化
+Supports selective parameter optimization
 """
 from typing import Dict, List, Optional, Tuple
 
@@ -17,30 +17,30 @@ def filter_params_for_optimization(
     fixed_values: Optional[Dict[str, float]] = None,
 ) -> Tuple[List[str], List[Tuple[float, float]], Dict[str, float]]:
     """
-    过滤参数以支持选择性优化
+    Filter parameters to support selective optimization
 
     Parameters
     ----------
     all_param_names : list of str
-        所有参数名称（按顺序）
+        All parameter names (in order)
     all_bounds : dict
-        所有参数的边界
+        Bounds for all parameters
     active_params : list of str, optional
-        要优化的参数名称，None表示优化所有参数
+        Parameter names to optimize; None means optimize all parameters
     fixed_values : dict, optional
-        固定参数的值
+        Values for fixed parameters
 
     Returns
     -------
     active_names : list of str
-        要优化的参数名称
+        Parameter names to optimize
     active_bounds : list of tuple
-        要优化的参数边界
+        Bounds for parameters to optimize
     fixed_dict : dict
-        固定参数的名称->值映射
+        Mapping of fixed parameter names to values
     """
     if active_params is None:
-        # 默认优化所有参数
+        # Default: optimize all parameters
         active_names = all_param_names.copy()
     else:
         active_names = []
@@ -49,16 +49,16 @@ def filter_params_for_optimization(
             if canonical_name not in active_names:
                 active_names.append(canonical_name)
 
-    # 构建优化空间
+    # Build optimization space
     active_bounds = [all_bounds[name] for name in active_names]
 
-    # 构建固定参数字典
+    # Build fixed parameter dictionary
     fixed_dict = {}
     if fixed_values:
         for name, value in fixed_values.items():
             fixed_dict[canonical_param_name(name)] = value
 
-    # 对于未在active中的参数，如果没有指定固定值，使用边界中点
+    # For parameters not in active list, use midpoint of bounds if no fixed value is specified
     for name in all_param_names:
         if name not in active_names and name not in fixed_dict:
             bounds = all_bounds[name]
@@ -74,33 +74,33 @@ def merge_active_and_fixed_params(
     fixed_dict: Dict[str, float],
 ) -> np.ndarray:
     """
-    合并active参数值和fixed参数值为完整参数向量
+    Merge active parameter values and fixed parameter values into a complete parameter vector
 
     Parameters
     ----------
     all_param_names : list of str
-        所有参数名称（按顺序）
+        All parameter names (in order)
     active_names : list of str
-        要优化的参数名称
+        Parameter names to optimize
     active_values : np.ndarray
-        优化参数的值（与active_names对应）
+        Values of optimized parameters (corresponding to active_names)
     fixed_dict : dict
-        固定参数的名称->值映射
+        Mapping of fixed parameter names to values
 
     Returns
     -------
     np.ndarray
-        完整参数向量（按all_param_names顺序）
+        Complete parameter vector (in all_param_names order)
     """
     full_params = {}
 
-    # 填充active参数
+    # Fill active parameters
     for name, val in zip(active_names, active_values):
         full_params[name] = val
 
-    # 填充fixed参数
+    # Fill fixed parameters
     for name, val in fixed_dict.items():
         full_params[name] = val
 
-    # 按all_param_names顺序返回
+    # Return in all_param_names order
     return np.array([full_params[name] for name in all_param_names])

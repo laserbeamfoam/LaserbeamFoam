@@ -1,7 +1,7 @@
 """
-梯度优化器
+Gradient optimizer
 
-使用 scipy.optimize.least_squares 进行梯度优化（点估计）
+Uses scipy.optimize.least_squares for gradient-based optimization (point estimate)
 """
 
 from __future__ import annotations
@@ -26,31 +26,31 @@ if TYPE_CHECKING:
 
 class GradientOptimizer(BaseOptimizer):
     """
-    梯度优化器 (scipy.optimize.least_squares)
+    Gradient optimizer (scipy.optimize.least_squares)
 
-    特点：
-    - 基于有限差分的梯度估计
-    - 多起点并行优化
-    - 返回点估计
+    Features:
+    - Gradient estimation based on finite differences
+    - Multi-start parallel optimization
+    - Returns point estimate
 
     Attributes
     ----------
     config : GradientConfig
-        梯度优化配置
+        Gradient optimization configuration
     runner : SimulationRunner
-        仿真运行器
+        Simulation runner
     """
 
     def __init__(self, config: "GradientConfig", runner: "SimulationRunner"):
         """
-        初始化梯度优化器
+        Initialize the gradient optimizer
 
         Parameters
         ----------
         config : GradientConfig
-            梯度优化配置
+            Gradient optimization configuration
         runner : SimulationRunner
-            仿真运行器
+            Simulation runner
         """
         super().__init__(config)
         self.config = config
@@ -61,12 +61,12 @@ class GradientOptimizer(BaseOptimizer):
 
     def optimize(self, exp_data: np.ndarray) -> OptimizationResult:
         """
-        执行梯度优化
+        Execute gradient optimization
 
         Parameters
         ----------
         exp_data : np.ndarray, shape (n, 4)
-            实验数据 [power, width, depth, area]
+            Experimental data [power, width, depth, area]
 
         Returns
         -------
@@ -75,20 +75,20 @@ class GradientOptimizer(BaseOptimizer):
         cfg = self.config
 
         print(f"\n{'='*60}")
-        print(f"梯度优化 (scipy.optimize.least_squares)")
+        print(f"Gradient optimization (scipy.optimize.least_squares)")
         print(f"{'='*60}")
-        print(f"方向数: {cfg.n_directions}, 最大评估: {cfg.max_nfev}")
-        print(f"初始化策略: {cfg.init_strategy}")
-        print(f"并行 workers: {cfg.max_workers}")
+        print(f"Number of directions: {cfg.n_directions}, max evaluations: {cfg.max_nfev}")
+        print(f"Initialization strategy: {cfg.init_strategy}")
+        print(f"Parallel workers: {cfg.max_workers}")
         print()
 
-        # 运行目录
+        # Run directory
         cfg.runs_root.mkdir(parents=True, exist_ok=True)
 
-        # 存储所有方向的结果
+        # Store results for all directions
         all_results: List[Dict] = []
 
-        # 启动监控线程
+        # Start monitoring thread
         stop_event = threading.Event()
         monitor_thread = threading.Thread(
             target=self._monitor_loop,
@@ -98,18 +98,18 @@ class GradientOptimizer(BaseOptimizer):
         monitor_thread.start()
 
         try:
-            # 依次运行每个方向（为简化，不使用进程池）
+            # Run each direction sequentially (simplified, no process pool)
             for direction_id in range(1, cfg.n_directions + 1):
-                print(f"\n方向 {direction_id}/{cfg.n_directions}")
+                print(f"\nDirection {direction_id}/{cfg.n_directions}")
                 result = self._optimize_single_direction(direction_id, exp_data)
                 all_results.append(result)
-                print(f"  完成: NRMSE = {result['cost']:.4f}%")
+                print(f"  Done: NRMSE = {result['cost']:.4f}%")
 
         finally:
             stop_event.set()
             monitor_thread.join(timeout=2.0)
 
-        # 选择最优结果
+        # Select the best result
         if not all_results:
             return OptimizationResult(
                 method="Gradient",
@@ -117,13 +117,13 @@ class GradientOptimizer(BaseOptimizer):
                 best_cost=float("inf"),
                 n_evaluations=0,
                 history={},
-                message="所有方向优化失败",
+                message="All directions failed optimization",
             )
 
         best = min(all_results, key=lambda r: r["cost"])
         total_evals = sum(r.get("nfev", 0) for r in all_results)
 
-        print(f"\n最优方向: {best['direction_id']}, NRMSE = {best['cost']:.4f}%")
+        print(f"\nBest direction: {best['direction_id']}, NRMSE = {best['cost']:.4f}%")
 
         return OptimizationResult(
             method="Gradient",
@@ -131,7 +131,7 @@ class GradientOptimizer(BaseOptimizer):
             best_cost=best["cost"],
             n_evaluations=total_evals,
             history={"all_results": all_results},
-            message=f"梯度优化完成，最优方向 {best['direction_id']}",
+            message=f"Gradient optimization complete, best direction {best['direction_id']}",
             extra={"all_directions": all_results},
         )
 
@@ -141,41 +141,41 @@ class GradientOptimizer(BaseOptimizer):
         exp_data: np.ndarray,
     ) -> Dict:
         """
-        单方向优化
+        Single-direction optimization
 
         Parameters
         ----------
         direction_id : int
-            方向 ID
+            Direction ID
         exp_data : np.ndarray
-            实验数据
+            Experimental data
 
         Returns
         -------
         dict
-            优化结果
+            Optimization result
         """
         cfg = self.config
         bounds = self.runner.get_active_bounds()
 
-        # 创建工作目录
+        # Create working directory
         work_dir = cfg.runs_root / f"direction_{direction_id:03d}"
         work_dir.mkdir(parents=True, exist_ok=True)
 
-        # 初始点
+        # Initial point
         x0 = self._get_initial_point(direction_id, bounds)
         lb = np.array([b[0] for b in bounds])
         ub = np.array([b[1] for b in bounds])
 
-        # 历史记录
+        # History records
         cost_history: List[float] = []
         params_history: List[List[float]] = []
 
-        # 保存进度文件
+        # Save progress file
         progress_file = work_dir / "progress.json"
 
         def residual_func(params: np.ndarray) -> np.ndarray:
-            """残差函数（Bayes 统一归一化残差）"""
+            """Residual function (Bayes unified normalized residuals)"""
             power_points = exp_data[:, 0]
             observations = exp_data[:, 1:4]
 
@@ -196,7 +196,7 @@ class GradientOptimizer(BaseOptimizer):
             cost_history.append(cost)
             params_history.append(params.tolist())
 
-            # 更新进度
+            # Update progress
             self._save_progress(
                 progress_file,
                 direction_id,
@@ -210,7 +210,7 @@ class GradientOptimizer(BaseOptimizer):
 
             return residuals
 
-        # 运行优化
+        # Run optimization
         result = least_squares(
             residual_func,
             x0,
@@ -228,7 +228,7 @@ class GradientOptimizer(BaseOptimizer):
             weights=np.asarray(cfg.output_weights, dtype=float),
         )
 
-        # 保存结果
+        # Save results
         result_dict = {
             "direction_id": direction_id,
             "params": result.x.tolist(),
@@ -252,34 +252,34 @@ class GradientOptimizer(BaseOptimizer):
         bounds: List,
     ) -> np.ndarray:
         """
-        生成初始点
+        Generate initial point
 
         Parameters
         ----------
         direction_id : int
-            方向 ID
+            Direction ID
         bounds : list
-            参数边界
+            Parameter bounds
 
         Returns
         -------
         np.ndarray
-            初始参数
+            Initial parameters
         """
         cfg = self.config
         n_params = len(bounds)
 
         if cfg.init_strategy == "legacy_single":
-            # 所有方向使用中点
+            # All directions use midpoint
             return np.array([(b[0] + b[1]) / 2 for b in bounds])
 
         elif cfg.init_strategy == "legacy_multi":
-            # 随机初始化
+            # Random initialization
             rng = np.random.default_rng(seed=1000 + direction_id)
             return np.array([rng.uniform(b[0], b[1]) for b in bounds])
 
         elif cfg.init_strategy == "directional":
-            # 从中点出发，沿随机方向偏移
+            # Start from midpoint, offset along a random direction
             center = np.array([(b[0] + b[1]) / 2 for b in bounds])
             scales = np.array([(b[1] - b[0]) / 2 for b in bounds])
 
@@ -289,14 +289,14 @@ class GradientOptimizer(BaseOptimizer):
 
             x0 = center + cfg.direction_scale * scales * direction
 
-            # 裁剪到边界内
+            # Clip to within bounds
             for i in range(n_params):
                 x0[i] = np.clip(x0[i], bounds[i][0], bounds[i][1])
 
             return x0
 
         else:
-            raise ValueError(f"未知初始化策略: {cfg.init_strategy}")
+            raise ValueError(f"Unknown initialization strategy: {cfg.init_strategy}")
 
     def _save_progress(
         self,
@@ -306,7 +306,7 @@ class GradientOptimizer(BaseOptimizer):
         current_cost: float,
         best_cost: float,
     ) -> None:
-        """保存进度信息"""
+        """Save progress information"""
         data = {
             "direction_id": direction_id,
             "n_eval": n_eval,
@@ -318,12 +318,12 @@ class GradientOptimizer(BaseOptimizer):
             json.dump(data, f)
 
     def _monitor_loop(self, stop_event: threading.Event) -> None:
-        """监控线程"""
+        """Monitoring thread"""
         cfg = self.config
         poll_interval = max(0.1, cfg.monitor_interval_sec)
 
         while not stop_event.is_set():
-            # 收集所有方向的进度
+            # Collect progress from all directions
             rows = []
             for i in range(1, cfg.n_directions + 1):
                 progress_file = cfg.runs_root / f"direction_{i:03d}" / "progress.json"
@@ -340,6 +340,6 @@ class GradientOptimizer(BaseOptimizer):
                     except Exception:
                         pass
 
-            # 这里可以打印汇总信息（目前省略以减少输出）
+            # Summary info can be printed here (currently omitted to reduce output)
 
             time.sleep(poll_interval)

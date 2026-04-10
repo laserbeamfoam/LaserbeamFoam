@@ -1,7 +1,7 @@
 """
-优化器基类
+Optimizer base class
 
-定义优化器统一接口和结果数据结构
+Defines the unified optimizer interface and result data structure
 """
 
 from __future__ import annotations
@@ -18,24 +18,24 @@ import numpy as np
 @dataclass
 class OptimizationResult:
     """
-    优化结果统一数据结构
+    Unified optimization result data structure
 
     Attributes
     ----------
     method : str
-        优化方法名称 ("Bayesian", "Gradient")
+        Optimization method name ("Bayesian", "Gradient")
     best_params : np.ndarray
-        最优参数 [sigma, marangoni, substrate_temp, absorptivity, recoilCoeff, radius_flavour]
+        Optimal parameters [sigma, marangoni, substrate_temp, absorptivity, recoilCoeff, radius_flavour]
     best_cost : float
-        最优目标函数值 (NRMSE)
+        Best objective function value (NRMSE)
     n_evaluations : int
-        总评估次数
+        Total number of evaluations
     history : dict
-        优化历史记录
+        Optimization history record
     message : str
-        状态消息
+        Status message
     extra : dict, optional
-        方法特定的额外信息
+        Method-specific extra info
     """
 
     method: str
@@ -47,7 +47,7 @@ class OptimizationResult:
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为可 JSON 序列化的字典"""
+        """Convert to a JSON-serializable dictionary"""
         result = {
             "method": self.method,
             "best_params": self.best_params.tolist(),
@@ -62,18 +62,18 @@ class OptimizationResult:
         return result
 
     def save(self, filepath: Path) -> None:
-        """保存结果到 JSON 文件"""
+        """Save results to a JSON file"""
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
 
-        print(f"优化结果已保存至: {filepath}")
+        print(f"Optimization results saved to: {filepath}")
 
     @classmethod
     def load(cls, filepath: Path) -> "OptimizationResult":
-        """从 JSON 文件加载结果"""
+        """Load results from a JSON file"""
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
@@ -90,19 +90,19 @@ class OptimizationResult:
 
 class BaseOptimizer(ABC):
     """
-    优化器抽象基类
+    Abstract optimizer base class
 
-    所有优化器必须实现 optimize() 方法
+    All optimizers must implement the optimize() method
     """
 
     def __init__(self, config):
         """
-        初始化优化器
+        Initialize the optimizer
 
         Parameters
         ----------
         config : BaseConfig
-            配置对象
+            Configuration object
         """
         self.config = config
         self.history: Dict[str, List[Any]] = {
@@ -114,29 +114,29 @@ class BaseOptimizer(ABC):
     @abstractmethod
     def get_name(self) -> str:
         """
-        返回优化器名称
+        Return the optimizer name
 
         Returns
         -------
         str
-            优化器名称
+            Optimizer name
         """
         pass
 
     @abstractmethod
     def optimize(self, exp_data: np.ndarray) -> OptimizationResult:
         """
-        执行优化
+        Execute optimization
 
         Parameters
         ----------
         exp_data : np.ndarray, shape (n, 4)
-            实验数据 [power, width, depth, area]
+            Experimental data [power, width, depth, area]
 
         Returns
         -------
         OptimizationResult
-            优化结果
+            Optimization result
         """
         pass
 
@@ -146,22 +146,22 @@ class BaseOptimizer(ABC):
         output_dir: Path,
     ) -> None:
         """
-        保存优化结果
+        Save optimization results
 
         Parameters
         ----------
         result : OptimizationResult
-            优化结果
+            Optimization result
         output_dir : Path
-            输出目录
+            Output directory
         """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 保存主结果
+        # Save main result
         result.save(output_dir / "opt_result.json")
 
-        # 保存历史
+        # Save history
         if result.history:
             history_file = output_dir / "history.json"
             serializable_history = {}
@@ -185,7 +185,7 @@ class BaseOptimizer(ABC):
         cost: float,
         iteration: int,
     ) -> None:
-        """记录迭代信息"""
+        """Record iteration information"""
         self.history["params"].append(params.copy())
         self.history["costs"].append(cost)
         self.history["iterations"].append(iteration)
@@ -197,8 +197,8 @@ class BaseOptimizer(ABC):
         cost: float,
         best_cost: float,
     ) -> None:
-        """打印进度信息"""
+        """Print progress information"""
         print(
-            f"  迭代 {iteration}/{total}: "
-            f"当前 NRMSE = {cost:.4e}, 最优 NRMSE = {best_cost:.4e}"
+            f"  Iteration {iteration}/{total}: "
+            f"current NRMSE = {cost:.4e}, best NRMSE = {best_cost:.4e}"
         )

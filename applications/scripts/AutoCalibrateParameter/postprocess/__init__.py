@@ -1,4 +1,4 @@
-"""后处理与可视化模块"""
+"""Post-processing and visualization module"""
 
 from .plots import setup_plot_style
 from .convergence import save_convergence_plot, plot_parameter_evolution

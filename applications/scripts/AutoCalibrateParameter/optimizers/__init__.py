@@ -1,10 +1,10 @@
-"""优化器模块"""
+"""Optimizer module"""
 
 from .base_optimizer import BaseOptimizer, OptimizationResult
 from .optimizer_bayes import BayesianOptimizer
 from .optimizer_gradient import GradientOptimizer
 
-# 别名
+# Alias
 BayesOptimizer = BayesianOptimizer
 
 __all__ = [

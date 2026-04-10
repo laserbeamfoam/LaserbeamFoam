@@ -1,4 +1,4 @@
-"""数据管理模块"""
+"""Data management module"""
 
 from .experiment_data import load_experiment_data, prepare_multivariate_data
 from .synthetic_data import (

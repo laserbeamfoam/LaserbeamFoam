@@ -1,19 +1,19 @@
 """
-目标函数模块
+Objective function module
 
-定义残差计算、RMSE 及 Bayes 统一 NRMSE 百分比目标。
+Defines residual computation, RMSE, and the Bayes unified NRMSE percentage objective.
 """
 
 from typing import Optional, Tuple, Union
 
 import numpy as np
 
-# 仿真失败时的惩罚值
+# Penalty value used when simulation fails
 PENALTY_VALUE = 1e8
 
 
 def _prepare_residuals(predictions: np.ndarray, observations: np.ndarray) -> np.ndarray:
-    """计算残差并将 NaN 替换为惩罚值。"""
+    """Compute residuals and replace NaN values with the penalty value."""
     residuals = np.asarray(predictions, dtype=float) - np.asarray(observations, dtype=float)
     nan_mask = np.isnan(residuals)
     if np.any(nan_mask):
@@ -22,7 +22,7 @@ def _prepare_residuals(predictions: np.ndarray, observations: np.ndarray) -> np.
 
 
 def _compute_bayes_scales(observations: np.ndarray) -> np.ndarray:
-    """按 Bayes 目标规则计算每个输出的归一化尺度。"""
+    """Compute the normalization scale for each output according to the Bayes objective rule."""
     obs = np.asarray(observations, dtype=float)
     if obs.ndim == 1:
         obs = obs.reshape(1, -1)
@@ -37,9 +37,10 @@ def compute_bayes_normalized_residuals(
     weights: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
-    计算 Bayes 统一目标对应的归一化残差矩阵。
+    Compute the normalized residual matrix corresponding to the Bayes unified objective.
 
-    若给定 weights，则仅保留权重大于 0 的输出维度；若全部为 0，则保留全部维度。
+    If weights are provided, only output dimensions with weight > 0 are retained;
+    if all weights are 0, all dimensions are retained.
     """
     residuals = _prepare_residuals(predictions, observations)
     scales = _compute_bayes_scales(observations)
@@ -60,7 +61,7 @@ def compute_bayes_nrmse_percent(
     weights: Optional[np.ndarray] = None,
 ) -> Tuple[float, np.ndarray]:
     """
-    计算 Bayes 统一目标：归一化 RMSE 百分比。
+    Compute the Bayes unified objective: normalized RMSE percentage.
 
     Returns
     -------
@@ -93,21 +94,21 @@ def compute_residuals(
     weights: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
-    计算残差
+    Compute residuals
 
     Parameters
     ----------
     predictions : np.ndarray, shape (n, m)
-        模型预测值
+        Model predictions
     observations : np.ndarray, shape (n, m)
-        实验观测值
+        Experimental observations
     weights : np.ndarray, optional
-        权重矩阵，与 predictions 形状相同
+        Weight matrix with the same shape as predictions
 
     Returns
     -------
     residuals : np.ndarray
-        展平后的加权残差向量
+        Flattened weighted residual vector
     """
     residuals = _prepare_residuals(predictions, observations)
 
@@ -123,22 +124,22 @@ def compute_nrmse_percent(
     weights: Optional[np.ndarray] = None,
 ) -> float:
     """
-    计算归一化均方根误差百分比 (NRMSE%)
+    Compute the normalized root mean square error percentage (NRMSE%)
 
     Parameters
     ----------
     predictions : np.ndarray, shape (n_points, 3)
-        模型预测值 [width, depth, area]
+        Model predictions [width, depth, area]
     observations : np.ndarray, shape (n_points, 3)
-        实验观测值
+        Experimental observations
     weights : np.ndarray, shape (3,), optional
-        输出权重 [w_width, w_depth, w_area]
-        例如 [1.0, 1.0, 0.0] 表示不校准area
+        Output weights [w_width, w_depth, w_area]
+        e.g. [1.0, 1.0, 0.0] means area is not calibrated
 
     Returns
     -------
     float
-        NRMSE 百分比
+        NRMSE percentage
     """
     cost, _ = compute_bayes_nrmse_percent(
         predictions,
@@ -153,19 +154,19 @@ def compute_rmse(
     observations: np.ndarray,
 ) -> Union[float, np.ndarray]:
     """
-    计算均方根误差 (Root Mean Square Error)
+    Compute the Root Mean Square Error (RMSE)
 
     Parameters
     ----------
     predictions : np.ndarray, shape (n, m)
-        模型预测值
+        Model predictions
     observations : np.ndarray, shape (n, m)
-        实验观测值
+        Experimental observations
 
     Returns
     -------
     float or np.ndarray
-        如果输入是 1D，返回标量；否则按列返回 RMSE 数组
+        Scalar if input is 1D; otherwise returns per-column RMSE array
     """
     residuals = _prepare_residuals(predictions, observations)
 
@@ -179,19 +180,19 @@ def compute_mae(
     observations: np.ndarray,
 ) -> Union[float, np.ndarray]:
     """
-    计算平均绝对误差 (Mean Absolute Error)
+    Compute the Mean Absolute Error (MAE)
 
     Parameters
     ----------
     predictions : np.ndarray
-        模型预测值
+        Model predictions
     observations : np.ndarray
-        实验观测值
+        Experimental observations
 
     Returns
     -------
     float or np.ndarray
-        MAE 值
+        MAE value
     """
     residuals = np.abs(np.asarray(predictions, dtype=float) - np.asarray(observations, dtype=float))
 
@@ -207,19 +208,19 @@ def compute_relative_error(
     observations: np.ndarray,
 ) -> np.ndarray:
     """
-    计算相对误差 (%)
+    Compute the relative error (%)
 
     Parameters
     ----------
     predictions : np.ndarray
-        模型预测值
+        Model predictions
     observations : np.ndarray
-        实验观测值
+        Experimental observations
 
     Returns
     -------
     np.ndarray
-        相对误差 (%)
+        Relative error (%)
     """
     denom = np.abs(observations) + 1e-10
     return 100 * np.abs(predictions - observations) / denom
@@ -231,21 +232,21 @@ def normalized_residuals(
     scales: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
-    计算归一化残差
+    Compute normalized residuals
 
     Parameters
     ----------
     predictions : np.ndarray
-        模型预测值
+        Model predictions
     observations : np.ndarray
-        实验观测值
+        Experimental observations
     scales : np.ndarray, optional
-        各输出的缩放因子，默认使用观测值的标准差
+        Scaling factor for each output; defaults to the standard deviation of observations
 
     Returns
     -------
     np.ndarray
-        归一化残差
+        Normalized residuals
     """
     residuals = np.asarray(predictions, dtype=float) - np.asarray(observations, dtype=float)
 

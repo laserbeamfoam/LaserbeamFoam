@@ -1,7 +1,7 @@
 """
-梯度优化配置
+Gradient optimization configuration
 
-用于 scipy.optimize.least_squares 点估计优化的参数配置
+Parameter configuration for scipy.optimize.least_squares point estimation optimization
 """
 
 from __future__ import annotations
@@ -15,67 +15,67 @@ from .base_config import BaseConfig
 @dataclass
 class GradientConfig(BaseConfig):
     """
-    梯度优化配置 (scipy.optimize.least_squares)
+    Gradient optimization configuration (scipy.optimize.least_squares)
 
-    继承 BaseConfig，添加梯度优化器参数
+    Inherits BaseConfig and adds gradient optimizer parameters
 
     Attributes
     ----------
     max_nfev : int
-        最大函数评估次数
+        Maximum number of function evaluations
     ftol : float
-        目标函数相对收敛容差
+        Relative convergence tolerance for the objective function
     xtol : float
-        参数相对收敛容差
+        Relative convergence tolerance for parameters
     diff_step : float
-        有限差分步长
+        Finite difference step size
     k_lower : float
-        参数缩放因子下界
+        Lower bound of parameter scaling factor
     k_upper : float
-        参数缩放因子上界
+        Upper bound of parameter scaling factor
     n_directions : int
-        多起点优化的方向数
+        Number of directions for multi-start optimization
     init_strategy : str
-        初始化策略
+        Initialization strategy
     direction_scale : float
-        方向缩放因子
+        Direction scaling factor
     max_workers : int
-        并行优化最大进程数
+        Maximum number of parallel optimization processes
     log_every_eval : int
-        每隔多少次评估记录一次日志
+        Log interval in number of evaluations
     monitor_interval_sec : float
-        监控线程轮询间隔 (秒)
+        Monitor thread polling interval (seconds)
     name : str
-        优化器名称
+        Optimizer name
     """
 
-    # === 优化参数 ===
+    # === Optimization parameters ===
     max_nfev: int = 300
     ftol: float = 1e-4
     xtol: float = 1e-4
     diff_step: float = 0.05
 
-    # === 参数缩放因子边界 ===
+    # === Parameter scaling factor bounds ===
     k_lower: float = 0.5
     k_upper: float = 1.5
 
-    # === 多起点优化 ===
+    # === Multi-start optimization ===
     n_directions: int = 8
     init_strategy: Literal["legacy_single", "legacy_multi", "directional"] = "legacy_multi"
     direction_scale: float = 0.5
 
-    # === 并行 ===
+    # === Parallelism ===
     max_workers: int = 8
 
-    # === 监控 ===
+    # === Monitoring ===
     log_every_eval: int = 1
     monitor_interval_sec: float = 0.5
 
-    # === 输出 ===
+    # === Output ===
     name: str = "meltpool_gradient"
 
     def to_dict(self) -> dict:
-        """转换为字典"""
+        """Convert to dictionary"""
         base_dict = super().to_dict()
         base_dict.update({
             "max_nfev": self.max_nfev,

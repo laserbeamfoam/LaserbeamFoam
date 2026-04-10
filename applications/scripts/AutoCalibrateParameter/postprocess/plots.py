@@ -1,5 +1,5 @@
 """
-通用绑图工具
+General plotting utilities
 """
 
 from pathlib import Path
@@ -10,7 +10,7 @@ import numpy as np
 
 
 def setup_plot_style() -> None:
-    """设置绘图风格"""
+    """Set up the plot style"""
     plt.style.use("seaborn-v0_8-whitegrid")
     plt.rcParams.update({
         "figure.figsize": (10, 6),
@@ -31,18 +31,18 @@ def save_figure(
     dpi: int = 150,
 ) -> None:
     """
-    保存图形到多种格式
+    Save figure in multiple formats
 
     Parameters
     ----------
     fig : matplotlib.Figure
-        图形对象
+        Figure object
     filepath : Path
-        输出路径（不含扩展名）
+        Output path (without extension)
     formats : list
-        输出格式列表
+        List of output formats
     dpi : int
-        分辨率
+        Resolution
     """
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -50,7 +50,7 @@ def save_figure(
     for fmt in formats:
         output_path = filepath.with_suffix(f".{fmt}")
         fig.savefig(output_path, dpi=dpi, bbox_inches="tight")
-        print(f"  已保存: {output_path}")
+        print(f"  Saved: {output_path}")
 
 
 def plot_parameter_trace(
@@ -60,18 +60,18 @@ def plot_parameter_trace(
     title: str = "Parameter Trace",
 ) -> plt.Figure:
     """
-    绘制参数 trace 图
+    Plot parameter trace chart
 
     Parameters
     ----------
     samples : np.ndarray, shape (n_samples, n_params)
-        参数样本
+        Parameter samples
     param_names : list
-        参数名称列表
+        List of parameter names
     output_path : Path, optional
-        输出路径
+        Output path
     title : str
-        标题
+        Title
 
     Returns
     -------
@@ -108,20 +108,20 @@ def plot_parameter_histogram(
     bins: int = 50,
 ) -> plt.Figure:
     """
-    绘制参数直方图
+    Plot parameter histogram
 
     Parameters
     ----------
     samples : np.ndarray, shape (n_samples, n_params)
-        参数样本
+        Parameter samples
     param_names : list
-        参数名称列表
+        List of parameter names
     output_path : Path, optional
-        输出路径
+        Output path
     title : str
-        标题
+        Title
     bins : int
-        直方图 bin 数量
+        Number of histogram bins
 
     Returns
     -------
@@ -140,7 +140,7 @@ def plot_parameter_histogram(
         data = samples[:, i]
         ax.hist(data, bins=bins, density=True, alpha=0.7, edgecolor="black")
 
-        # 统计信息
+        # Statistics
         mean = np.mean(data)
         median = np.median(data)
         std = np.std(data)
@@ -154,7 +154,7 @@ def plot_parameter_histogram(
         ax.set_ylabel("Density")
         ax.legend(fontsize=8)
 
-    # 隐藏多余的子图
+    # Hide extra subplots
     for ax in axes[n_params:]:
         ax.set_visible(False)
 

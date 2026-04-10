@@ -1,7 +1,7 @@
 """
-参数注册中心
+Parameter registry
 
-集中管理参数顺序、默认边界、CSV列名映射与显示标签。
+Centrally manages parameter order, default bounds, CSV column name mapping, and display labels.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 
 @dataclass(frozen=True)
 class ParameterSpec:
-    """单个参数的元数据定义。"""
+    """Metadata definition for a single parameter."""
 
     name: str
     label: str
@@ -95,48 +95,48 @@ for _spec in PARAMETER_SPECS:
 
 
 def get_param_names() -> List[str]:
-    """返回按优化顺序排列的参数名称。"""
+    """Return parameter names ordered by optimization sequence."""
     return [spec.name for spec in PARAMETER_SPECS]
 
 
 def get_param_labels() -> Dict[str, str]:
-    """返回参数显示标签映射。"""
+    """Return the parameter display label mapping."""
     return {spec.name: spec.label for spec in PARAMETER_SPECS}
 
 
 def get_param_latex_labels() -> List[str]:
-    """返回 LaTeX 标签顺序列表。"""
+    """Return the ordered list of LaTeX labels."""
     return [spec.latex_label for spec in PARAMETER_SPECS]
 
 
 def get_default_bounds_map() -> Dict[str, Tuple[float, float]]:
-    """返回参数默认边界映射。"""
+    """Return the parameter default bounds mapping."""
     return {spec.name: spec.default_bounds for spec in PARAMETER_SPECS}
 
 
 def get_param_csv_column(name: str) -> str:
-    """返回参数在历史 CSV 中对应的列名。"""
+    """Return the column name corresponding to the parameter in the history CSV."""
     return _PARAM_SPEC_MAP[name].csv_column
 
 
 def canonical_param_name(name: str) -> str:
-    """返回参数规范名（兼容旧别名）。"""
+    """Return the canonical parameter name (compatible with legacy aliases)."""
     return _PARAM_SPEC_MAP[name].name
 
 
 def get_param_csv_candidates(name: str) -> List[str]:
-    """返回参数在历史 CSV 中可接受的列名（新列名 + 兼容旧列名）。"""
+    """Return acceptable column names for the parameter in the history CSV (new name + legacy compatible names)."""
     spec = _PARAM_SPEC_MAP[name]
     return [spec.csv_column, *spec.legacy_csv_columns]
 
 
 def get_param_csv_column_map() -> Dict[str, str]:
-    """返回参数名 -> CSV列名映射。"""
+    """Return the parameter name -> CSV column name mapping."""
     return {spec.name: spec.csv_column for spec in PARAMETER_SPECS}
 
 
 def get_param_bounds_from_config(config) -> Dict[str, Tuple[float, float]]:
-    """从配置对象中提取参数边界；缺失时使用注册中心默认值。"""
+    """Extract parameter bounds from the config object; use registry defaults when missing."""
     bounds = {}
     for spec in PARAMETER_SPECS:
         value = None

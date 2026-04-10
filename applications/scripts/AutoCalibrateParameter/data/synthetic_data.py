@@ -1,5 +1,5 @@
 """
-合成数据管理模块
+Synthetic data management module
 """
 
 from pathlib import Path
@@ -15,12 +15,12 @@ except ImportError:
 
 def load_synthetic_data(filepath: Path) -> np.ndarray:
     """
-    加载合成数据
+    Load synthetic data
 
     Parameters
     ----------
     filepath : Path
-        合成数据文件路径
+        Path to the synthetic data file
 
     Returns
     -------
@@ -29,10 +29,10 @@ def load_synthetic_data(filepath: Path) -> np.ndarray:
     """
     filepath = Path(filepath)
     if not filepath.exists():
-        raise FileNotFoundError(f"合成数据文件不存在: {filepath}")
+        raise FileNotFoundError(f"Synthetic data file not found: {filepath}")
 
     data = np.loadtxt(filepath)
-    print(f"加载合成数据: {filepath}, 形状 {data.shape}")
+    print(f"Loaded synthetic data: {filepath}, shape {data.shape}")
     return data
 
 
@@ -42,51 +42,51 @@ def save_synthetic_data(
     header: str = "power sigma marangoni substrate_temp absorptivity recoilCoeff radius_flavour width depth area",
 ) -> None:
     """
-    保存合成数据
+    Save synthetic data
 
     Parameters
     ----------
     filepath : Path
-        输出文件路径
+        Output file path
     data : np.ndarray
-        合成数据
+        Synthetic data
     header : str
-        文件头注释
+        File header comment
     """
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
     np.savetxt(filepath, data, header=header)
-    print(f"合成数据已保存至: {filepath}, 形状: {data.shape}")
+    print(f"Synthetic data saved to: {filepath}, shape: {data.shape}")
 
 
 def append_synthetic_data(filepath: Path, new_data: np.ndarray) -> np.ndarray:
     """
-    追加新数据到合成数据文件
+    Append new data to the synthetic data file
 
     Parameters
     ----------
     filepath : Path
-        合成数据文件路径
+        Path to the synthetic data file
     new_data : np.ndarray
-        新数据
+        New data to append
 
     Returns
     -------
     np.ndarray
-        更新后的完整数据
+        Updated complete dataset
     """
     import shutil
 
     existing_data = load_synthetic_data(filepath)
     updated_data = np.vstack([existing_data, new_data])
 
-    # 备份原文件
+    # Back up the original file
     backup_path = filepath.with_suffix(filepath.suffix + ".backup")
     shutil.copy(filepath, backup_path)
 
-    # 保存更新后的数据
+    # Save the updated data
     save_synthetic_data(filepath, updated_data)
-    print(f"数据已更新: {filepath}, 新形状 {updated_data.shape}")
+    print(f"Data updated: {filepath}, new shape {updated_data.shape}")
 
     return updated_data
 
@@ -98,43 +98,43 @@ def generate_lhs_samples(
     seed: Optional[int] = 42,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    使用拉丁超立方采样生成样本
+    Generate samples using Latin hypercube sampling
 
     Parameters
     ----------
     n_samples : int
-        样本数量
+        Number of samples
     param_bounds : list of tuple
-        参数边界列表 [(min, max), ...]
+        Parameter bounds list [(min, max), ...]
     power_range : tuple
-        功率范围 (min, max)
+        Power range (min, max)
     seed : int, optional
-        随机种子
+        Random seed
 
     Returns
     -------
     x_samples : np.ndarray, shape (n_samples, 1)
-        功率样本
+        Power samples
     p_samples : np.ndarray, shape (n_samples, n_params)
-        参数样本
+        Parameter samples
     """
     if lhs is None:
-        raise ImportError("需要安装 pyDOE: pip install pyDOE")
+        raise ImportError("pyDOE is required: pip install pyDOE")
 
     if seed is not None:
         np.random.seed(seed)
 
     n_params = len(param_bounds)
-    total_dim = 1 + n_params  # 功率 + 参数
+    total_dim = 1 + n_params  # power + parameters
 
-    # LHS 采样 [0, 1]
+    # LHS sampling in [0, 1]
     samples = lhs(total_dim, n_samples)
 
-    # 缩放功率
+    # Scale power
     power_min, power_max = power_range
     x_samples = samples[:, 0:1] * (power_max - power_min) + power_min
 
-    # 缩放参数
+    # Scale parameters
     p_samples = np.zeros((n_samples, n_params))
     for i, (p_min, p_max) in enumerate(param_bounds):
         p_samples[:, i] = samples[:, i + 1] * (p_max - p_min) + p_min
@@ -144,23 +144,23 @@ def generate_lhs_samples(
 
 def filter_valid_samples(data: np.ndarray) -> np.ndarray:
     """
-    过滤掉包含 NaN 的无效样本
+    Filter out invalid samples containing NaN
 
     Parameters
     ----------
     data : np.ndarray
-        原始数据
+        Raw data
 
     Returns
     -------
     np.ndarray
-        过滤后的有效数据
+        Filtered valid data
     """
     valid_mask = ~np.isnan(data).any(axis=1)
     n_valid = valid_mask.sum()
     n_total = len(data)
 
     if n_valid < n_total:
-        print(f"过滤无效样本: {n_total - n_valid}/{n_total} 个样本被移除")
+        print(f"Filtered invalid samples: {n_total - n_valid}/{n_total} samples removed")
 
     return data[valid_mask]

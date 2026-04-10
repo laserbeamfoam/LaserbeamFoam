@@ -1,5 +1,5 @@
 """
-收敛图绘制
+Convergence plot drawing
 """
 
 from pathlib import Path
@@ -18,23 +18,23 @@ def save_convergence_plot(
     title: str = "Optimization Convergence",
 ) -> Path:
     """
-    保存收敛曲线图
+    Save convergence curve plot
 
     Parameters
     ----------
     output_dir : Path
-        输出目录
+        Output directory
     costs : list
-        每次迭代的目标函数值
+        Objective function value at each iteration
     n_initial : int
-        初始采样点数（用于分割显示）
+        Number of initial sampling points (for split display)
     title : str
-        图表标题
+        Plot title
 
     Returns
     -------
     Path
-        图片路径
+        Image path
     """
     setup_plot_style()
 
@@ -46,10 +46,10 @@ def save_convergence_plot(
     iterations = np.arange(1, len(costs) + 1)
     costs_array = np.array(costs)
 
-    # 累积最优
+    # Cumulative best
     best_so_far = np.minimum.accumulate(costs_array)
 
-    # 左图：所有评估
+    # Left plot: all evaluations
     ax1.semilogy(iterations, costs_array, "o-", alpha=0.5, markersize=3, label="NRMSE")
     ax1.semilogy(iterations, best_so_far, "r-", lw=2, label="Best so far")
 
@@ -62,7 +62,7 @@ def save_convergence_plot(
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
-    # 右图：最优值演化
+    # Right plot: best value evolution
     ax2.semilogy(iterations, best_so_far, "r-", lw=2)
     ax2.fill_between(iterations, best_so_far, alpha=0.3)
     ax2.set_xlabel("Evaluation")
@@ -70,7 +70,7 @@ def save_convergence_plot(
     ax2.set_title("Best NRMSE Evolution")
     ax2.grid(True, alpha=0.3)
 
-    # 添加统计信息
+    # Add statistics
     textstr = f"Final best: {best_so_far[-1]:.4e}\nTotal evals: {len(costs)}"
     ax2.text(0.95, 0.95, textstr, transform=ax2.transAxes, fontsize=10,
              verticalalignment="top", horizontalalignment="right",
@@ -93,23 +93,23 @@ def plot_parameter_evolution(
     title: str = "Parameter Evolution",
 ) -> Path:
     """
-    绘制参数演化图
+    Plot parameter evolution chart
 
     Parameters
     ----------
     output_dir : Path
-        输出目录
+        Output directory
     params_history : list of np.ndarray
-        参数历史记录
+        Parameter history records
     param_names : list
-        参数名称
+        Parameter names
     title : str
-        图表标题
+        Plot title
 
     Returns
     -------
     Path
-        图片路径
+        Image path
     """
     setup_plot_style()
 
@@ -129,7 +129,7 @@ def plot_parameter_evolution(
         ax.plot(iterations, params_array[:, i], "b-", alpha=0.7)
         ax.scatter(iterations, params_array[:, i], c=iterations, cmap="viridis", s=10)
 
-        # 标记最终值
+        # Mark the final value
         ax.axhline(params_array[-1, i], color="r", linestyle="--", alpha=0.5)
 
         ax.set_ylabel(name)
@@ -152,21 +152,21 @@ def plot_multi_direction_comparison(
     title: str = "Multi-Direction Optimization Comparison",
 ) -> Path:
     """
-    绘制多方向优化对比图
+    Plot multi-direction optimization comparison chart
 
     Parameters
     ----------
     output_dir : Path
-        输出目录
+        Output directory
     results : list of dict
-        各方向的优化结果
+        Optimization results for each direction
     title : str
-        图表标题
+        Plot title
 
     Returns
     -------
     Path
-        图片路径
+        Image path
     """
     setup_plot_style()
 
@@ -175,7 +175,7 @@ def plot_multi_direction_comparison(
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-    # 左图：各方向最终 NRMSE
+    # Left plot: final NRMSE per direction
     direction_ids = [r["direction_id"] for r in results]
     final_costs = [r["cost"] for r in results]
 
@@ -186,7 +186,7 @@ def plot_multi_direction_comparison(
     ax1.set_title("Final NRMSE by Direction")
     ax1.set_yscale("log")
 
-    # 标记最优
+    # Mark the best
     best_idx = np.argmin(final_costs)
     ax1.annotate(
         f"Best: {final_costs[best_idx]:.4e}",
@@ -197,7 +197,7 @@ def plot_multi_direction_comparison(
         arrowprops=dict(arrowstyle="->", color="red"),
     )
 
-    # 右图：各方向收敛曲线
+    # Right plot: convergence curves per direction
     for r in results:
         if "cost_history" in r:
             history = r["cost_history"]

@@ -1,7 +1,7 @@
 """
-熔池仿真参数定义
+Melt pool simulation parameter definitions
 
-参数元数据统一来自参数注册中心（utils.param_registry）。
+Parameter metadata is unified from the parameter registry (utils.param_registry).
 """
 
 from typing import Dict, List, Tuple
@@ -13,17 +13,17 @@ from ..utils.param_registry import (
     PARAM_NAMES,
 )
 
-# 输出名称
+# Output names
 OUTPUT_NAMES: List[str] = ["width", "depth"]
 
-# 输出标签 (用于绘图)
+# Output labels (used for plotting)
 OUTPUT_LABELS: Dict[str, str] = {
     "width": r"Width ($\mu$m)",
     "depth": r"Depth ($\mu$m)",
     "area": r"Area ($\mu$m$^2$)",
 }
 
-# 输出单位换算因子 (从 SI 到显示单位)
+# Output unit conversion factors (from SI to display units)
 OUTPUT_SCALE_FACTORS: Dict[str, float] = {
     "width": 1e6,   # m -> μm
     "depth": 1e6,   # m -> μm
@@ -33,7 +33,7 @@ OUTPUT_SCALE_FACTORS: Dict[str, float] = {
 
 def get_param_bounds_list() -> List[Tuple[float, float]]:
     """
-    返回参数边界列表（按 PARAM_NAMES 顺序）
+    Return the list of parameter bounds (in PARAM_NAMES order)
 
     Returns
     -------
@@ -45,16 +45,16 @@ def get_param_bounds_list() -> List[Tuple[float, float]]:
 
 def param_index(name: str) -> int:
     """
-    获取参数索引
+    Get the parameter index
 
     Parameters
     ----------
     name : str
-        参数名称
+        Parameter name
 
     Returns
     -------
     int
-        参数在数组中的索引
+        Index of the parameter in the array
     """
     return PARAM_NAMES.index(name)

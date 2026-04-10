@@ -1,4 +1,4 @@
-"""配置模块"""
+"""Configuration module"""
 
 from .base_config import BaseConfig
 from .bayes_config import BayesConfig
