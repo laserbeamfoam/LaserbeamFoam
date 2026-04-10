@@ -256,6 +256,22 @@ power levels.
 
 ---
 
+## Credits
+
+This calibration framework was developed as part of a collaborative research
+effort between the **University of Galway** and **Nanjing Tech University**.
+
+**Authors:**
+- **Guanhong Chen**, University of Galway / Nanjing Tech University
+- **Jinhui Wang**, Nanjing Tech University
+- **Sean Leen**, University of Galway
+
+The authors gratefully acknowledge the support of both institutions and the
+open-source communities of **OpenFOAM**, **ParaView**, and
+**scikit-optimize**, whose tools made this workflow possible.
+
+---
+
 ## References
 
 - [LaserbeamFoam repository](https://github.com/laserbeamfoam/LaserbeamFoam)
