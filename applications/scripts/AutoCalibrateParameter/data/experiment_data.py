@@ -22,7 +22,8 @@ def load_experiment_data(filepath: Path) -> np.ndarray:
     -------
     np.ndarray, shape (n_points, 4)
         Experimental data [power_W, width_um, depth_um, area_um2]
-        Note: if the area column is missing from the CSV, it will be filled with 0
+        Note: area_um2 is optional; if absent it is set to 0 (area is
+        excluded from the cost function by default via output_weights)
     """
     filepath = Path(filepath)
     if not filepath.exists():
@@ -54,9 +55,9 @@ def load_experiment_data(filepath: Path) -> np.ndarray:
     if missing_cols:
         raise ValueError(f"Experimental data is missing required columns: {missing_cols}")
 
-    # If area column is missing, fill with 0
+    # Area is optional; if missing, fill with 0 (area is excluded from the
+    # cost function by default via output_weights=[1,1,0])
     if "area_um2" not in df.columns:
-        print("Warning: area_um2 column is missing from the experimental data; filling with 0")
         df["area_um2"] = 0.0
 
     return df[["power_W", "width_um", "depth_um", "area_um2"]].values
