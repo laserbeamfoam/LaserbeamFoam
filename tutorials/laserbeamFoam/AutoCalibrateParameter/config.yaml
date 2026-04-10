@@ -1,0 +1,93 @@
+# ============================================================
+# AutoCalibrateParameter Tutorial — config.yaml
+# ============================================================
+# This configuration calibrates laserbeamFoam simulation parameters
+# for 316L stainless steel single track experiments.
+#
+# The optimiser runs OpenFOAM simulations, extracts meltpool geometry
+# via the postprocessing script, and compares against experimental
+# width and depth measurements.
+# ============================================================
+
+# --- Case settings -----------------------------------------------------------
+
+# OpenFOAM case root (this directory)
+case_dir: .
+
+# Output directory for optimisation runs
+runs_root: ./runs
+
+# OpenFOAM environment loader (set to null if already sourced)
+foam_bashrc: null
+foam_runner: of2506
+
+# Post-processing Python interpreter
+postproc_python: python
+postproc_runner: null
+
+# pvpython path (ParaView Python — required for meltpool extraction)
+pvpython: pvpython
+
+# Post-processing script (relative to this directory)
+postproc_script: ../../../applications/scripts/postProcessing/characterise_meltpool.py
+
+# --- Experimental data -------------------------------------------------------
+
+# CSV file with columns: power_W, depth_um, width_um
+exp_csv: SingleTrackExperimentalData.csv
+
+# Output weights [width, depth, area]; set 0 to exclude from cost
+output_weights: [1.0, 1.0, 0.0]
+
+# --- Parameter bounds --------------------------------------------------------
+
+sigma_bounds: [1.5, 4.0]
+marangoni_bounds: [-2.5e-3, -4.0e-6]
+substrate_temp_bounds: [300.0, 800.0]
+absorptivity_bounds: [0.5, 2.0]
+recoilCoeff_bounds: [0.5, 3.0]
+radius_flavour_bounds: [1.5, 4.0]
+laser_radius_bounds: [30.0e-6, 70.0e-6]
+
+# Which parameters to optimise (others are fixed)
+active_params:
+  - sigma
+  - marangoni
+  - recoilCoeff
+  - radius_flavour
+  - laser_radius
+
+# Fixed parameter values (for inactive params; defaults to midpoint if omitted)
+fixed_values:
+  substrate_temp: 300.0
+  absorptivity: 1.0
+
+# --- Bayesian optimisation settings ------------------------------------------
+
+n_initial_points: 5
+n_batches: 5
+batch_size: 1
+acq_func: EI
+
+# --- Parallel execution ------------------------------------------------------
+
+n_proc: 12
+mpirun_flags:
+  - --oversubscribe
+
+# --- Reproducibility ---------------------------------------------------------
+
+seed: 42
+
+# --- Post-processing geometry ------------------------------------------------
+
+laser_diameter: 70e-6        # laser spot diameter (m)
+cell_size: 1e-6              # mesh cell size (m)
+x_domain: [0, 0.0003]        # computational domain X range (m)
+y_begin_track: 150e-6        # track analysis start Y (m)
+y_end_track: 300e-6          # track analysis end Y (m)
+plot_geometry: true           # generate post-processing plots
+
+# --- Warm-start (optional) ---------------------------------------------------
+
+warmstart_csv: bayes_history.csv

@@ -12,4 +12,6 @@ fi
 wmake $optAll $targetType solvers
 wmake $optAll $targetType utilities
 
+(cd scripts && ./Allwmake $* 2>&1 | tee log.Allwmake)
+
 #------------------------------------------------------------------------------

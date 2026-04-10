@@ -1,0 +1,51 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  6
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      PhaseFieldProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+radialPolarHeatSource yes;
+
+timeVsLaserPosition
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPosition";
+    outOfBounds clamp;
+}
+
+timeVsLaserPower
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPower";
+    outOfBounds clamp;
+}
+
+// Laser angle (normalised in the code)
+V_incident (0 0 -1);
+// Polar sampling density for circular spot
+nRadial 6;
+nAngular 36;
+
+laserRadius            4.651755996320004e-05;
+
+N_sub_divisions	1;
+
+// Laser absorptivity coefficient (effective absorption)
+// This coefficient multiplies the nominal laser power to account for
+// material absorption, surface conditions, and other energy coupling effects
+// Typical range: 0.5 - 3.0
+absorptivity           1.0;
+
+wavelength	1.064e-6;
+e_num_density	5.83e29;
+Radius_Flavour         2.69333878491791;
+PowderSim true;
