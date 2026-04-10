@@ -1,4 +1,4 @@
-name: meltpool-postproc
+name: acp
 channels:
   - conda-forge
   - defaults

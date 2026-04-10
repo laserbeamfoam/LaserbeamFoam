@@ -15,7 +15,7 @@ The tool is designed for batch use and supports reproducible analysis across mul
 
 3. **Activate the provided Conda environment** (or ensure that the required Python packages are installed):
    ```bash
-   conda activate meltpool-postproc
+   conda activate acp
    ```
 
 4. **Run the main post-processing script** directly from the results directory:
@@ -38,7 +38,7 @@ Create and activate the environment:
 ```bash
 # Using conda
 conda env create -f $FOAM_USER_APPBIN/postProcessing/environment.yml
-conda activate meltpool-postproc
+conda activate acp
 ```
 
 After completion, the main results and plots (if enabled) will appear in the same folder as the scripts.

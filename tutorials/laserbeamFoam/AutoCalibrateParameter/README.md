@@ -101,7 +101,7 @@ Create a dedicated conda environment with all required packages pinned to
 the tested versions:
 
 ```bash
-conda create -n meltpool-postproc python=3.10.19 \
+conda create -n acp python=3.10.19 \
     -c conda-forge \
     numpy=2.2.6 \
     pandas=2.3.3 \
@@ -109,7 +109,7 @@ conda create -n meltpool-postproc python=3.10.19 \
     joblib=1.5.2 \
     paraview=6.0.1
 
-conda activate meltpool-postproc
+conda activate acp
 
 pip install \
     scipy==1.15.3 \
@@ -132,7 +132,7 @@ of2506    # or: source $WM_PROJECT_DIR/etc/bashrc
 With the conda environment active and OpenFOAM sourced, run:
 
 ```bash
-conda activate meltpool-postproc
+conda activate acp
 ./Allinstall
 ```
 
@@ -157,7 +157,7 @@ This checks Python packages, external tools (`pvpython`, `blockMesh`,
 
 ```bash
 # Activate environment and source OpenFOAM
-conda activate meltpool-postproc
+conda activate acp
 of2506
 
 # Run calibration (Bayesian, default)
