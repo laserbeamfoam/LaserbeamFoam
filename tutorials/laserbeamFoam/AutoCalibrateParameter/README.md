@@ -73,55 +73,76 @@ AutoCalibrateParameter/
 
 ---
 
-## Prerequisites
+## Full Installation Guide
 
-| Requirement | Version | Notes |
-|---|---|---|
-| OpenFOAM | v2412 / v2506 | `laserbeamFoam` solver must be compiled |
-| ParaView | ≥ 5.7 | `pvpython` must be in `PATH` |
-| Python | ≥ 3.9 | pip available |
-| MPI | any | `mpirun` for parallel runs |
+Follow these steps in order before running the calibration for the first time.
 
-### Installation
+### Step 1 — Install ParaView (with pvpython)
 
-Run the provided install script once — it handles everything:
+`pvpython` is required for meltpool post-processing. The recommended way is
+via conda, which also bundles `pvpython` automatically:
 
 ```bash
+conda install -c conda-forge paraview=6.0.1
+```
+
+After installation, verify:
+
+```bash
+pvpython --version
+```
+
+> If you install ParaView from the system package manager or official
+> installer instead, make sure `pvpython` is on your `PATH`.
+
+### Step 2 — Create the Python environment
+
+Create a dedicated conda environment with all required packages pinned to
+the tested versions:
+
+```bash
+conda create -n meltpool-postproc python=3.10.19 \
+    -c conda-forge \
+    numpy=2.2.6 \
+    pandas=2.3.3 \
+    matplotlib=3.10.8 \
+    joblib=1.5.2 \
+    paraview=6.0.1
+
+conda activate meltpool-postproc
+
+pip install \
+    scipy==1.15.3 \
+    PyYAML==6.0.3 \
+    openpyxl==3.1.5 \
+    scikit-optimize==0.10.2
+```
+
+> `scikit-optimize` is only required for `--method bayes` (the default).
+> For `--method gradient`, you can omit it.
+
+### Step 3 — Source your OpenFOAM environment
+
+```bash
+of2506    # or: source $WM_PROJECT_DIR/etc/bashrc
+```
+
+### Step 4 — Run Allinstall
+
+With the conda environment active and OpenFOAM sourced, run:
+
+```bash
+conda activate meltpool-postproc
 ./Allinstall
 ```
 
 This will:
-1. Install the `AutoCalibrateParameter` Python package (editable install via `pip`)
-2. Install all required Python dependencies (`numpy`, `pandas`, `scipy`,
-   `matplotlib`, `scikit-optimize`, …)
-3. Copy the `postProcessing` scripts to `$FOAM_USER_APPBIN`
-4. Verify the installation
+1. Install the `AutoCalibrateParameter` package into the active environment
+   (editable install — source changes take effect immediately)
+2. Copy the `postProcessing` scripts to `$FOAM_USER_APPBIN`
+3. Verify all imports pass
 
-> `$FOAM_USER_APPBIN` is only populated if your OpenFOAM environment is
-> sourced before running `./Allinstall`. If it is not set, the
-> post-processing install step is skipped with a warning — re-run after
-> sourcing OpenFOAM.
-
-> `scikit-optimize` is only required for `--method bayes` (the default).
-> For `--method gradient`, `scipy` alone is sufficient.
-
----
-
-## Quick Start
-
-### 1. Install
-
-```bash
-./Allinstall
-```
-
-### 2. Source your OpenFOAM environment and verify
-
-```bash
-of2506            # or: source $WM_PROJECT_DIR/etc/bashrc
-```
-
-Then verify everything is in place:
+### Step 5 — Verify
 
 ```bash
 python test_environment.py
@@ -130,24 +151,30 @@ python test_environment.py
 This checks Python packages, external tools (`pvpython`, `blockMesh`,
 `laserbeamFoam`, `mpirun`), and the `AutoCalibrateParameter` package imports.
 
-> **No manual case setup needed.** `main.py` calls `blockMesh`,
-> `setSolidFraction`, and `cp -r initial 0` automatically before each
-> simulation run.
+---
 
-### 3. Run the calibration
+## Quick Start (after installation)
 
 ```bash
-# Default: Bayesian optimisation
+# Activate environment and source OpenFOAM
+conda activate meltpool-postproc
+of2506
+
+# Run calibration (Bayesian, default)
 python main.py
 
-# Gradient-based optimisation
+# Or gradient-based
 python main.py --method gradient
 
 # See all options
 python main.py --help
 ```
 
-### 4. Production runs
+> **No manual case setup needed.** `main.py` calls `blockMesh`,
+> `setSolidFraction`, and `cp -r initial 0` automatically before each
+> simulation run.
+
+### Production runs
 
 The default `config.yaml` is tuned for a **quick demonstration** (5 initial
 points, 5 batches). For production-quality calibration, edit `config.yaml`:
@@ -192,7 +219,7 @@ All calibration parameters are set in `config.yaml`:
   parameters are held at the values in `fixed_values` (or midpoint of their
   bounds).
 - **`output_weights`** — set a component to `0` to exclude it from the cost
-  function (e.g. `[1, 1, 0]` ignores meltpool area).
+  function (e.g. `[1, 1, 0]` ignores meltpool area, which is the default).
 
 ---
 
@@ -217,10 +244,11 @@ power levels.
 
 | Symptom | Solution |
 |---|---|
-| `pvpython: command not found` | Install ParaView and add it to `PATH` |
+| `pvpython: command not found` | Install ParaView via conda (`conda install -c conda-forge paraview`) and ensure the env is active |
 | `blockMesh not found` | Source the OpenFOAM environment (`of2506` or equivalent) |
-| `ImportError: No module named 'skopt'` | `pip install scikit-optimize` |
-| `ImportError: No module named 'yaml'` | `pip install pyyaml` |
+| `ImportError: No module named 'skopt'` | `pip install scikit-optimize==0.10.2` |
+| `ImportError: No module named 'yaml'` | `pip install PyYAML==6.0.3` |
+| `ImportError: No module named 'openpyxl'` | `pip install openpyxl==3.1.5` |
 | `meltpool.csv` is empty | Ensure simulation ran to completion |
 | Post-processing returns NaN | Check `y_begin_track` / `y_end_track` in config are inside the domain |
 | `foam_runner` error | Set `foam_runner: null` if OpenFOAM is already sourced |
