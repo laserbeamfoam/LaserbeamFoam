@@ -41,7 +41,7 @@ python - <<'EOF'
 import importlib, sys
 
 ok = True
-for pkg in ["AutoCalibrateParameter", "numpy", "pandas", "scipy", "matplotlib", "yaml", "joblib", "skopt"]:
+for pkg in ["AutoCalibrateParameter", "numpy", "pandas", "scipy", "matplotlib", "yaml", "joblib", "openpyxl", "skopt"]:
     try:
         importlib.import_module(pkg)
         print(f"      [OK] {pkg}")
