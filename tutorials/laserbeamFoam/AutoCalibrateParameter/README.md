@@ -4,11 +4,10 @@ This tutorial demonstrates how to automatically calibrate `laserbeamFoam`
 simulation parameters against experimental meltpool measurements using the
 **AutoCalibrateParameter** framework.
 
-The case models a **316L stainless steel single laser track** at three power
-levels (140 W, 200 W, 260 W). The optimiser iteratively runs OpenFOAM
-simulations, extracts the meltpool width and depth via the post-processing
-pipeline, and adjusts model parameters to minimise the discrepancy with
-experimental data.
+The case models a **316L stainless steel single laser track** at 200 W.
+The optimiser iteratively runs OpenFOAM simulations, extracts the meltpool
+width and depth via the post-processing pipeline, and adjusts model parameters
+to minimise the discrepancy with experimental data.
 
 ---
 
@@ -23,7 +22,7 @@ their calibration by:
    suggests a set of candidate parameter values (e.g. absorptivity, Marangoni
    coefficient, surface tension, recoil pressure coefficient).
 2. **Simulate** — run `laserbeamFoam` via `mpirun` for each experimental
-   power setting. Mesh generation and field initialisation are handled
+   power setting (200 W). Mesh generation and field initialisation are handled
    automatically by the framework.
 3. **Post-process** — call `characterise_meltpool.py` (via `pvpython`) to
    extract meltpool geometry from the simulation results.
@@ -48,9 +47,10 @@ saved under `runs/`.
 
 ```
 AutoCalibrateParameter/
+├── Allinstall                         # One-shot install script — run this first
 ├── main.py                            # Entry point — run this
 ├── config.yaml                        # Calibration settings (editable)
-├── test_environment.py                # Environment check — run this first
+├── test_environment.py                # Environment check
 ├── SingleTrackExperimentalData.csv    # Target experimental data
 ├── Allrun                             # OpenFOAM case setup script
 ├── Allclean                           # OpenFOAM case cleanup script
@@ -79,20 +79,28 @@ AutoCalibrateParameter/
 |---|---|---|
 | OpenFOAM | v2412 / v2506 | `laserbeamFoam` solver must be compiled |
 | ParaView | ≥ 5.7 | `pvpython` must be in `PATH` |
-| Python | ≥ 3.9 | with packages listed below |
+| Python | ≥ 3.9 | pip available |
 | MPI | any | `mpirun` for parallel runs |
 
-### Python packages
+### Installation
+
+Run the provided install script once — it handles everything:
 
 ```bash
-# Option A: use the provided conda environment
-conda env create -f ../../../applications/scripts/postProcessing/environment.yml
-conda activate meltpool-postproc
-pip install scikit-optimize scipy pyyaml
-
-# Option B: install into an existing environment
-pip install numpy pandas matplotlib joblib scikit-optimize scipy pyyaml
+./Allinstall
 ```
+
+This will:
+1. Install the `AutoCalibrateParameter` Python package (editable install via `pip`)
+2. Install all required Python dependencies (`numpy`, `pandas`, `scipy`,
+   `matplotlib`, `scikit-optimize`, …)
+3. Copy the `postProcessing` scripts to `$FOAM_USER_APPBIN`
+4. Verify the installation
+
+> `$FOAM_USER_APPBIN` is only populated if your OpenFOAM environment is
+> sourced before running `./Allinstall`. If it is not set, the
+> post-processing install step is skipped with a warning — re-run after
+> sourcing OpenFOAM.
 
 > `scikit-optimize` is only required for `--method bayes` (the default).
 > For `--method gradient`, `scipy` alone is sufficient.
@@ -101,22 +109,26 @@ pip install numpy pandas matplotlib joblib scikit-optimize scipy pyyaml
 
 ## Quick Start
 
-### 1. Verify your environment
+### 1. Install
+
+```bash
+./Allinstall
+```
+
+### 2. Source your OpenFOAM environment and verify
+
+```bash
+of2506            # or: source $WM_PROJECT_DIR/etc/bashrc
+```
+
+Then verify everything is in place:
 
 ```bash
 python test_environment.py
 ```
 
 This checks Python packages, external tools (`pvpython`, `blockMesh`,
-`laserbeamFoam`, `mpirun`), the post-processing script, and the
-`AutoCalibrateParameter` package imports. **Run this first** — it catches
-common issues before a long calibration run.
-
-### 2. Source your OpenFOAM environment
-
-```bash
-of2506            # or: source $WM_PROJECT_DIR/etc/bashrc
-```
+`laserbeamFoam`, `mpirun`), and the `AutoCalibrateParameter` package imports.
 
 > **No manual case setup needed.** `main.py` calls `blockMesh`,
 > `setSolidFraction`, and `cp -r initial 0` automatically before each
@@ -190,14 +202,14 @@ All calibration parameters are set in `config.yaml`:
 
 ```csv
 power_W,depth_um,width_um
-140,47.53,89.61
 200,56.87,111.52
-260,63.15,133.1
 ```
 
 Each row represents one laser power condition with its measured meltpool
-depth and width in micrometres. The optimiser runs a separate simulation for
-each row and compares the predicted geometry against the measured values.
+depth and width in micrometres. The optimiser runs a simulation for each row
+and compares the predicted geometry against the measured values. The tutorial
+uses a single condition at 200 W; add more rows to calibrate across multiple
+power levels.
 
 ---
 
