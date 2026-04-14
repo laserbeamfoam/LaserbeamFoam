@@ -110,6 +110,37 @@ public:
     };
 
 
+    // ---------------------------------------------------------------
+    //  Phase transition registry
+    // ---------------------------------------------------------------
+
+    //- Supported transition types
+    enum class transitionType
+    {
+        BOILING         // liquid <-> vapour
+        // IONISATION   // neutral <-> plasma  (future)
+    };
+
+    //- Single directed transition between two phases
+    struct phaseTransition
+    {
+        word            name;               // user-given label
+        transitionType  type;
+
+        // Phase names (meaning depends on transition type)
+        word            phase1Name;         // condensed / neutral
+        word            phase2Name;         // gaseous   / plasma
+
+        // Boiling parameters
+        scalar          boilingTemperature; // [K]
+        scalar          latentHeat;         // [J/kg]
+
+        // (future) Ionisation parameters
+        // scalar       ionisationTemperature;
+        // scalar       ionisationEnergy;
+    };
+
+
 private:
 
     // Private Data
@@ -137,29 +168,13 @@ private:
         dsigmadTTable dsigmadT_;
         dimensionSet dimdSigmadT_;
 
-
-        // vapourisation temperatures table
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
-        boilTable;
+        scalarCoeffSymmCTable;
 
-        boilTable boils_;
-        dimensionSet dimBoil_;
+        scalarCoeffSymmCTable cAlphas_;
 
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
-        LatentHeatGasTable;
-
-        LatentHeatGasTable LatentHeatGass_;
-        dimensionSet dimLatentHeatGas_;
-
-        typedef HashTable<scalar, interfacePair, interfacePair::hash>
-        scalarCoeffSymmCTable;  
-
-        scalarCoeffSymmCTable cAlphas_;    
-
-
-
-        typedef HashTable<scalar, interfacePair, interfacePair::hash>
-            scalarCoeffSymmDTable;    
+            scalarCoeffSymmDTable;
 
         scalarCoeffSymmDTable dAlphas_;
         dimensionSet dimdiff_;
@@ -167,12 +182,39 @@ private:
         //- Stabilisation for normalisation of the interface normal
         const dimensionedScalar deltaN_;
 
+        // --- Phase transition registry ---
+
+        //- Ordered list of transitions parsed from dictionary
+        List<phaseTransition> phaseTransitions_;
+
+        //- Map from phase name to sequential integer index
+        HashTable<label, word> phaseIndexMap_;
+
+        // --- Conservative mass transport ---
+
+        //- Partial density fields: alphaRho_k = alpha_k * rho_k
+        PtrList<volScalarField> alphaRho_;
+
 
     // Private Member Functions
 
         void calcAlphas();
 
-        tmp<volScalarField> solveAlphas(volScalarField *massdotterm/*,PtrList<surfaceScalarField> *alpharhophis*/);
+        //- Read phaseTransitions sub-dictionary and populate list
+        void readPhaseTransitions();
+
+        //- Build phaseIndexMap_ from the current phases_
+        void buildPhaseIndexMap();
+
+        //- Return integer index for a phase name (FatalError if missing)
+        label phaseIndex(const word& phaseName) const;
+
+        //- Initialise alphaRho fields from alpha * rho
+        void initAlphaRho();
+
+        
+
+        tmp<volScalarField> solveAlphas(volScalarField *massdotterm, bool finalIter);
 
         tmp<surfaceVectorField> nHatfv
         (
@@ -233,6 +275,33 @@ public:
         {
             return phases_;
         }
+
+        //- Return the transition registry
+        const List<phaseTransition>& transitions() const
+        {
+            return phaseTransitions_;
+        }
+
+        //- Return the conserved partial density fields
+        const PtrList<volScalarField>& alphaRhoFields() const
+        {
+            return alphaRho_;
+        }
+
+        //- Mixture density from conserved alphaRho fields
+        //  This is EXACTLY consistent with rhoPhi from solveAlphas.
+        //  Use this instead of rho() = Sigma(alpha_renorm * rho_k)
+        //  for density-flux consistency in TEqn/UEqn.
+        tmp<volScalarField> rhoAlphaRho() const;
+
+        //- Continuity error from conserved fields
+        tmp<volScalarField> continuityError() const;
+
+        //- Recompute rhoPhi from current phi and alphaRho fields
+        void updateRhoPhi();
+
+        //- Rebuild alphaRho from current alpha and rho
+        void syncAlphaRho();
 
         //- Return the velocity
         const volVectorField& U() const
@@ -487,7 +556,7 @@ public:
         tmp<volScalarField> nearInterface() const;
 
         //- Solve for the mixture phase-fractions
-        tmp<volScalarField> solve(volScalarField *massdotterm/*,PtrList<surfaceScalarField> *alpharhophis*/);
+        tmp<volScalarField> solve(volScalarField *massdotterm, bool finalIter = false);
 };
 
 

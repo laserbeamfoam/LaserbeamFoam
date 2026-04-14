@@ -11,58 +11,54 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties;
+    object      thermophysicalProperties.mercury;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-phases (metal1 metal1vapour air);
+phaseState      condensed;  // or: gaseous, solid
 
-pMin            1000;
-
-P0	1e5;
-
-interface_thickness	1e-5;
-
-sigmas
-(
-	(metal1vapour metal1)	1.0
-	(air metal1)	1.0
-	(metal1vapour air)	0.0
-);
-
-dsigmadT
-(
-    (metal1vapour metal1)	-1.0e-4
-    (air metal1)	-1.0e-4
-    (metal1vapour air)	0.0
-);
-
-
-phaseTransitions
+thermoType
 {
-    metal1Boiling
-    {
-        type                boiling;
-        condensedPhase      metal1;
-        gaseousPhase        metal1vapour;
-        boilingTemperature  2900;       // [K]
-        latentHeat          1.0e6;      // [J/kg]
-    }
-
+    type            heRhoThermo;
+    mixture         pureMixture;
+    transport       const;
+    thermo          hConst;
+    equationOfState adiabaticPerfectFluid;//rhoConst;//perfectFluid;
+    specie          specie;
+    energy          sensibleInternalEnergy;
 }
 
-interfaceCompression
-(
-	(metal1vapour metal1)	1.0
-	(air metal1)	1.0
-	(metal1vapour air)	0.0
-);
+TSolidus	1800.0;
+TLiquidus	1825.0;
+LatentHeat	2.7e5;
 
-interfaceDiffusion
-(
-	(metal1vapour metal1)	0.0
-	(air metal1)	0.0
-	(metal1vapour air)	0.0
-);
+elec_conductivity	1.0e6;
+magnetic_permeability	1.256e-6;
+
+mixture
+{
+    specie
+    {
+        molWeight   50.0;
+    }
+    equationOfState
+    {
+        p0	1e5;
+        rho0         5000;
+        gamma	1.2;
+        B	1e7;
+    }
+    thermodynamics
+    {
+        Cp          800;
+        Hf          0;
+    }
+    transport
+    {
+        mu          5.0e-4;
+        Pr          0.005;
+    }
+}
+
 
 // ************************************************************************* //

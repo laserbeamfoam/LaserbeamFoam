@@ -10,59 +10,18 @@ FoamFile
     version     2.0;
     format      ascii;
     class       dictionary;
-    location    "constant";
-    object      thermophysicalProperties;
+    object      decomposeParDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-phases (metal1 metal1vapour air);
+numberOfSubdomains 8;
 
-pMin            1000;
+method          simple;
 
-P0	1e5;
-
-interface_thickness	1e-5;
-
-sigmas
-(
-	(metal1vapour metal1)	1.0
-	(air metal1)	1.0
-	(metal1vapour air)	0.0
-);
-
-dsigmadT
-(
-    (metal1vapour metal1)	-1.0e-4
-    (air metal1)	-1.0e-4
-    (metal1vapour air)	0.0
-);
-
-
-phaseTransitions
+coeffs
 {
-    metal1Boiling
-    {
-        type                boiling;
-        condensedPhase      metal1;
-        gaseousPhase        metal1vapour;
-        boilingTemperature  2900;       // [K]
-        latentHeat          1.0e6;      // [J/kg]
-    }
-
+    n           (2 2 2);
 }
 
-interfaceCompression
-(
-	(metal1vapour metal1)	1.0
-	(air metal1)	1.0
-	(metal1vapour air)	0.0
-);
-
-interfaceDiffusion
-(
-	(metal1vapour metal1)	0.0
-	(air metal1)	0.0
-	(metal1vapour air)	0.0
-);
 
 // ************************************************************************* //

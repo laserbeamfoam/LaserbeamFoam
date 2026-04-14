@@ -11,58 +11,11 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties;
+    object      turbulenceProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-phases (metal1 metal1vapour air);
+simulationType  laminar;
 
-pMin            1000;
-
-P0	1e5;
-
-interface_thickness	1e-5;
-
-sigmas
-(
-	(metal1vapour metal1)	1.0
-	(air metal1)	1.0
-	(metal1vapour air)	0.0
-);
-
-dsigmadT
-(
-    (metal1vapour metal1)	-1.0e-4
-    (air metal1)	-1.0e-4
-    (metal1vapour air)	0.0
-);
-
-
-phaseTransitions
-{
-    metal1Boiling
-    {
-        type                boiling;
-        condensedPhase      metal1;
-        gaseousPhase        metal1vapour;
-        boilingTemperature  2900;       // [K]
-        latentHeat          1.0e6;      // [J/kg]
-    }
-
-}
-
-interfaceCompression
-(
-	(metal1vapour metal1)	1.0
-	(air metal1)	1.0
-	(metal1vapour air)	0.0
-);
-
-interfaceDiffusion
-(
-	(metal1vapour metal1)	0.0
-	(air metal1)	0.0
-	(metal1vapour air)	0.0
-);
 
 // ************************************************************************* //

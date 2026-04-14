@@ -20,7 +20,7 @@ phases (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal
 pMin            1000;
 
 P0	1e5;
-interface_thickness	1e-5;
+interface_thickness	1e-6;
 
 
 sigmas
@@ -119,6 +119,8 @@ dsigmadT
 	(metal4vapour air)	0.0
 );
 
+
+/*
 boils
 (
 (metal1vapour metal1) 4101.0
@@ -134,6 +136,61 @@ LatentHeatGas
 (metal3vapour metal3) 1.0e1
 (metal4vapour metal4) 1.0e1
 );
+*/
+
+
+phaseTransitions
+{
+    metal1Boiling
+    {
+        type                boiling;
+        condensedPhase      metal1;
+        gaseousPhase        metal1vapour;
+        boilingTemperature  4101;       // [K]
+        latentHeat          6.5e6;      // [J/kg]
+    }
+    
+    metal2Boiling
+    {
+        type                boiling;
+        condensedPhase      metal2;
+        gaseousPhase        metal2vapour;
+        boilingTemperature  4102;       // [K]
+        latentHeat          6.5e6;      // [J/kg]
+    }
+    
+    metal3Boiling
+    {
+        type                boiling;
+        condensedPhase      metal3;
+        gaseousPhase        metal3vapour;
+        boilingTemperature  3010;       // [K]
+        latentHeat          6.5e5;      // [J/kg]
+    }
+    
+    metal4Boiling
+    {
+        type                boiling;
+        condensedPhase      metal4;
+        gaseousPhase        metal4vapour;
+        boilingTemperature  3004;       // [K]
+        latentHeat          6.5e5;      // [J/kg]
+    }
+
+
+
+    // Future ionisation (not yet implemented):
+    //
+    // metalIonisation
+    // {
+    //     type                ionisation;
+    //     neutralPhase        metalvapour;
+    //     plasmaPhase         metalplasma;
+    //     ionisationTemp      12000;
+    //     ionisationEnergy    7.5e5;
+    // }
+}
+
 
 interfaceCompression
 (
@@ -194,24 +251,24 @@ interfaceDiffusion
 	(air metal1)	0.0
 	
 	(metal1vapour metal2)	0.0
-	(metal1vapour metal2vapour)	1e-6
+	(metal1vapour metal2vapour)	0.0
 	(metal1vapour metal3)	0.0
-	(metal1vapour metal3vapour)	1e-6
+	(metal1vapour metal3vapour)	0.0
 	(metal1vapour metal4)	0.0
-	(metal1vapour metal4vapour)	1e-6
+	(metal1vapour metal4vapour)	0.0
 	(metal1vapour air)	0.0
 	
 	(metal2vapour metal2)	0.0
-	(metal2 metal3)	1e-9
+	(metal2 metal3)	1e-6
 	(metal3vapour metal2)	0.0
-	(metal2 metal4)	1e-9
+	(metal2 metal4)	1e-6
 	(metal4vapour metal2)	0.0
 	(air metal2)	0.0
 	
 	(metal2vapour metal3)	0.0
-	(metal2vapour metal3vapour)	1e-6
+	(metal2vapour metal3vapour)	0.0
 	(metal2vapour metal4)	0.0
-	(metal2vapour metal4vapour)	1e-6
+	(metal2vapour metal4vapour)	0.0
 	(metal2vapour air)	0.0
 	
 	(metal3vapour metal3)	0.0

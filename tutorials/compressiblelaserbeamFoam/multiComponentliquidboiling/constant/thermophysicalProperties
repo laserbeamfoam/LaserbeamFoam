@@ -120,6 +120,24 @@ dsigmadT
 );
 
 
+/*
+boils
+(
+(metal1vapour metal1) 4101.0
+(metal2vapour metal2) 4202.0
+(metal3vapour metal3) 3010.0
+(metal4vapour metal4) 3004.0
+);
+
+LatentHeatGas
+(
+(metal1vapour metal1) 1.0e1
+(metal2vapour metal2) 1.0e1
+(metal3vapour metal3) 1.0e1
+(metal4vapour metal4) 1.0e1
+);
+*/
+
 
 phaseTransitions
 {
@@ -128,7 +146,7 @@ phaseTransitions
         type                boiling;
         condensedPhase      metal1;
         gaseousPhase        metal1vapour;
-        boilingTemperature  2900;       // [K]
+        boilingTemperature  4101;       // [K]
         latentHeat          6.5e6;      // [J/kg]
     }
     
@@ -137,7 +155,7 @@ phaseTransitions
         type                boiling;
         condensedPhase      metal2;
         gaseousPhase        metal2vapour;
-        boilingTemperature  3000;       // [K]
+        boilingTemperature  4102;       // [K]
         latentHeat          6.5e6;      // [J/kg]
     }
     
@@ -146,7 +164,7 @@ phaseTransitions
         type                boiling;
         condensedPhase      metal3;
         gaseousPhase        metal3vapour;
-        boilingTemperature  3100;       // [K]
+        boilingTemperature  3010;       // [K]
         latentHeat          6.5e6;      // [J/kg]
     }
     
@@ -155,12 +173,33 @@ phaseTransitions
         type                boiling;
         condensedPhase      metal4;
         gaseousPhase        metal4vapour;
-        boilingTemperature  3200;       // [K]
+        boilingTemperature  3004;       // [K]
         latentHeat          6.5e6;      // [J/kg]
     }
 
+    // Multi-component example (just add more entries):
+    //
+    // steelBoiling
+    // {
+    //     type                boiling;
+    //     condensedPhase      steel;
+    //     gaseousPhase        steelvapour;
+    //     boilingTemperature  3100;
+    //     latentHeat          7.0e6;
+    // }
 
+    // Future ionisation (not yet implemented):
+    //
+    // metalIonisation
+    // {
+    //     type                ionisation;
+    //     neutralPhase        metalvapour;
+    //     plasmaPhase         metalplasma;
+    //     ionisationTemp      12000;
+    //     ionisationEnergy    7.5e5;
+    // }
 }
+
 
 interfaceCompression
 (
@@ -214,31 +253,31 @@ interfaceDiffusion
 	(metal1vapour metal1)	0.0
 	(metal1 metal2)	1e-9
 	(metal2vapour metal1)	0.0
-	(metal1 metal3)	1e-9
+	(metal1 metal3)	1e-6
 	(metal3vapour metal1)	0.0
-	(metal1 metal4)	1e-9
+	(metal1 metal4)	1e-6
 	(metal4vapour metal1)	0.0
 	(air metal1)	0.0
 	
 	(metal1vapour metal2)	0.0
-	(metal1vapour metal2vapour)	1e-6
+	(metal1vapour metal2vapour)	0.0
 	(metal1vapour metal3)	0.0
-	(metal1vapour metal3vapour)	1e-6
+	(metal1vapour metal3vapour)	0.0
 	(metal1vapour metal4)	0.0
-	(metal1vapour metal4vapour)	1e-6
+	(metal1vapour metal4vapour)	0.0
 	(metal1vapour air)	0.0
 	
 	(metal2vapour metal2)	0.0
-	(metal2 metal3)	1e-9
+	(metal2 metal3)	1e-6
 	(metal3vapour metal2)	0.0
-	(metal2 metal4)	1e-9
+	(metal2 metal4)	1e-6
 	(metal4vapour metal2)	0.0
 	(air metal2)	0.0
 	
 	(metal2vapour metal3)	0.0
-	(metal2vapour metal3vapour)	1e-6
+	(metal2vapour metal3vapour)	0.0
 	(metal2vapour metal4)	0.0
-	(metal2vapour metal4vapour)	1e-6
+	(metal2vapour metal4vapour)	0.0
 	(metal2vapour air)	0.0
 	
 	(metal3vapour metal3)	0.0

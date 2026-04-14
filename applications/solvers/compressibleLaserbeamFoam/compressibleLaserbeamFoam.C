@@ -153,20 +153,22 @@ int main(int argc, char *argv[])
             }
 
 
-            vDot = mixture.solve(&mass_dot);
-            vDot.correctBoundaryConditions();
 
-            mass_dot.correctBoundaryConditions();
+        
 
-            rho=mixture.rho();
+        vDot = mixture.solve(&mass_dot,pimple.finalIter());  // always finalIter=true
+        vDot.correctBoundaryConditions();
+        mass_dot.correctBoundaryConditions();
 
-            #include "update.H"
+        rho = mixture.rho();
 
-            // Update the laser deposition field
-            laser.updateDeposition
-            (
-                condensateFiltered, n_filtered, electrical_resistivity
-            );
+        #include "update.H"
+
+        laser.updateDeposition
+        (
+            condensateFiltered, n_filtered, electrical_resistivity
+        );
+
 
 
             #include "UEqn.H"
@@ -183,6 +185,8 @@ int main(int argc, char *argv[])
                 turbulence->correct();
             }
         }
+
+
 
         runTime.write();
 

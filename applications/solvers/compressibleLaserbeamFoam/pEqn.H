@@ -137,4 +137,9 @@
         rAU.clear();
     }
 
+
+    DilationError = mixture.continuityError() / rho;
+    
+
+
 }
