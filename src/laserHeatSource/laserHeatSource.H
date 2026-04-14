@@ -144,6 +144,8 @@ class laserHeatSource
             const label nRadial,
             const label nAngular,
             const vector& V_incident,
+            const vector& beamRight,
+            const vector& beamForward,
             const Switch radialPolarHeatSource,
             const scalar Radius_Flavour,
             const scalar perturbationFraction,
@@ -160,11 +162,24 @@ class laserHeatSource
             const vector& currentLaserPosition,
             const HeatSourceProfile& profile,
             const vector& V_incident,
+            const vector& beamRight,
+            const vector& beamForward,
             const scalar perturbationFraction,
             const scalar allocatedPower,
             const label rayIndexOffset,
             const label maxLocalSearch,
             label& nProfileRays
+        ) const;
+
+        //- Resolve the beam-local +x (right) and +z (forward) directions
+        //  in domain coordinates for the given laser and time.
+        void resolveBeamSamplingBasis
+        (
+            const label laserID,
+            const scalar time,
+            const vector& V_incident,
+            vector& beamRight,
+            vector& beamForward
         ) const;
 
         //- Disallow default bitwise copy construct

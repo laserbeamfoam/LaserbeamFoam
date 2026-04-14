@@ -17,15 +17,30 @@ FoamFile
 
 shapeNames
 (
-    "F12_S5"
+    "circle"
 );
 
-shapeFrequency    (20e6);       // Hz, must be same length as shapeNames
-shapeDuration     (1e-6);     // s, must be same length as shapeNames - must be equal to nAddresses/shapeFrequency for a single shape
+shapeFrequency    (100e3);       // Hz, must be same length as shapeNames
+shapeDuration     (1e-5);        // s, must be same length as shapeNames - must be equal to nAddresses/shapeFrequency for a single shape
 
-F12_S5
+circle
 (
-    ( -5 +12 )
-    ( +5 +12 )
+    (   5   3  )
+    (   3   5  )
+    (   0   6  )
+    (  -3   5  )
+    (  -5   3  )
+    (  -6   0  )
+    (  -5  -3  )
+    (  -3  -5  )
+    (   0  -6  )
+    (   3  -5  )
+    (   5  -3  )
+    (   6   0  )
+    (   0   3  )
+    (  -3   0  )
+    (   0  -3  )
+    (   3   0  )
+    (   0   0  )
 );
 

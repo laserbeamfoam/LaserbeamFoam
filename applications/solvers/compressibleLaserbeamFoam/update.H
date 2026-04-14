@@ -51,7 +51,12 @@
             readScalar(phasedictionary.lookup("LatentHeat"))
         );
 
-        scalar phaseTvapValue = 1.0e10;
+        dimensionedScalar phaseTvapValue
+        (
+            "phaseTvapValue",
+            dimensionSet(0, 0, 0, 1, 0),
+            1.0e10
+        );
         if (phase1.isCondensed())
         {
             const word vapourName(phase1.name() + "vapour");
@@ -67,7 +72,13 @@
 
             if (boilIter.found())
             {
-                phaseTvapValue = boilIter();
+                phaseTvapValue =
+                    dimensionedScalar
+                    (
+                        "phaseTvapValue",
+                        dimensionSet(0, 0, 0, 1, 0),
+                        boilIter()
+                    );
             }
         }
 

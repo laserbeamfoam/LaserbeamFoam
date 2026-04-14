@@ -36,6 +36,81 @@ defineTypeNameAndDebug(laserHeatSource, 0);
 // * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * * //
 
 
+void laserHeatSource::resolveBeamSamplingBasis
+(
+    const label laserID,
+    const scalar time,
+    const vector& V_incident,
+    vector& beamRight,
+    vector& beamForward
+) const
+{
+    if (mag(V_incident) <= SMALL)
+    {
+        FatalErrorInFunction
+            << "Laser '" << laserNames_[laserID] << "' defines an invalid "
+            << "V_incident = " << V_incident << "."
+            << exit(FatalError);
+    }
+
+    const vector beamAxis = V_incident/(mag(V_incident) + VSMALL);
+    const dictionary& laserDict = laserDicts_[laserID];
+
+    vector requestedForward(vector::zero);
+    const char* orientationSource = "domain +z fallback";
+
+    if (laserDict.found("forwardDirection"))
+    {
+        requestedForward = laserDict.get<vector>("forwardDirection");
+        orientationSource = "explicit forwardDirection";
+
+        if (mag(requestedForward) <= SMALL)
+        {
+            FatalErrorInFunction
+                << "Laser '" << laserNames_[laserID] << "' defines a zero "
+                << "forwardDirection." << exit(FatalError);
+        }
+    }
+    else
+    {
+        requestedForward = timeVsLaserPosition_[laserID].rateOfChange(time);
+
+        if (mag(requestedForward) > SMALL)
+        {
+            orientationSource = movingFrame_[laserID]
+              ? "scan direction (opposite material motion)"
+              : "scan direction";
+        }
+        else
+        {
+            requestedForward = vector(0, 0, 1);
+        }
+    }
+
+    vector projectedForward =
+        requestedForward - (requestedForward & beamAxis)*beamAxis;
+
+    if (mag(projectedForward) <= SMALL)
+    {
+        FatalErrorInFunction
+            << "Laser '" << laserNames_[laserID] << "' cannot resolve a "
+            << "beam-forward direction from " << requestedForward
+            << " because it is parallel to V_incident = " << V_incident
+            << "." << exit(FatalError);
+    }
+
+    beamForward = projectedForward/(mag(projectedForward) + VSMALL);
+    beamRight = beamAxis ^ beamForward;
+    beamRight /= (mag(beamRight) + VSMALL);
+    beamForward = beamRight ^ beamAxis;
+    beamForward /= (mag(beamForward) + VSMALL);
+
+    Info<< "    beam-local +z (forward) = " << beamForward << nl
+        << "    beam-local +x (right) = " << beamRight << nl
+        << "    beam orientation source = " << orientationSource << endl;
+}
+
+
 void laserHeatSource::seedRayCloud
 (
     Cloud<laserRayParticle>& cloud,
@@ -46,6 +121,8 @@ void laserHeatSource::seedRayCloud
     const label nRadial,
     const label nAngular,
     const vector& V_incident,
+    const vector& beamRight,
+    const vector& beamForward,
     const Switch radialPolarHeatSource,
     const scalar Radius_Flavour,
     const scalar perturbationFraction,
@@ -165,14 +242,6 @@ void laserHeatSource::seedRayCloud
             currentLaserPosition.z()
         );
 
-        const vector V_i(V_incident/(mag(V_incident) + SMALL));
-
-        const vector a =
-            (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
-        vector u = (V_i ^ a);
-        u = u/mag(u);
-        const vector v = (V_i ^ u);
-
         for (label localIdx = 0; localIdx < localSamples; ++localIdx)
         {
             const label globalIdx = startIdx + localIdx;
@@ -203,7 +272,8 @@ void laserHeatSource::seedRayCloud
 
             const scalar x_local = r*cos(theta);
             const scalar z_local = r*sin(theta);
-            const vector globalPos = P0 + x_local*u + z_local*v;
+            const vector globalPos =
+                P0 + x_local*beamRight + z_local*beamForward;
 
             initial_points.append(globalPos + perturbation);
             point_assoc_power.append
@@ -365,6 +435,8 @@ void laserHeatSource::seedProfileRayCloud
     const vector& currentLaserPosition,
     const HeatSourceProfile& profile,
     const vector& V_incident,
+    const vector& beamRight,
+    const vector& beamForward,
     const scalar perturbationFraction,
     const scalar allocatedPower,
     const label rayIndexOffset,
@@ -394,13 +466,6 @@ void laserHeatSource::seedProfileRayCloud
         currentLaserPosition.y(),
         currentLaserPosition.z()
     );
-
-    const vector V_i(V_incident/(mag(V_incident) + SMALL));
-    const vector ref =
-        (mag(V_i.z()) < 0.9) ? vector(0, 0, 1) : vector(0, 1, 0);
-    vector u = (V_i ^ ref);
-    u = u/mag(u);
-    const vector v = (V_i ^ u);
 
     if (sampling.type() == SamplingStrategy::RADIAL_POLAR)
     {
@@ -484,7 +549,13 @@ void laserHeatSource::seedProfileRayCloud
                 continue;
             }
 
-            initialPoints.append(P0 + localPosition.x()*u + localPosition.z()*v + perturbation);
+                        initialPoints.append
+                        (
+                                P0
+                            + localPosition.x()*beamRight
+                            + localPosition.z()*beamForward
+                            + perturbation
+                        );
             localPositions.append(localPosition);
             localAreas.append(area);
         }
@@ -530,7 +601,13 @@ void laserHeatSource::seedProfileRayCloud
                 continue;
             }
 
-            initialPoints.append(P0 + xLocal*u + zLocal*v + perturbation);
+                        initialPoints.append
+                        (
+                                P0
+                            + xLocal*beamRight
+                            + zLocal*beamForward
+                            + perturbation
+                        );
             localPositions.append(localPosition);
             localAreas.append(area);
         }
@@ -1289,6 +1366,18 @@ void laserHeatSource::updateDeposition
     const bool useProfiles = !profiles.empty();
     const scalar pi = constant::mathematical::pi;
     const scalar beam_radius = laserRadius;
+    const scalar time = deposition_.time().value();
+    vector beamRight(vector::zero);
+    vector beamForward(vector::zero);
+
+    resolveBeamSamplingBasis
+    (
+        laserID,
+        time,
+        V_incident,
+        beamRight,
+        beamForward
+    );
 
     // Material constants
     const scalar plasma_frequency = Foam::sqrt
@@ -1387,6 +1476,8 @@ void laserHeatSource::updateDeposition
                 currentLaserPosition,
                 profile,
                 V_incident,
+                beamRight,
+                beamForward,
                 perturbationFraction,
                 allocatedPower,
                 nTotalRays,
@@ -1428,6 +1519,8 @@ void laserHeatSource::updateDeposition
             nRadial,
             nAngular,
             V_incident,
+            beamRight,
+            beamForward,
             useRadialPolar,
             Radius_Flavour,
             perturbationFraction,
@@ -1496,17 +1589,10 @@ void laserHeatSource::updateDeposition
     //
     // Each ray may produce multiple segments (one per processor it
     // traverses). Segments are stored in trackingData both at
-    // processor-boundary crossings and at particle death. We
-    // gather all segments and concatenate them per rayID.
+    // processor-boundary crossings and at particle death. For VTK
+    // output, keep each gathered segment as its own polyline instead
+    // of trying to stitch them back together across processors.
     // ==================================================================
-
-    if (Pstream::master())
-    {
-        rayPaths_[laserID].clear();
-        rayPaths_[laserID].setSize(nTotalRays);
-        raySegmentPowers_[laserID].clear();
-        raySegmentPowers_[laserID].setSize(nTotalRays);
-    }
 
     {
         // Gather to master
@@ -1524,6 +1610,38 @@ void laserHeatSource::updateDeposition
 
         if (Pstream::master())
         {
+            label totalSegments = 0;
+
+            for (label procI = 0; procI < Pstream::nProcs(); ++procI)
+            {
+                const labelList& ids = allIDs[procI];
+
+                forAll(ids, i)
+                {
+                    const label rayID = ids[i];
+                    const DynamicList<point>& path = allPaths[procI][i];
+                    const DynamicList<scalar>& segmentPower =
+                        allSegmentPowers[procI][i];
+
+                    if
+                    (
+                        rayID >= 0
+                     && path.size() > 1
+                     && segmentPower.size() == path.size() - 1
+                    )
+                    {
+                        ++totalSegments;
+                    }
+                }
+            }
+
+            rayPaths_[laserID].clear();
+            rayPaths_[laserID].setSize(totalSegments);
+            raySegmentPowers_[laserID].clear();
+            raySegmentPowers_[laserID].setSize(totalSegments);
+
+            label segmentI = 0;
+
             for (label procI = 0; procI < Pstream::nProcs(); ++procI)
             {
                 const labelList& ids = allIDs[procI];
@@ -1534,53 +1652,35 @@ void laserHeatSource::updateDeposition
                 forAll(ids, i)
                 {
                     const label rayID = ids[i];
-                    if (rayID >= 0 && rayID < rayPaths_[laserID].size())
-                    {
-                        DynamicList<point>& existing =
-                            rayPaths_[laserID][rayID];
-                        DynamicList<scalar>& existingPowers =
-                            raySegmentPowers_[laserID][rayID];
-                        const DynamicList<point>& segment = paths[i];
-                        const DynamicList<scalar>& segmentPower =
-                            segmentPowers[i];
+                    const DynamicList<point>& path = paths[i];
+                    const DynamicList<scalar>& segmentPower =
+                        segmentPowers[i];
 
-                        if (existing.empty())
-                        {
-                            // First segment for this ray
-                            existing = segment;
-                            existingPowers = segmentPower;
-                        }
-                        else if (segment.size() > 0)
-                        {
-                            // Append segment, skipping the first
-                            // point if it duplicates the junction
-                            label startJ = 0;
-                            if
-                            (
-                                mag(existing.last() - segment[0])
-                              < SMALL
-                            )
-                            {
-                                startJ = 1;
-                            }
-                            else if (segment.size() > 1)
-                            {
-                                WarningInFunction
-                                    << "Encountered a non-contiguous ray "
-                                    << "segment for ray " << rayID
-                                    << ". Segment powers may be ambiguous."
-                                    << endl;
-                            }
-                            for (label j = startJ; j < segment.size(); ++j)
-                            {
-                                existing.append(segment[j]);
-                            }
-                            forAll(segmentPower, powerI)
-                            {
-                                existingPowers.append(segmentPower[powerI]);
-                            }
-                        }
+                    if (rayID < 0)
+                    {
+                        continue;
                     }
+
+                    if (path.size() <= 1)
+                    {
+                        continue;
+                    }
+
+                    if (segmentPower.size() != path.size() - 1)
+                    {
+                        WarningInFunction
+                            << "Discarding invalid gathered ray path for "
+                            << "laser '" << laserNames_[laserID] << "'"
+                            << " on processor " << procI
+                            << ": " << path.size() << " path points but "
+                            << segmentPower.size()
+                            << " segment power values." << endl;
+                        continue;
+                    }
+
+                    rayPaths_[laserID][segmentI] = path;
+                    raySegmentPowers_[laserID][segmentI] = segmentPower;
+                    ++segmentI;
                 }
             }
         }
@@ -1708,7 +1808,7 @@ void laserHeatSource::writeRayPathsToVTK
         pointOffset += ray.size();
     }
 
-    file<< "POINT_DATA " << totalPoints << nl;
+    file<< "CELL_DATA " << totalLines << nl;
     file<< "SCALARS rayPower float 1" << nl;
     file<< "LOOKUP_TABLE default" << nl;
 
@@ -1717,40 +1817,14 @@ void laserHeatSource::writeRayPathsToVTK
         const DynamicList<point>& ray = rays[rayI];
         const DynamicList<scalar>& raySegmentPowers = segmentPowers[rayI];
 
-        if (ray.empty())
+        if (ray.size() <= 1)
         {
             continue;
         }
 
-        if (ray.size() == 1)
+        forAll(raySegmentPowers, pointI)
         {
-            file<< 0.0 << nl;
-            continue;
-        }
-
-        forAll(ray, pointI)
-        {
-            scalar pointPower = raySegmentPowers[0];
-
-            if (pointI == 0)
-            {
-                pointPower = raySegmentPowers[0];
-            }
-            else if (pointI == ray.size() - 1)
-            {
-                pointPower = raySegmentPowers[raySegmentPowers.size() - 1];
-            }
-            else
-            {
-                pointPower =
-                    0.5
-                   *(
-                        raySegmentPowers[pointI - 1]
-                      + raySegmentPowers[pointI]
-                    );
-            }
-
-            file<< pointPower << nl;
+            file<< raySegmentPowers[pointI] << nl;
         }
     }
 }

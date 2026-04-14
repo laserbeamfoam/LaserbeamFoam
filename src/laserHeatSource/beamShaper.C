@@ -721,20 +721,34 @@ void BeamShape::beamShapeFromAddress
         // Info << "Generating beam shape from address: " << beamShapeAddress << endl;
         // Info << "Centre of the beam shape: " << beamShapeAddress.first() << ", " << beamShapeAddress.second() << endl;
                        // image centroid - beamShape/2     
-    label corner_x = ( dim_exp / 2 ) + ( beamShapeAddress.second()  * dim_inp / dim_grd ) - ( dim_ / 2 );
-    label corner_z = ( dim_exp / 2 ) + ( beamShapeAddress.first()   * dim_inp / dim_grd ) - ( dim_ / 2 );
+        label corner_row =
+                ( dim_exp / 2 ) + ( beamShapeAddress.second() * dim_inp / dim_grd )
+            - ( dim_ / 2 );
+        label corner_col =
+                ( dim_exp / 2 ) - ( beamShapeAddress.first() * dim_inp / dim_grd )
+            - ( dim_ / 2 );
 
         if (debug) 
         {
             Info << "Address: " << beamShapeAddress << endl;
-            Info << "corner_x: " << corner_x << ", corner_z: " << corner_z << endl;
+            Info << "corner_row: " << corner_row
+                 << ", corner_col: " << corner_col << endl;
         }
         forAll(addressShape_, i)
         {
             Pair<label> coords_i = coords(i, dim_);
-            label beamBox_x = corner_x + coords_i.first();
-            label beamBox_z = corner_z + coords_i.second();
-            setValue(addressShape_, i, getValue(beamBox_, index(Pair<label>(beamBox_x, beamBox_z), dim_exp)));
+            label beamBox_row = corner_row + coords_i.first();
+            label beamBox_col = corner_col + coords_i.second();
+            setValue
+            (
+                addressShape_,
+                i,
+                getValue
+                (
+                    beamBox_,
+                    index(Pair<label>(beamBox_row, beamBox_col), dim_exp)
+                )
+            );
         }
 
         // Normalize the beam shape
@@ -932,35 +946,38 @@ scalar BeamShape::interpolateValue
 
 
     // Convert the target point into beam shape units (based on pixel size)
-    scalar x = 275 + (-z_target / pixelSize_.value());
-    scalar z = 275 + (-x_target / pixelSize_.value());
+        scalar row = 275 + (-z_target / pixelSize_.value());
+        scalar col = 275 + (x_target / pixelSize_.value());
 
     // Determine the four nearest neighbors
-    label x1 = std::floor(x);
-    label x2 = std::ceil(x);
-    label z1 = std::floor(z);
-    label z2 = std::ceil(z);
+        label row1 = std::floor(row);
+        label row2 = std::ceil(row);
+        label col1 = std::floor(col);
+        label col2 = std::ceil(col);
 
     // Ensure indices are within bounds
-    x1 = std::max(0, std::min(x1, dim -1));
-    x2 = std::max(0, std::min(x2, dim -1));
-    z1 = std::max(0, std::min(z1, dim -1));
-    z2 = std::max(0, std::min(z2, dim -1));
+        row1 = std::max(0, std::min(row1, dim -1));
+        row2 = std::max(0, std::min(row2, dim -1));
+        col1 = std::max(0, std::min(col1, dim -1));
+        col2 = std::max(0, std::min(col2, dim -1));
 
     // Debugging output 
     if (debug)
     {
         Info << "Target point: (" << x_target << ", " << z_target << ")" << endl;
-        Info << "Beam shape point: (" << x << ", " << z << ")" << endl;
-        Info << "Nearest neighbors: (" << x1 << ", " << z1 << "), (" << x1 << ", " << z2 << ")" << endl;
-        Info << "                   (" << x2 << ", " << z1 << "), (" << x2 << ", " << z2 << ")" << endl;
+           Info << "Beam shape point: (row=" << row << ", col=" << col
+               << ")" << endl;
+           Info << "Nearest neighbors: (" << row1 << ", " << col1 << "), ("
+               << row1 << ", " << col2 << ")" << endl;
+           Info << "                   (" << row2 << ", " << col1 << "), ("
+               << row2 << ", " << col2 << ")" << endl;
     }   
 
     // Create pairs for the coordinates of the four nearest neighbors
-    Pair<label> coords_v11(x1, z1);
-    Pair<label> coords_v12(x1, z2);
-    Pair<label> coords_v21(x2, z1);
-    Pair<label> coords_v22(x2, z2);
+        Pair<label> coords_v11(row1, col1);
+        Pair<label> coords_v12(row1, col2);
+        Pair<label> coords_v21(row2, col1);
+        Pair<label> coords_v22(row2, col2);
 
     // Get the values at the four nearest neighbors
     scalar v11 = getValue(beamShape_, coords_v11, dim);
@@ -969,10 +986,10 @@ scalar BeamShape::interpolateValue
     scalar v22 = getValue(beamShape_, coords_v22, dim);
 
     // Perform bilinear interpolation
-    scalar v = (v11 * (x2 - x) * (z2 - z) +
-                v21 * (x - x1) * (z2 - z) +
-                v12 * (x2 - x) * (z - z1) +
-                v22 * (x - x1) * (z - z1));
+    scalar v = (v11 * (row2 - row) * (col2 - col) +
+                v21 * (row - row1) * (col2 - col) +
+                v12 * (row2 - row) * (col - col1) +
+                v22 * (row - row1) * (col - col1));
 
     //! Catch the (literally) edge case where the interpolated value is negative 
     // This typically occurs where the mesh is very coarse around the edge of the beam shape

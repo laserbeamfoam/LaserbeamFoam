@@ -32,6 +32,7 @@ lasers
         }
 
         V_incident    (0 1 0);
+        forwardDirection (0 0 1);
         laserRadius   0.002;
         wavelength    1.064e-6;
         e_num_density 5.83e29;

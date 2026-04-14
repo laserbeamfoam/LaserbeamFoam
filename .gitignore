@@ -72,6 +72,9 @@ lnInclude
 .vscode
 .codex
 
+#private files - anywhere
+beamShape.inp
+
 # build folders - anywhere
 __pycache__/
 .build/

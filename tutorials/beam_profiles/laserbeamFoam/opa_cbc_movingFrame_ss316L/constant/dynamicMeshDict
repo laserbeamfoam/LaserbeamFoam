@@ -36,7 +36,7 @@ maxCells        2E+7;
 
 correctFluxes
 (
-    (phi none)
+    (phi U)
     (nHatf none)
     (rhoPhi none)
     (alphaPhi0.metal none)

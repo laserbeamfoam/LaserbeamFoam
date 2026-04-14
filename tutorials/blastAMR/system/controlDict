@@ -22,9 +22,9 @@ libs
     libamrDynamicMesh.so
 );
 
-application		ultraLaserbeamFoam;
+application		compressibleLaserbeamFoam;
 
-startFrom       latestTime;
+startFrom       startTime;
 
 startTime       0;
 
@@ -60,8 +60,6 @@ maxDeltaT       1e-10; // Pre 25ns MaxDeltaT 1e-11
 
 
 // ************************************************************************* //
-
-
 
 
 

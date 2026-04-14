@@ -14,6 +14,7 @@ FoamFile
     object      PhaseFieldProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
 timeVsLaserPosition
 {
     file    "$FOAM_CASE/constant/timeVsLaserPosition";
@@ -30,16 +31,29 @@ V_incident	(0 1 0);//(0 1 0);//NORMALISED IN CODE
 
 laserRadius 0.00005;
 
-N_sub_divisions	2;
-
-nRadial	120;
-nAngular	720;
-
-
 wavelength	1.064e-6;
 e_num_density	5.83e29;
 //elec_resistivity	1.0e-6;
 
+profiles
+{
+    core
+    {
+        type    gaussian;
+
+        // Match the legacy Radius_Flavour = 2 Gaussian:
+        // exp(-2*(r/laserRadius)^2) = exp(-(r/profileRadius)^2)
+        radius  3.5355339059e-5;
+
+        sampling
+        {
+            type     radialPolar;
+            radius   7.5e-5;
+            nRadial  60;
+            nAngular 180;
+        }
+    }
+}
 
 Radius_Flavour	2.0;
 

@@ -1,0 +1,30 @@
+#!/bin/bash
+set -e
+cd "${0%/*}" || exit 1
+
+. "${WM_PROJECT_DIR:?}/bin/tools/RunFunctions"
+. "${WM_PROJECT_DIR:?}/bin/tools/CleanFunctions"
+
+application="$(getApplication)"
+nProcs="$(getNumberOfProcessors)"
+
+cleanCase
+# restore0Dir
+rm -rf 0
+rm -rf VTKs
+cp -r initial 0
+# touches a .foam file to make the case openable in paraview
+touch blastAMR.foam
+
+runApplication blockMesh
+runApplication setFields
+# runApplication setSolidFraction -subDivisions 4
+# runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
+
+if [ "$nProcs" -gt 1 ]; then
+    runApplication decomposePar -force
+    runParallel "$application"
+    runApplication reconstructPar
+else
+    runApplication "$application"
+fi

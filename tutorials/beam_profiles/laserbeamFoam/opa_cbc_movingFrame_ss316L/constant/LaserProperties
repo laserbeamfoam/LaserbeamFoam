@@ -34,9 +34,14 @@ lasers
         laserRadius     0.002;
         wavelength      1.064e-6;
         e_num_density   5.83e29;
-
+        
         movingFrame     true;
         fixedLaserPosition (0 -2e-3 0);
+
+        // Optional explicit override for beam-local +z (forward).
+        // If omitted here, moving cases follow the scan direction and
+        // stationary cases fall back to domain +z.
+        // forwardDirection (0 0 1);
 
         profiles
         {

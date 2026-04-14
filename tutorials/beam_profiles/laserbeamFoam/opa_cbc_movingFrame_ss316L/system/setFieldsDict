@@ -24,7 +24,7 @@ regions
 (
     boxToCell
     {
-        box (-0.002 0.0 -0.002) (0.002 0.003 0.004);
+        box (-0.002 0.0 -0.004) (0.002 0.003 0.002);
         fieldValues
         (
             volScalarFieldValue alpha.metal 1

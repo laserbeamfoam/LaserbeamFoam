@@ -17,7 +17,7 @@ FoamFile
 
 dimensions      [0 1 -1 0 0 0 0];
 
-internalField   uniform (0 0 0);
+internalField   uniform (0 0 -0.166667);
 
 boundaryField
 {
@@ -26,18 +26,26 @@ boundaryField
         type            pressureInletOutletVelocity;
         phi             phi;
         rho             rho;
-        value           uniform (0 0 -0.1);
+        tangentialVelocity uniform (0 0 -0.166667);
+        value           uniform (0 0 -0.166667);
     }
 
     zMax
     {
-        type            fixedValue;
-        value           uniform (0 0 -0.1);
+        type            pressureInletOutletVelocity;
+        phi             phi;
+        rho             rho;
+        tangentialVelocity uniform (0 0 -0.166667);
+        value           uniform (0 0 -0.166667);
     }
 
     lowerWall
     {
-        type            slip;
+        type            pressureInletOutletVelocity;
+        phi             phi;
+        rho             rho;
+        tangentialVelocity uniform (0 0 -0.166667);
+        value           uniform (0 0 -0.166667);
     }
 
     atmosphere
@@ -45,18 +53,26 @@ boundaryField
         type            pressureInletOutletVelocity;
         phi             phi;
         rho             rho;
-        tangentialVelocity uniform (0 0 0);
-        value           uniform (0 0 0);
+        tangentialVelocity uniform (0 0 -0.166667);
+        value           uniform (0 0 -0.166667);
     }
 
     rightWall
     {
-        type            slip;
+        type            pressureInletOutletVelocity;
+        phi             phi;
+        rho             rho;
+        tangentialVelocity uniform (0 0 -0.166667);
+        value           uniform (0 0 -0.166667);
     }
 
     leftWall
     {
-        type            slip;
+        type            pressureInletOutletVelocity;
+        phi             phi;
+        rho             rho;
+        tangentialVelocity uniform (0 0 -0.166667);
+        value           uniform (0 0 -0.166667);
     }
 
     defaultFaces
