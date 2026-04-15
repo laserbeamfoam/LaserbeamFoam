@@ -30,7 +30,7 @@ unrefineLevel   0.0001;
 nBufferLayers   2;
 
 // One level beyond the other beam-profile gallery cases.
-maxRefinement   5;
+maxRefinement   3;
 
 maxCells        2E+7;
 

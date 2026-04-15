@@ -17,6 +17,7 @@ FoamFile
 
 defaultFieldValues
 (
+    volScalarFieldValue alpha.gas 1
     volScalarFieldValue alpha.metal 0
 );
 
