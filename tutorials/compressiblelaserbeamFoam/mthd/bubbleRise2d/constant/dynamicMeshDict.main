@@ -1,0 +1,108 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+FoamFile
+{
+    version         2;
+    format          ascii;
+    class           dictionary;
+    object          dynamicMeshDict;
+}
+/*
+    dynamicMeshDict for use with blastAMR which supports 2D Adpative Mesh Refi- 
+    nement AMR.
+
+    Copied from 
+    https://github.com/STFS-TUDa/blastAMR/blob/v2212/tutorials/damBreak2D/constant/dynamicMeshDict
+    and modified.
+*/
+
+
+dynamicFvMesh   adaptiveFvMesh;
+
+refiner         polyRefiner;
+
+// !IMPORTANT! FOAM_CODE_TEMPLATES needs to point to etc/codeTemplates/dynamicCode
+// from this repository
+// so the run time can find templates to generate the error estimator class
+errorEstimator  coded;
+name            emulateDelta;
+
+code
+#{
+    Info<< "---->! custom error estimator !<----" << endl;
+    error_ = 0.0;
+    /*
+        End result must be (error_ is a volScalarField):
+        - error_ == 1  if the cell needs to be refined
+        - error_ == 0  if the cell is to be left alone
+        - error_ == -1 if the vertices of the cell are to be unrefined
+    */
+
+    const auto& alpha = mesh_.lookupObject<volScalarField>("alpha.air");
+    const auto& owner = mesh_.owner();
+    const auto& neighbour = mesh_.neighbour();
+    const label nInternalFaces = mesh_.nInternalFaces();
+    // Loop through interal faces and store difference between owner and neighbour
+    for (label facei = 0; facei < nInternalFaces; facei++)
+    {
+        label own = owner[facei];
+        label nei = neighbour[facei];
+
+        scalar eT = mag(alpha[own] - alpha[nei]);
+
+        error_[own] = max(error_[own], eT);
+        error_[nei] = max(error_[nei], eT);
+    }
+
+    // Settings for "refining everything where delta > 0.1, unrefine otherwise"
+    lowerRefine_ = 0.01;
+    upperRefine_ =  GREAT;
+    lowerUnrefine_ = lowerRefine_;
+    upperUnrefine_ =  GREAT;
+    // This converts error_ to the right values (-1, 0, 1) based on the
+    // settings lowerRefine_ ... etc
+    if (scale) normalize(error_);
+    // error_.correctBoundaryConditions() is called after this code in case you
+    // need to manipulate boundary values
+    Info<< "---->! end    error estimator !<----" << endl;
+#};
+
+balance                     yes;
+
+expireSampledSurfacesOnLB   yes;
+
+loadPolicy                  cellCount;
+
+refineInterval              10; // 50;
+
+unrefineInterval            10; // 250;
+
+balanceInterval             10; // 50;
+
+maxRefinement               2; // 2; // 1 will work, need test on 2
+
+nBufferLayers               5;
+
+nRefinementBufferLayers     5;
+
+nUnrefinementBufferLayers   15;
+
+lowerRefineLevel            0.01;
+
+upperRefineLevel            0.99;
+
+unrefineLevel               0.01;
+
+upperUnrefineLevel          0.99;
+
+dumpLevel                   yes;
+
+refineProbes                no;
+
+// ************************************************************************* //

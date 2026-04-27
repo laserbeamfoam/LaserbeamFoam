@@ -1,0 +1,103 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       volVectorField;
+    location    "0";
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// #include "../system/flow_region_geom"
+#include "initialValues"
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0) ; // (0 0 0);
+
+boundaryField
+{
+    leftWall
+    {
+        type            noSlip;
+        // type            fixedValue;
+        // value           uniform (1e-3 0 0);
+        // type pressureInletOutletVelocity;
+        // value uniform (0 0 0);
+
+        // type codedFixedValue;
+        // value uniform (0 0 0); // Initial placeholder value
+        // //redirectType codedFixedValue;
+        // name adjustedInlet;
+        // code
+        // #{
+        //     //const vectorField& positions = this->mesh.C().boundaryField()[patchID];
+        //     const fvPatch& boundaryPatch = this->patch();
+        //     const vectorField& Cf = boundaryPatch.Cf();
+        //     const scalar L0 = 0.2; //$L0value ; (referencing is not working here?)
+        //     const scalar L1 = 0.4; // $L1value ;
+        //     // const scalar pi_ = Foam::constant::mathematical::pi;
+
+        //     // const scalar t = this->db().time().value();
+        //     // // const scalar t_scale = 0.1;
+
+        //     vectorField& field = *this;
+        //     forAll(Cf, i)
+        //     {
+        //         scalar y = Cf[i].y(); // Access the y-coordinate
+        //         // field[i] = vector(0, 10.0*cos(pi_ * (x / L) * (t / t_scale)), 0); // Sine function for the x-d>
+
+        //         if (L0 <= y && y <= L1)
+        //         {
+        //             field[i] = vector(0.1e-3, 0, 0);
+        //         }
+        //         else
+        //         {
+        //             field[i] = vector(0,0,0);
+        //         }
+        //     }
+        // #};
+
+    }
+
+    rightWall
+    {
+        type noSlip;
+        // type            zeroGradient; // noSlip;
+        // type pressureInletOutletVelocity;
+        // value uniform (0 0 )
+
+        // type            inletOutlet;
+        // inletValue      uniform (0 0 0);
+        // value           uniform (0 0 0);
+
+        // type            pressureInletOutletVelocity;
+        // phi             rhoPhi;
+        // value           $internalField;
+
+        // type pressureInletOutletVelocity;
+        // value uniform (0 0 0);
+    }
+    lowerWall
+    {
+        type            noSlip;
+    }
+    atmosphere
+    {
+        // type            noSlip;
+        type            pressureInletOutletVelocity;
+        value           uniform (0 0 0);
+    }
+    defaultFaces
+    {
+        type            empty;
+    }
+}
+
+
+// ************************************************************************* //

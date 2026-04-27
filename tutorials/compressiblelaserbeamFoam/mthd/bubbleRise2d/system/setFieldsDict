@@ -1,0 +1,140 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+#include "flow_region_geom"
+// #include "../initial/initialValues"
+#include "../initial/initialValues"
+
+defaultFieldValues
+(
+    volScalarFieldValue alpha.air 0
+    volScalarFieldValue alpha.GaInSn 1
+
+    volVectorFieldValue U $U_initial_vector_values
+    volVectorFieldValue H $H_ga // $H_GaInSn
+);
+
+regions
+(
+    cylinderToCell
+    {
+        p1       ($bubble_center_x     $bubble_center_y   -1);
+        p2       ($bubble_center_x     $bubble_center_y    1);
+        radius $bubble_radius ;
+        fieldValues
+        (
+            volScalarFieldValue alpha.air           1.0
+            volScalarFieldValue alpha.GaInSn 0.0
+
+            volVectorFieldValue H $H_air
+        );
+    }
+
+    // Velocity pertubations applied in upper regions
+    boxToCell
+    {
+        box (-1 30e-3 -1) (1 40e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity 0 0)
+        );
+    }
+    boxToCell
+    {
+        box (-1 40e-3 -1) (1 50e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity_neg 0 0)
+        );
+    }
+    boxToCell
+    {
+        box (-1 50e-3 -1) (1 60e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity 0 0)
+        );
+    }
+    boxToCell
+    {
+        box (-1 60e-3 -1) (1 70e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity_neg 0 0)
+        );
+    }
+    boxToCell
+    {
+        box (-1 70e-3 -1) (1 80e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity 0 0)
+        );
+    }
+
+    boxToCell
+    {
+        box (-1 80e-3 -1) (1 90e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity_neg 0 0)
+        );
+    }
+    boxToCell
+    {
+        box (-1 90e-3 -1) (1 100e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity 0 0)
+        );
+    }
+
+    boxToCell
+    {
+        box (-1 100e-3 -1) (1 110e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity_neg 0 0)
+        );
+    }
+    boxToCell
+    {
+        box (-1 110e-3 -1) (1 120e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity 0 0)
+        );
+    }
+
+    boxToCell
+    {
+        box (-1 120e-3 -1) (1 120e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity_neg 0 0)
+        );
+    }
+    boxToCell
+    {
+        box (-1 120e-3 -1) (1 130e-3 1);
+        fieldValues
+        (
+            volVectorFieldValue U ($pertubtation_velocity 0 0)
+        );
+    }
+);
+
+
+// ************************************************************************* //

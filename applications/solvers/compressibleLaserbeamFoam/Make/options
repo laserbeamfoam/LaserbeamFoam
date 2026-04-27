@@ -1,5 +1,6 @@
 EXE_INC = \
     -I./VoF \
+    -I../../../src/MTHD/lnInclude \
     -I../../../src/laserHeatSource/lnInclude \
     -ImultiphaseMixtureThermo/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
@@ -28,6 +29,7 @@ EXE_LIBS = \
     -lthermoTools \
     -ldynamicFvMesh \
     -L$(FOAM_USER_LIBBIN) \
+    -lMTHD \
     -llaserHeatSource \
     -lmultiphaseVapMixtureThermo \
     -llagrangian

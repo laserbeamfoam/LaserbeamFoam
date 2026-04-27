@@ -1,0 +1,4 @@
+interface:
+  display_name: "LaserbeamFoam"
+  short_description: "Work on LaserbeamFoam solvers and libraries"
+  default_prompt: "Use $laserbeamfoam to work on the LaserbeamFoam repository, following its solver, library, build, and tutorial conventions."

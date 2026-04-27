@@ -1,0 +1,43 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========
+  \\      /  F ield           OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration       Version:  v2506
+    \\  /    A nd             Website:  www.openfoam.com
+     \\/     M anipulation
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      sampling;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+/*
+    Sample to extract:
+    - cell positions.
+    - cell centre values of (U, H) vectors.
+    - writes csv
+    - enables comparision with analytical solution
+    - (In future will want to automate this.)
+
+    Recommended call as:
+    `postProcess -time <final time> -func sample`
+*/
+type                    sets;
+libs                    (sampling);
+setFormat               csv;
+fields                  ( U H );
+
+sets
+{
+    line_centreProfile
+    {
+        type            cellCentre;
+        start           (0 -0.5  0);
+        end             (0  0.5  0);
+        writeLocation   yes;
+    }
+}
+
+// ************************************************************************* //

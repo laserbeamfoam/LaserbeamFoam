@@ -1,0 +1,64 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       volVectorField;
+    location    "0";
+    object      H;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+#include "initialValues"
+dimensions      [0 -1 0 0 0 0 0];
+
+internalField uniform $H_fe ; //(0 0 0);
+
+boundaryField
+{
+    #includeEtc "caseDicts/setConstraintTypes"
+    lowerWall
+    {
+        // type            fixedValue;
+        // value           uniform $H_air;
+        type            zeroGradient;
+        // type            fixedValue;
+        // value           uniform $H_fe ;
+    }
+    atmosphere
+    {
+        type            zeroGradient;
+        // type            fixedValue;
+        // value           uniform $H_fe;
+    }
+    rightWall
+    {
+        // type            zeroGradient; // empty;
+        type            fixedValue;
+        value           uniform $H_fe;
+    }
+    leftWall
+    {
+        // type            zeroGradient; // empty;
+        type            fixedValue;
+        value           uniform $H_fe;
+    }
+
+    // frontAndBack
+    // {
+    //     type            zeroGradient;
+    // }
+
+    defaultFaces
+    {
+        type            empty;
+    }
+}
+
+
+// ************************************************************************* //
+
