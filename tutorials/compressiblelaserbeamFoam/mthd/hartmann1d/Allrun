@@ -19,7 +19,7 @@ bParallel=false
 #     echo "Requires a hacky workaround \
 #     to perform initialisation as alphaContactAngle \
 #     is unknown to blastAMR's updateMesh"
-    
+
 #     cp  constant/dynamicMeshDict.main \
 #         constant/dynamicMeshDict
 
@@ -51,7 +51,7 @@ bParallel=false
 #     #> Restore the other phase
 #     cp initial/alpha.fictum.orig 0/alpha.fictum
 #     setFields 2>&1 | tee log.setFields_post
-#     #> for some reason, runApplication setFields does not 
+#     #> for some reason, runApplication setFields does not
 #     #  fields update properly.
 #     # ---------
 # else
@@ -81,3 +81,5 @@ else
 fi
 
 touch hartmann1d.foam
+
+echo "Note: please change \`stopAt\` to \`endTime\` for non-Alltest usage."

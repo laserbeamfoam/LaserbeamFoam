@@ -14,8 +14,8 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-std_tol     1e-8;
-final_tol   1e-9;
+std_tol     1e-6; // 1e-8;
+final_tol   1e-7; // 1e-9;
 
 solvers
 {
@@ -23,8 +23,16 @@ solvers
     {
         nAlphaSubCycles 0;
         cAlpha          1;
-        tolerance 1e-12;
+        tolerance       $final_tol; //1e-12;
     }
+
+    "alphaRho.*"
+     {
+         solver          PBiCGStab;
+         preconditioner  DILU;
+         tolerance       $final_tol; //1e-12;
+         relTol          0;
+     }
 
     "pcorr.*"
     {
@@ -138,7 +146,7 @@ relaxationFactors
 {
     equations
     {
-        ".*"            0.95; // Steady state case
+        ".*"            0.95; // Pseudo-steady state case
     }
 }
 
@@ -153,14 +161,14 @@ MELTING
 PIMPLE
 {
     nOuterCorrectors            1; // always 1
-    nCorrectors                 4;
+    nCorrectors                 3;
     nNonOrthogonalCorrectors    0; // >0 when AMR used.
 }
 
 // MHD Specific
 BPISO
 {
-    nOuterCorrectors            1; // always 1 
+    nOuterCorrectors            1; // always 1
     nCorrectors                 3;
     nNonOrthogonalCorrectors    0; // >0 when AMR used.
     pRefCell                    0;

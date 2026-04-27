@@ -20,9 +20,11 @@ startFrom       latestTime;
 
 startTime       0;
 
-stopAt          endTime;
+// Note: simulation takes ~25 seconds for endTime 50
+//       change stopAt to `endTime` for actual use.
+stopAt          writeNow; // endTime;
 
-endTime         10.00;
+endTime         50;
 
 deltaT          1e-12;
 
