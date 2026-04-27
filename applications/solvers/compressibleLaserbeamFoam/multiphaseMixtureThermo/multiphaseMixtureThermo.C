@@ -1510,7 +1510,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                     mesh_,
                     dimensionedScalar("Psat", dimensionSet(1,-1,-2,0,0), 0.0)
                 );
-                Psat = P0 * Foam::exp(((phaseLiq.thermo().W()/1000.0)*pair_LHG/(pair_boil_T*gasconstant))*(1.0 - (pair_boil_T/T_)));///1000 as standard openfoam units are for some reason g/mol and we wank kg/mol 
+                Psat = P0 * Foam::exp(((phaseLiq.thermo().W()/1000.0)*pair_LHG/(pair_boil_T*gasconstant))*(1.0 - (pair_boil_T/T_)));///1000 as standard openfoam units are for some reason g/mol and we want kg/mol
 
                 volScalarField evapcoefffield
                 (
@@ -1716,7 +1716,7 @@ fvScalarMatrix alphaRhoEqn
     //  equation via vDot (PCR), which adjusts div(U) to drive air
     //  inflow from the boundaries.  Over PIMPLE iterations, phi
     //  converges and Sigma(alpha) approaches 1.
-    
+
     // ================================================================
 
     volScalarField sumAlpha
@@ -1789,7 +1789,7 @@ fvScalarMatrix alphaRhoEqn
 //         label idx = 0;
 //         for (const phaseModel& alpha : phases_)
 //         {
-//             // Compression velocity for this phase 
+//             // Compression velocity for this phase
 //             surfaceScalarField phiRAlpha
 //             (
 //                 IOobject
