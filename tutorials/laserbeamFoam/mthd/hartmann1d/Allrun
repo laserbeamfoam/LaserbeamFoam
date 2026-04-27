@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+# remove `.orig` extensions where applicable
+find 0 -name "*.orig" -exec bash -c 'cp "$0" "${0%.orig}"' {} \;
+
+runApplication blockMesh
+
+#-(This case should be fine to run in serial)
+bParallel=false
+
+if ${bParallel}; then
+    decomposePar 2>&1 | tee log.decomposePar
+    nCores=$(\
+        foamDictionary -entry numberOfSubdomains \
+                       -value system/decomposeParDict)
+    mpirun -np $nCores \
+        laserbeamFoam \
+        -parallel \
+        2>&1 | tee log.laserbeamFoam
+else
+    runApplication laserbeamFoam #\
+    #    2>&1 | tee log.laserbeamFoam
+fi
+
+touch hartmann1d.foam

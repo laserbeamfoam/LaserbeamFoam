@@ -1,0 +1,78 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                  
+  \\      /  F ield           OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration       Website:  www.openfoam.com
+    \\  /    A nd             Version:  v2506
+     \\/     M anipulation   
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvSchemes;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+ddtSchemes
+{
+    default         steadyState;
+}
+
+gradSchemes
+{
+    default         leastSquares; //Gauss linear;
+
+    // ----- MHD Properties ------ //
+    // grad(H) cellLimited leastSquares 1.0; // cellLimited leastSquares 1;
+}
+
+divSchemes
+{
+    div(rhoPhi,U)                               Gauss upwind;
+    div(phi,alpha)                              Gauss vanLeer;
+    div(phirb,alpha)                            Gauss linear;
+    "div\(phi,.*rho.*\)"                        Gauss upwind;
+    div(rhophicp,T)                               Gauss upwind;
+    div(rhophicp,K)                               Gauss upwind;
+    div(phi,p)                                  Gauss upwind;
+    div(((thermo:rho*nuEff)*dev2(T(grad(U)))))  Gauss linear;
+    
+    div(((rho*nuEff)*dev2(T(grad(U)))))         Gauss linear;
+    
+    // compLaserBeam
+    div(rhoPhi,epsilon1)	                    Gauss linear;
+
+    //MHDcomp
+    div((oneoversigma*grad(H).T()))	            Gauss linear;
+    div((interpolate(magperm)*phiH),U)          Gauss linear;
+    div((interpolate(magperm)*phi),H)           Gauss linear;
+    div(((1|eleccond)*grad(H).T()))             Gauss linear;
+}
+
+laplacianSchemes
+{
+    default         Gauss linear corrected;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         corrected;
+}
+
+fluxRequired
+{
+    // compLaserBeam
+    rhogen;
+
+    // ----- MHD Properties ------ //
+    pH; // <- check if needed
+}
+
+
+// ************************************************************************* //

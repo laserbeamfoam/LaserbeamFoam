@@ -1,0 +1,105 @@
+#!/bin/bash
+## Call as: `./Allrun` to run standard.
+## Call as: `./Allrun -p` to run in parallel and use blastAMR if available.
+
+# Handle flag
+bParallel=false
+
+print_usage() {
+  printf "Usage: \n\tCall as: \`./Allrun\` to run standard.\
+\n\tCall as: \`./Allrun -p\` to run in parallel and use blastAMR if available.\
+\n"
+}
+
+while getopts 'p' flag; do
+  case "${flag}" in
+    p) bParallel=true ;;
+    *) print_usage
+       exit 1 ;;
+  esac
+done
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+# remove `.orig` extensions where applicable
+find 0 -name "*.orig" -exec bash -c 'cp "$0" "${0%.orig}"' {} \;
+
+runApplication blockMesh
+
+
+
+
+# If blastAMR in installed, run with AMR
+if (command -v updateMesh > /dev/null) && ${bParallel}; then
+    echo "blastAMR is available: Note:"
+    echo "this uses a hacky workaround to perform initialisation as \
+    \`alphaContactAngle\` keyword is unknown to blastAMR's updateMesh."
+
+    cp  constant/dynamicMeshDict.main \
+        constant/dynamicMeshDict
+
+    cp  system/controlDict.blastAMR\
+        system/controlDict
+
+    # HACK ---- (1/2)
+    #> remove the other phase; then let it update the mesh
+    rm 0/alpha.fictum 0/alpha.fictum.orig
+    # ---------
+
+    # Below is a copy from blastAMR's dambreak2D
+    if [ -z "$AMRLB_PROJECT" ]; then
+    echo "AMRLB_PROJECT not set. Please set it to the root of the blastAMR repository."
+    echo "For example, for blastAMR tutorials:"
+    echo 'export AMRLB_PROJECT=$(git rev-parse --show-toplevel)'
+    exit 1
+    fi
+
+    echo "blastAMR initial refinement starting"
+
+    export FOAM_CODE_TEMPLATES=$AMRLB_PROJECT/etc/codeTemplates/dynamicCode
+    maxRef=$(foamDictionary -entry maxRefinement -value constant/dynamicMeshDict)
+    runApplication setFields
+    for i in $(seq 1 $maxRef); do
+        runApplication -a updateMesh -overwrite
+        runApplication -a setFields
+    done
+    cp -rT 0/polyMesh constant/polyMesh
+
+    # HACK ---- (2/2)
+    #> Restore the other phase
+    cp initial/alpha.fictum.orig 0/alpha.fictum
+    setFields 2>&1 | tee log.setFields_post
+    #> for some reason, runApplication setFields does not
+    #  fields update properly.
+    # ---------
+else
+    echo "blastAMR not found in the PATH: skipping"
+    mv  constant/dynamicMeshDict \
+        constant/dynamicMeshDict.disabled
+
+    cp  system/controlDict.vanilla\
+        system/controlDict
+fi
+
+
+# runApplication setSolidFraction -compressible -alpha.phase1 "alpha.metal1" -alpha.phase2 "alpha.air" -subDivisions 6
+runApplication setFields
+# runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
+# runApplication compressibleLaserbeamFoam
+
+if ${bParallel}; then
+    decomposePar 2>&1 | tee log.decomposePar
+    nCores=$(\
+        foamDictionary -entry numberOfSubdomains \
+                       -value system/decomposeParDict)
+    mpirun -np $nCores \
+        compressibleLaserbeamFoam \
+        -parallel \
+        2>&1 | tee log.compressibleLaserbeamFoam
+else
+    runApplication compressibleLaserbeamFoam
+fi

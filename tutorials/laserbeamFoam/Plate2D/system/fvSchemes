@@ -32,6 +32,10 @@ divSchemes
     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
     div(rhoPhi,epsilon1)	Gauss linear;//Gauss vanLeer01;
     div(rhophicp,T)   Gauss upwind;
+    
+    div((oneoversigma*grad(H).T()))  Gauss linear;
+    div((interpolate(magperm)*phiH),U)  Gauss linear;
+    div((interpolate(magperm)*phi),H)   Gauss linear;
 }
 
 laplacianSchemes
@@ -47,6 +51,11 @@ interpolationSchemes
 snGradSchemes
 {
     default         corrected;
+}
+fluxRequired
+{
+    default         no;
+    pH;
 }
 
 

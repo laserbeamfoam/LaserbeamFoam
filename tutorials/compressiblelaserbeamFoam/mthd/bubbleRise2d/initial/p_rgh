@@ -1,0 +1,130 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       volScalarField;
+    object      p_rgh;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// #include "../system/flow_region_geom"
+
+dimensions      [1 -1 -2 0 0 0 0];
+
+internalField   uniform 1e5;
+
+boundaryField
+{
+    leftWall
+    {
+        type            fixedFluxPressure;
+        value           $internalField;
+        // // type zeroGradient;
+
+        // // type            totalPressure; // DO NOT USE
+        // // p0              $internalField;
+
+        // // type            prghTotalPressure; // fixedFluxPressure;
+        // // p0              uniform 100200.0;
+
+
+        // // // * * prgh Pressure * * //
+        // // // See: https://www.openfoam.com/documentation/guides/latest/api/classFoam_1_1prghPressureFvPatchScalarField.html
+        // // type            prghPressure;
+        // // rho             rho;
+        // // p               uniform 100025 ;// uniform 0;
+        // // value           uniform 100025 ; // Initial value
+
+
+
+        // // * * Coded mimicry of fixed inlet * * //
+        // type codedFixedValue;
+        // value uniform 100025; // Initial placeholder value
+
+        // //redirectType codedFixedValue;
+
+        // name adjustedInlet;
+        // code
+        // #{
+        //     //const vectorField& positions = this->mesh.C().boundaryField()[patchID];
+        //     const fvPatch& boundaryPatch = this->patch();
+        //     const vectorField& Cf = boundaryPatch.Cf();
+
+        //     const scalar L0 = -0.5 ; //$L0value ; (referencing is not working here?)
+        //     const scalar L1 =  0.5 ; // $L1value ;
+
+        //     const scalar p_active = 1.0e5 + 25.0;
+        //     const scalar p_null   = 1.0e5;
+        //     // const scalar pi_ = Foam::constant::mathematical::pi;
+
+        //     // const scalar t = this->db().time().value();
+        //     // // const scalar t_scale = 0.1;
+
+        //     scalarField& field = *this;
+
+        //     forAll(Cf, i)
+        //     {
+        //         scalar y = Cf[i].y(); // Access the y-coordinate
+        //         // field[i] = vector(0, 10.0*cos(pi_ * (x / L) * (t / t_scale)), 0); // Sine function for the x-d>
+
+        //         if (L0 <= y && y <= L1)
+        //         {
+        //             field[i] = p_active;
+        //         }
+        //         else
+        //         {
+        //             field[i] = p_null;
+        //         }
+        //     }
+        // #};
+
+    }
+
+    rightWall
+    {
+        type            fixedFluxPressure;
+        value           $internalField;
+        // type            prghTotalPressure; // fixedFluxPressure;
+        // p0              $internalField;
+
+        // type            zeroGradient;
+
+        // type            prghTotalPressure; // prghPressure;
+        // p0              $internalField;
+        // phi             rhoPhi;
+        // value           $internalField;
+
+    }
+
+    lowerWall
+    {
+        type            fixedFluxPressure;
+        value           $internalField;
+    }
+
+    atmosphere
+    {
+        // type            prghTotalPressure;
+        // p0              uniform 1e5;
+        // rho             thermo:rho.GaInSn;
+        type            totalPressure;
+        p0              uniform 1e5;
+
+
+        // type            fixedFluxPressure;
+        // value           $internalField;
+    }
+
+    defaultFaces
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

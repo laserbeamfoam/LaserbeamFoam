@@ -1,0 +1,13 @@
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      propertiesReference;
+}
+/*
+    Reference file for sharing key parameters
+*/
+
+magnetic_permeability_air_ 1;
+elec_conductivity_air_     1000; // Directly impacts Ha number.

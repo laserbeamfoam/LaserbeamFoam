@@ -10,8 +10,11 @@
 
     // electrical resistivity of condensed mixture/
     electrical_resistivity *= 0.0;
-    eleccond *= 0.0;
-    magperm *= 0.0;
+
+    if (mthd.valid())
+    {
+        mthd->resetTransportProperties();
+    }
 
     forAllConstIter(PtrDictionary<phaseModel>, mixture.phases(), iter)
     {
@@ -68,9 +71,16 @@
         TSolidus += alpha1*phaseTSolidus;
         TLiquidus += alpha1*phaseTLiquidus;
         LatentHeat += alpha1*phaseLH;
-        eleccond += alpha1*phaseconductivity;
-        magperm += alpha1*phasepermeability;
 
+        if (mthd.valid())
+        {
+            mthd->accumulateTransportProperties
+            (
+                alpha1,
+                phaseconductivity,
+                phasepermeability
+            );
+        }
 
         // std::string str2("vapour");
 
@@ -106,8 +116,12 @@
 
 
     electrical_resistivity.correctBoundaryConditions();
-    magperm.correctBoundaryConditions();
-    eleccond.correctBoundaryConditions();
+
+    if (mthd.valid())
+    {
+        mthd->finaliseTransportProperties();
+    }
+
     LatentHeat.correctBoundaryConditions();
     TLiquidus.correctBoundaryConditions();
     TSolidus.correctBoundaryConditions();

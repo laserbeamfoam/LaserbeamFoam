@@ -65,6 +65,7 @@ Authors
 
 #include "Polynomial.H"
 #include "laserHeatSource.H"
+#include "mthdModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -170,6 +171,10 @@ int main(int argc, char *argv[])
             }
 
             #include "UEqn.H"
+            if (mthd.valid())
+            {
+                mthd->solve(phi, U);
+            }
             #include "TEqn.H"
 
             // --- Pressure corrector loop
