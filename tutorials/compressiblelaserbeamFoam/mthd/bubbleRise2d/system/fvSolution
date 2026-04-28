@@ -21,10 +21,29 @@ solvers
 {
     "alpha.*"
     {
-        nAlphaSubCycles 4;
-        cAlpha          1;
-        tolerance 1e-12;
+        nAlphaSubCycles 0; // seems to be causing issues???
+        cAlpha          0; // 1; // 1; // no effect
+        // tolerance       1e-12;
+
+        // nAlphaCorr      2;
+
+        // MULESCorr       yes;
+        // nLimiterIter    5;
+
+        // solver          smoothSolver;
+        // smoother        symGaussSeidel;
+        // tolerance       1e-8;
+        // relTol          0;
     }
+
+    "alphaRho.*"
+     {
+         solver          PBiCGStab;
+         preconditioner  DILU;
+         tolerance       1e-12;
+         relTol          0;
+     }
+
 
     "pcorr.*"
     {

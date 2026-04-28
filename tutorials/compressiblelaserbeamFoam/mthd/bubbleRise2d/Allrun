@@ -47,7 +47,7 @@ if (command -v updateMesh > /dev/null) && ${bParallel}; then
 
     # HACK ---- (1/2)
     #> remove the other phase; then let it update the mesh
-    rm 0/alpha.fictum 0/alpha.fictum.orig
+    rm 0/alpha.GaInSn 0/alpha.GaInSn.orig
     # ---------
 
     # Below is a copy from blastAMR's dambreak2D
@@ -71,7 +71,7 @@ if (command -v updateMesh > /dev/null) && ${bParallel}; then
 
     # HACK ---- (2/2)
     #> Restore the other phase
-    cp initial/alpha.fictum.orig 0/alpha.fictum
+    cp initial/alpha.GaInSn.orig 0/alpha.GaInSn
     setFields 2>&1 | tee log.setFields_post
     #> for some reason, runApplication setFields does not
     #  fields update properly.
@@ -87,7 +87,9 @@ fi
 
 
 # runApplication setSolidFraction -compressible -alpha.phase1 "alpha.metal1" -alpha.phase2 "alpha.air" -subDivisions 6
+
 runApplication setFields
+
 # runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
 # runApplication compressibleLaserbeamFoam
 
