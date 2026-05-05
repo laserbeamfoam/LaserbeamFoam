@@ -24,7 +24,7 @@ FoamFile
 p_internal 1e5;
 T_internal 293;
 U_initial_vector_values (0 0 0);
-B_target -99e-3;
+B_target 0; // -99e-3;
 
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //

@@ -4,15 +4,18 @@
 
 # Handle flag
 bParallel=false
+bAMR=false
 
 print_usage() {
   printf "Usage: \n\tCall as: \`./Allrun\` to run standard.\
-\n\tCall as: \`./Allrun -p\` to run in parallel and use blastAMR if available.\
+\n\tCall as: \`./Allrun -pa\` to run in parallel and use blastAMR if available.\
+and \`./Allrun -p\` for parallel mode only (no AMR).
 \n"
 }
 
-while getopts 'p' flag; do
+while getopts 'pa' flag; do
   case "${flag}" in
+    a) bAMR=true ;;
     p) bParallel=true ;;
     *) print_usage
        exit 1 ;;
@@ -34,7 +37,7 @@ runApplication blockMesh
 
 
 # If blastAMR in installed, run with AMR
-if (command -v updateMesh > /dev/null) && ${bParallel}; then
+if (command -v updateMesh > /dev/null) && ${bParallel} && ${bAMR}; then
     echo "blastAMR is available: Note:"
     echo "this uses a hacky workaround to perform initialisation as \
     \`alphaContactAngle\` keyword is unknown to blastAMR's updateMesh."
@@ -98,10 +101,20 @@ if ${bParallel}; then
     nCores=$(\
         foamDictionary -entry numberOfSubdomains \
                        -value system/decomposeParDict)
-    mpirun -np $nCores \
+    mpirun -np ${nCores} \
         compressibleLaserbeamFoam \
-        -parallel \
-        2>&1 | tee log.compressibleLaserbeamFoam
+            -parallel \
+            2>&1 | tee log.compressibleLaserbeamFoam
+
+    if (command -v updateMesh > /dev/null) && ${bParallel} && ${bAMR}; then
+        # This is the fix to reconstruct blastAMR cases
+        mpirun -np ${nCores} \
+            redistributePar \
+                -reconstruct \
+                -parallel \
+                2>&1 | tee log.redistributePar
+    fi
 else
     runApplication compressibleLaserbeamFoam
+    # compressibleLaserbeamFoam 2>&1 | tee log.compressibleLaserbeamFoam
 fi

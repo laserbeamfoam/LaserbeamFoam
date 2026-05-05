@@ -28,6 +28,7 @@ divSchemes
 {
     div(rhoPhi,U)                               Gauss upwind;
     div(phi,alphaRho)                           Gauss vanLeer;
+    div(phiR,alphaRho)                          Gauss vanLeer;
     "div\(phi,.*rho.*\)"                        Gauss upwind;
     div(rhoPhi,T)                               Gauss upwind;
     div(rhoPhi,K)                               Gauss upwind;

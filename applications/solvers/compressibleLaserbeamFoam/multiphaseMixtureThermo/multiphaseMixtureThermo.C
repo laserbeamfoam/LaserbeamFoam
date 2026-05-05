@@ -1402,7 +1402,7 @@ Foam::multiphaseMixtureThermo::continuityError() const
 //  source contributions.  Temperature/energy solve stability is guaranteed by construction.
 //
 //  Per-pair mass is conserved to solver tolerance/ machine precision.
-//  No (divU-PCR)*alpha is required in this formulation - although looking back I think I fucked 
+//  No (divU-PCR)*alpha is required in this formulation - although looking back I think I fucked
 // that up anyway as the compressability was being applied inconsistently to all componnets in cells
 //
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -1573,71 +1573,78 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
+    // Interface compression & diffusion
+    PtrList<surfaceScalarField> phiR(nPhases);
 
-// PtrList<surfaceScalarField> phiR(nPhases);
+    const bool bEnableInterfaceCompression = true;
+    const scalar cAlphaMax = 2.0;
 
-// {
-//     label idx = 0;
-//     for (const phaseModel& alpha : phases_)
-//     {
-//         phiR.set
-//         (
-//             idx,
-//             new surfaceScalarField
-//             (
-//                 IOobject
-//                 (
-//                     "phiR." + alpha.name(),
-//                     mesh_.time().timeName(),
-//                     mesh_
-//                 ),
-//                 mesh_,
-//                 dimensionedScalar(dimVol/dimTime, Zero)
-//             )
-//         );
+    if (bEnableInterfaceCompression)
+    {
+        label idx = 0;
+        for (const phaseModel& alpha : phases_)
+        {
+            phiR.set
+            (
+                idx,
+                new surfaceScalarField
+                (
+                    IOobject
+                    (
+                        "phiR." + alpha.name(),
+                        mesh_.time().timeName(),
+                        mesh_
+                    ),
+                    mesh_,
+                    dimensionedScalar(dimVol/dimTime, Zero)
+                )
+            );
 
-//         const volScalarField rhoK(alpha.thermo().rho());
+            const volScalarField rhoK(alpha.thermo().rho());
 
-//         for (const phaseModel& alpha2 : phases_)
-//         {
-//             if (&alpha2 == &alpha) continue;
+            for (const phaseModel& alpha2 : phases_)
+            {
+                if (&alpha2 == &alpha) continue;
 
-//             // --- Interface compression ---
-// //             auto cAlpha = cAlphas_.cfind(interfacePair(alpha, alpha2));
-// //             if (cAlpha.good())
-// // {
-// //     surfaceScalarField phic
-// //     (
-// //         mag(phi_) / mesh_.magSf()
-// //     );
+                // --- Interface compression ---
+                auto cAlpha = cAlphas_.cfind(interfacePair(alpha, alpha2));
+                if (cAlpha.good())
+                {
+                    // Info<< "Debug: cAlpha = " << scalar(cAlpha()) << endl;
+                    surfaceScalarField phic
+                    (
+                        mag(phi_) / mesh_.magSf()
+                    );
 
-// //     phiR[idx] += min
-// //     (
-// //         scalar(cAlpha()) * phic,
-// //         max(phic)
-// //     ) * nHatf(alpha, alpha2)
-// //       ;
-// // }
+                    phiR[idx] += min
+                    (
+                        scalar(cAlpha()) * phic,
+                        cAlphaMax * max(phic)
+                    ) * nHatf(alpha, alpha2)
+                    ;
+                }
 
-//             // --- Interface diffusion ---
-//             auto dAlpha = dAlphas_.cfind(interfacePair(alpha, alpha2));
-//             if (dAlpha.good())
-//             {
-//                 dimensionedScalar valdiff("valdiff", dimdiff_, dAlpha());
+                // // --- Interface diffusion ---
+                // auto dAlpha = dAlphas_.cfind(interfacePair(alpha, alpha2));
+                // if (dAlpha.good())
+                // {
+                //     dimensionedScalar valdiff("valdiff", dimdiff_, dAlpha());
 
-//                 phiR[idx] -= valdiff
-//     * mesh_.magSf()
-//     * (
-//           fvc::interpolate(alpha2) * fvc::snGrad(alpha)
-//         - fvc::interpolate(alpha)  * fvc::snGrad(alpha2)
-//       )
-//     ;
-//             }
-//         }
+                //     phiR[idx] -=
+                //     (
+                //           valdiff
+                //         * mesh_.magSf()
+                //         * (
+                //               fvc::interpolate(alpha2) * fvc::snGrad(alpha)
+                //             - fvc::interpolate(alpha)  * fvc::snGrad(alpha2)
+                //         )
+                //     );
+                // }
+            }
 
-//         ++idx;
-//     }
-// }
+            ++idx;
+        }
+    }
 
 
     // ================================================================
@@ -1652,6 +1659,12 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     //
     //  This guarantees d(rho)/dt + div(rhoPhi) = 0 to solver
     //  tolerance, so TEqn has no spurious density source.
+    //
+    //  Note: with interface compression enabled, a mass source can
+    //  emerge (see eq. below), this can break conservation slightly.
+    //      d(rho)/dt + div(rhoPhi) = -div(rhoPhiR)
+    //   => d(rho_k alpha_k)/dt + div(rho_k alpha_k U) =
+    //                                        -div(rho_k alpha_k U_R)
     // ================================================================
 
     rhoPhi_ = dimensionedScalar(dimensionSet(1, 0, -1, 0, 0), Zero);
@@ -1674,6 +1687,8 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
             }
 
             const volScalarField rhoK(phase.thermo().rho());
+            // unused const:
+            // const volScalarField rhoK(phase.thermo().rho());
 
 //             fvScalarMatrix alphaRhoEqn - not this way , but keep for posterity
 // (
@@ -1688,9 +1703,11 @@ fvScalarMatrix alphaRhoEqn
 (
     fvm::ddt(alphaRho_[idx])
   + fvm::div(phi_, alphaRho_[idx], "div(phi,alphaRho)")
+  + fvm::div(phiR[idx], alphaRho_[idx], "div(phiR,alphaRho)")
  ==
     Mdot[idx]
-);
+); // key check TF:multicomponentVapourCondensation case mass conservation hold
+// between metals 1/2 (i.e., be vapour)
 
             alphaRhoEqn.solve();
 

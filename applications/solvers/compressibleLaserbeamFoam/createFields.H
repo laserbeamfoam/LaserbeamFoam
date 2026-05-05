@@ -84,7 +84,7 @@ autoPtr<compressible::turbulenceModel> turbulence
        dimensionedScalar("vDot",dimensionSet(0,0,-1,0,0),0.0)
     );
 
-    
+
 
         volScalarField mass_dot //
     (
@@ -123,7 +123,7 @@ autoPtr<compressible::turbulenceModel> turbulence
             "condensate",
             runTime.timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
@@ -221,7 +221,7 @@ volScalarField TSolidus
             "TSolidus",
             runTime.timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
@@ -235,7 +235,7 @@ volScalarField TSolidus
             "TLiquidus",
             runTime.timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
@@ -249,7 +249,7 @@ volScalarField TSolidus
             "LatentHeat",
             runTime.timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
@@ -265,7 +265,7 @@ volScalarField TSolidus
             "electrical_resistivity",
             runTime.timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
@@ -330,7 +330,7 @@ laserHeatSource laser(mesh);
 //             IOobject::MUST_READ_IF_MODIFIED
 //             )
 //         );
-        
+
 //         // dimensionedScalar molweight("molweight",dimless,specieDict.lookup("molWeight"));
 //         // phasedictionary.lookup("TSolidus");
 //         // dimensionedScalar phaseTSolidus("phaseTSolidus",dimensionSet(0, 0, 0, 1, 0),phasedictionary.lookup("TSolidus"));
@@ -378,7 +378,7 @@ laserHeatSource laser(mesh);
         mesh,
        dimensionedScalar("epsilon1",dimensionSet(0,0,0,0,0),0.0)
     );
-    
+
     epsilon1=max(min((mixture.T()-TSolidus)/(TLiquidus-TSolidus),scalar(1)),scalar(0));
     epsilon1.correctBoundaryConditions();
 
@@ -420,7 +420,7 @@ volScalarField Tcorr
             "Tcorr",
             runTime.timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::NO_WRITE
         ),
         mesh,
@@ -434,14 +434,14 @@ volScalarField Tcorr
             "DilationError",
             runTime.timeName(),
             mesh,
-            IOobject::NO_READ,
+            IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
         dimensionedScalar("DilationError",dimensionSet(0,0,-1,0,0),0.0)
     );
 
-    
+
 
 volVectorField Marangoni
 (

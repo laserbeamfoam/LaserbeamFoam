@@ -32,7 +32,7 @@ stopAt              endTime; // nextWrite
 
 endTime             0.18; // 0.09;
 
-deltaT              1e-9;
+deltaT              1e-12; //1e-9;
 
 // Reduce timestep for Alltest
 // For actual tutorial: run with `adjustableRunTime` and `writeInterval 0.01;`

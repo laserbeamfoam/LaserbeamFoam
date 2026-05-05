@@ -31,7 +31,7 @@ divSchemes
     div(phiR,alphaRho)                          Gauss vanLeer;
 
     div(phi,alpha)                              Gauss vanLeer;
-    div(phiR,alpha)                             Gauss vanLeer;
+    div(phiR,alphaRho)                          Gauss vanLeer;
 
     "div\(phi,.*rho.*\)"                        Gauss upwind;
     div(rhoPhi,T)                               Gauss upwind;

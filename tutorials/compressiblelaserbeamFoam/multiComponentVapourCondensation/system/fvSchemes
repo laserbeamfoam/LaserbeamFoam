@@ -28,18 +28,21 @@ gradSchemes
 divSchemes
 {
     div(rhoPhi,U)  Gauss upwind;
-    div(phi,alpha)  Gauss vanLeer;
+    div(phi,alpha)  Gauss vanLeer; //ROUNDAplus01;
+    div(phiR,alphaRho) Gauss vanLeer; //ROUNDAplus01;
+
+
     div(phirb,alpha) Gauss linear;
     "div\(phi,.*rho.*\)" Gauss upwind;
     div(rhoPhi,T)  Gauss upwind;
     div(rhoPhi,K)  Gauss upwind;
     div(phi,p)      Gauss upwind;
     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
-    
+
     div(rhoPhi,epsilon1)	Gauss linear;//Gauss vanLeer01;
-    
+
     div(phi,alphaRho)   Gauss vanLeer;   // Gauss limitedLinear 1
-    div(phiR,alpha)  Gauss linear;
+    div(phiR,alphaRho)  Gauss vanLeer;
 
 }
 

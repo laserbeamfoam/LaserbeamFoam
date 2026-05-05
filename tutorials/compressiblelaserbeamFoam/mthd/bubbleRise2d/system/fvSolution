@@ -14,15 +14,15 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-std_tol     1e-7;
-final_tol   1e-8;
+std_tol     1e-5;//1e-7
+final_tol   1e-6;//1e-8
 
 solvers
 {
     "alpha.*"
     {
-        nAlphaSubCycles 0; // seems to be causing issues???
-        cAlpha          0; // 1; // 1; // no effect
+        nAlphaSubCycles 0; // seems to be causing issues
+        //NOT READ: cAlpha
         // tolerance       1e-12;
 
         // nAlphaCorr      2;
@@ -172,7 +172,7 @@ MELTING
 PIMPLE
 {
     nOuterCorrectors            1; // always 1
-    nCorrectors                 4;
+    nCorrectors                 6;
     nNonOrthogonalCorrectors    2; // >0 when AMR used.
 }
 
