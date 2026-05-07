@@ -21,19 +21,7 @@ solvers
 {
     "alpha.*"
     {
-        nAlphaSubCycles 0; // seems to be causing issues
-        //NOT READ: cAlpha
-        // tolerance       1e-12;
-
-        // nAlphaCorr      2;
-
-        // MULESCorr       yes;
-        // nLimiterIter    5;
-
-        // solver          smoothSolver;
-        // smoother        symGaussSeidel;
-        // tolerance       1e-8;
-        // relTol          0;
+        nAlphaSubCycles 0; // seems to be causing issues when >0
     }
 
     "alphaRho.*"
@@ -179,8 +167,8 @@ PIMPLE
 // MHD Specific
 BPISO
 {
-    nOuterCorrectors            1; // always 1 
-    nCorrectors                 3;
+    nOuterCorrectors            1; // always 1
+    nCorrectors                 6; // 3;
     nNonOrthogonalCorrectors    2; // >0 when AMR used.
     pRefCell                    0;
     pRefValue                   0.0;
