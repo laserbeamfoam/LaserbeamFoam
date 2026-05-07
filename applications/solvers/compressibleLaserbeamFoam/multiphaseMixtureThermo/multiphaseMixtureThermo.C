@@ -1624,22 +1624,22 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                     ;
                 }
 
-                // // --- Interface diffusion ---
-                // auto dAlpha = dAlphas_.cfind(interfacePair(alpha, alpha2));
-                // if (dAlpha.good())
-                // {
-                //     dimensionedScalar valdiff("valdiff", dimdiff_, dAlpha());
+                // --- Interface diffusion ---
+                auto dAlpha = dAlphas_.cfind(interfacePair(alpha, alpha2));
+                if (dAlpha.good())
+                {
+                    dimensionedScalar valdiff("valdiff", dimdiff_, dAlpha());
 
-                //     phiR[idx] -=
-                //     (
-                //           valdiff
-                //         * mesh_.magSf()
-                //         * (
-                //               fvc::interpolate(alpha2) * fvc::snGrad(alpha)
-                //             - fvc::interpolate(alpha)  * fvc::snGrad(alpha2)
-                //         )
-                //     );
-                // }
+                    phiR[idx] -=
+                    (
+                          valdiff
+                        * mesh_.magSf()
+                        * (
+                              fvc::interpolate(alpha2) * fvc::snGrad(alpha)
+                            - fvc::interpolate(alpha)  * fvc::snGrad(alpha2)
+                        )
+                    );
+                }
             }
 
             ++idx;
@@ -1662,9 +1662,13 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     //
     //  Note: with interface compression enabled, a mass source can
     //  emerge (see eq. below), this can break conservation slightly.
+    //
     //      d(rho)/dt + div(rhoPhi) = -div(rhoPhiR)
     //   => d(rho_k alpha_k)/dt + div(rho_k alpha_k U) =
-    //                                        -div(rho_k alpha_k U_R)
+    //                                         Mdot[k] - div(rho_k alpha_k U_R)
+    //
+    //  where the latter is the phase-wise continuity, which includes Mdot from
+    //  the state
     // ================================================================
 
     rhoPhi_ = dimensionedScalar(dimensionSet(1, 0, -1, 0, 0), Zero);
@@ -1686,18 +1690,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                 }
             }
 
-            const volScalarField rhoK(phase.thermo().rho());
-            // unused const:
             // const volScalarField rhoK(phase.thermo().rho());
-
-//             fvScalarMatrix alphaRhoEqn - not this way , but keep for posterity
-// (
-//     fvm::ddt(alphaRho_[idx])
-//   + fvm::div(phi_, alphaRho_[idx], "div(phi,alphaRho)")
-//   + fvm::div(phiR[idx], alphaRho_[idx], "div(phiR,alphaRho)")
-//  ==
-//     Mdot[idx]
-// );
 
 fvScalarMatrix alphaRhoEqn
 (
@@ -1706,8 +1699,7 @@ fvScalarMatrix alphaRhoEqn
   + fvm::div(phiR[idx], alphaRho_[idx], "div(phiR,alphaRho)")
  ==
     Mdot[idx]
-); // key check TF:multicomponentVapourCondensation case mass conservation hold
-// between metals 1/2 (i.e., be vapour)
+);
 
             alphaRhoEqn.solve();
 
@@ -1747,7 +1739,8 @@ fvScalarMatrix alphaRhoEqn
         label idx = 0;
         for (phaseModel& phase : phases_)
         {
-            const volScalarField& rhoK = phase.thermo().rho();
+            // const volScalarField& rhoK = phase.thermo().rho();
+            const volScalarField& rhoK(phase.thermo().rho());
 
             phase.primitiveFieldRef() =
                 max
