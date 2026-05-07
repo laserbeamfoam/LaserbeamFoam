@@ -1051,11 +1051,11 @@ epsilon1=1.0-xi;
 Random randObj2(clock::getTime());
 
 
-double phi1[N_Ori]={0.0};
+List<double> phi1(N_Ori, 0.0);
 
-double phi2[N_Ori]={0.0};
+List<double> phi2(N_Ori, 0.0);
 
-double phi3[N_Ori]={0.0};
+List<double> phi3(N_Ori, 0.0);
 
 for(label count_j = 0; count_j < N_Ori; count_j++){
 
@@ -1097,7 +1097,7 @@ for(label count = 0; count < N_Ori; count++)
 }
 
 
-tensor rot[N_Ori]={tensor::zero};
+List<tensor> rot(N_Ori, tensor::zero);
 
 for (label i = 0; i < N_Ori; i++)
 {
@@ -1131,7 +1131,7 @@ scalar randGenSeed = clock::getTime();
 reduce(randGenSeed,minOp<scalar>());
 Random randObjq(randGenSeed);
 
-quaternion rot2[N_Ori]={quaternion::zero};
+List<quaternion> rot2(N_Ori, quaternion::zero);
 
 for (label i = 0; i < N_Ori; i++)
 {

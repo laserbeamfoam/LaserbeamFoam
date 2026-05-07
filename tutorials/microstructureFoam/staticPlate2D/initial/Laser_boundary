@@ -1,0 +1,23 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      Laser_boundary;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    atmosphere      { type fixedValue; value uniform 1.0; }
+    frontAndBack    { type empty;}
+    lowerWall       { type fixedValue; value uniform -1.0; }
+    rightWall       { type fixedValue; value uniform -1.0; }
+    leftWall        { type fixedValue; value uniform -1.0; }
+}
+
+// ************************************************************************* //
