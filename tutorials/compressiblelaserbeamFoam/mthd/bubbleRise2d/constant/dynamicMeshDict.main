@@ -14,10 +14,10 @@ FoamFile
     object          dynamicMeshDict;
 }
 /*
-    dynamicMeshDict for use with blastAMR which supports 2D Adpative Mesh Refi- 
+    dynamicMeshDict for use with blastAMR which supports 2D Adpative Mesh Refi-
     nement AMR.
 
-    Copied from 
+    Copied from
     https://github.com/STFS-TUDa/blastAMR/blob/v2212/tutorials/damBreak2D/constant/dynamicMeshDict
     and modified.
 */
@@ -79,19 +79,19 @@ expireSampledSurfacesOnLB   yes;
 
 loadPolicy                  cellCount;
 
-refineInterval              10; // 50;
+refineInterval              10;
 
-unrefineInterval            10; // 250;
+unrefineInterval            10;
 
-balanceInterval             10; // 50;
+balanceInterval             10;
 
-maxRefinement               2; // 2; // 1 will work, need test on 2
+maxRefinement               1;  // 1 will work, need test on 2
 
 nBufferLayers               5;
 
 nRefinementBufferLayers     5;
 
-nUnrefinementBufferLayers   15;
+nUnrefinementBufferLayers   5;
 
 lowerRefineLevel            0.01;
 

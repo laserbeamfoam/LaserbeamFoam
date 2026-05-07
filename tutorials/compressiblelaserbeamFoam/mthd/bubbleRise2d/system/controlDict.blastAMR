@@ -20,6 +20,8 @@ libs
     libamrDynamicFvMesh.so
     libamrIndicators.so
     libamrCPULoad.so
+    // libROUNDSchemes.so // ROUNDEDschemes from:
+    // https://github.com/ROUNDschemes/libROUNDSchemes/
 );
 
 application         compressibleMultiphaseInterFoam;

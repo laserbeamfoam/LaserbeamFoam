@@ -27,8 +27,8 @@ gradSchemes
 divSchemes
 {
     div(rhoPhi,U)                               Gauss upwind;
-    div(phi,alphaRho)                           Gauss vanLeer;
-    div(phiR,alphaRho)                          Gauss vanLeer;
+    div(phi,alphaRho)                           Gauss vanLeer; // ROUNDAplus
+    div(phiR,alphaRho)                          Gauss vanLeer; // ROUNDAplus
 
     div(phi,alpha)                              Gauss vanLeer;
     div(phiR,alphaRho)                          Gauss vanLeer;

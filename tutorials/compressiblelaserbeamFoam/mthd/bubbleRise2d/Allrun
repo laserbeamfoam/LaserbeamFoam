@@ -2,25 +2,54 @@
 ## Call as: `./Allrun` to run standard.
 ## Call as: `./Allrun -p` to run in parallel and use blastAMR if available.
 
-# Handle flag
+# Handle flags ----------------------------------------------------------------
 bParallel=false
 bAMR=false
+bRichterMode=false # This changes to a 2.5D setup!
 
 print_usage() {
-  printf "Usage: \n\tCall as: \`./Allrun\` to run standard.\
+  printf "
+
+Notes for Richter et al. setup:
+- Is a 2.5D style case.
+- Magnetic field is applied in the z direction.
+- z-direction is only 1 cell wide.
+- z-normal walls are set to \`zeroGradient\`
+- AMR will refine in z direction also, but this should relatively negligble.
+- Flow is (should be) predominantly 2D.
+
+Usage: \n\tCall as: \`./Allrun\` to run standard.\
 \n\tCall as: \`./Allrun -pa\` to run in parallel and use blastAMR if available.\
-and \`./Allrun -p\` for parallel mode only (no AMR).
+\n\tCall as: \`./Allrun -a\` to use blastAMR if available, in serial.\
+\n\tCall as: \`./Allrun -p\` for parallel mode only (no AMR).\
+\n\Flags   : \`-r\` to enable \'Richter et al.\' setup (2.5D, page normal \
+magnetic field).
 \n"
 }
 
-while getopts 'pa' flag; do
+while getopts 'par' flag; do
   case "${flag}" in
     a) bAMR=true ;;
     p) bParallel=true ;;
+    r) bRichterMode=true ;;
     *) print_usage
        exit 1 ;;
   esac
 done
+# End of Handle flags ---------------------------------------------------------
+
+
+# Handle 2D vs 2.5D casess
+if ${bRichterMode}; then
+    echo "Enabled richter mode (2.5D, page normal magnetic field B_z); copying:"
+    cp -r --verbose initialRichter initial
+    cp --verbose system/blockMeshDict.richter system/blockMeshDict
+else
+    echo "Standard mode (2D, horizontal magnetic field B_x):"
+    cp -r --verbose initial2d initial
+    cp --verbose system/blockMeshDict.2d system/blockMeshDict
+fi
+
 
 # Source tutorial run functions
 . $WM_PROJECT_DIR/bin/tools/RunFunctions
@@ -37,7 +66,7 @@ runApplication blockMesh
 
 
 # If blastAMR in installed, run with AMR
-if (command -v updateMesh > /dev/null) && ${bParallel} && ${bAMR}; then
+if (command -v updateMesh > /dev/null) && ${bAMR}; then
     echo "blastAMR is available: Note:"
     echo "this uses a hacky workaround to perform initialisation as \
     \`alphaContactAngle\` keyword is unknown to blastAMR's updateMesh."
@@ -89,12 +118,8 @@ else
 fi
 
 
-# runApplication setSolidFraction -compressible -alpha.phase1 "alpha.metal1" -alpha.phase2 "alpha.air" -subDivisions 6
-
 runApplication setFields
 
-# runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
-# runApplication compressibleLaserbeamFoam
 
 if ${bParallel}; then
     decomposePar 2>&1 | tee log.decomposePar
