@@ -1,0 +1,10 @@
+#!/bin/sh
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+runApplication blockMesh
+runApplication setFields
+runApplication TesselateFoam
+runApplication microstructureFoam

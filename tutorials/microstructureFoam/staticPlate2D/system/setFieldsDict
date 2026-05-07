@@ -1,0 +1,31 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      setFieldsDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+defaultFieldValues
+(
+    volScalarFieldValue alpha.metal  0
+    volScalarFieldValue xi           0
+);
+
+regions
+(
+    boxToCell
+    {
+        // Substrate: Y = 0 to 150 µm, full Z and X extent
+        box (-0.05e-5 15e-5 -12e-5) (0.05e-5 40e-5 12e-5);
+        fieldValues
+        (
+            volScalarFieldValue alpha.metal  1
+            volScalarFieldValue xi           1
+        );
+    }
+);
+
+// ************************************************************************* //

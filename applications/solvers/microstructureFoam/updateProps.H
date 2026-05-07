@@ -197,9 +197,9 @@ for (label count = 0; count < N_Ori; count++)
 for(label count = 0; count < N_Ori; count++)//find the number of non zero phases at each point in the domain
 {
 
-volScalarField n_x=(gradi[count].component(0));
-volScalarField n_y=(gradi[count].component(1));
-volScalarField n_z=(gradi[count].component(2));
+const volScalarField n_x(gradi[count].component(0)());
+const volScalarField n_y(gradi[count].component(1)());
+const volScalarField n_z(gradi[count].component(2)());
 
 
 phi_Mob[count]=

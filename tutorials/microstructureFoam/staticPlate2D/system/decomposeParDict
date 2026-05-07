@@ -1,0 +1,17 @@
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      decomposeParDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+numberOfSubdomains  4;
+method              simple;
+simpleCoeffs        { n (1 2 2); }
+hierarchicalCoeffs  { n (1 1 1); order xyz; }
+distributed         no;
+roots               ();
+
+// ************************************************************************* //
