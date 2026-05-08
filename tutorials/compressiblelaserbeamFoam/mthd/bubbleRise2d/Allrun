@@ -40,12 +40,16 @@ done
 
 
 # Handle 2D vs 2.5D casess
+if [ ! -d "initial" ]; then
+    mkdir initial
+fi
+
 if ${bRichterMode}; then
     echo "Enabled richter mode (2.5D, page normal magnetic field B_z); copying:"
     cp -r --verbose ./initialRichter/* initial
     cp --verbose system/blockMeshDict.richter system/blockMeshDict
 else
-    echo "Standard mode (2D, horizontal magnetic field B_x):"
+    echo "Standard mode (2D, horizontal magnetic field B_x); copying:"
     cp -r --verbose ./initial2d/* initial
     cp --verbose system/blockMeshDict.2d system/blockMeshDict
 fi
