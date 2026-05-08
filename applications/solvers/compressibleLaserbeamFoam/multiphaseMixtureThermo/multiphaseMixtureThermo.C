@@ -1940,7 +1940,7 @@ fvScalarMatrix alphaRhoEqn
     PCR += (sumAlpha - 1.0) * alphaVolCorrCoeff
          / mesh_.time().deltaT();
 
-    Info<< "Volume correction applied: mean(sumAlpha-1) = "
+    Info<< "Volume imbalance: mean(sumAlpha-1) = "
         << (sumAlpha - 1.0)().weightedAverage(mesh_.V()).value()
         << endl;
 
