@@ -103,7 +103,7 @@
         {
             electrical_resistivity += alpha1/phaseconductivity;
         }
-        
+
 
 
 
@@ -154,7 +154,7 @@
             Foam::max(pLocal & vector(0,1,0))
           - Foam::min(pLocal & vector(0,1,0));
 
-        
+
 
     }
 
@@ -171,4 +171,5 @@
 
     n_filtered = fvc::grad(condensateFiltered)/((mag(gradcondensate) + deltaN));
     n_filtered.correctBoundaryConditions();
+
 }

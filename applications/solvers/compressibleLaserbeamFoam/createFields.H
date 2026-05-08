@@ -1,3 +1,37 @@
+// Check for restarting solver
+// bRestartFirstLoop is used within `main()` also!
+bool bRestartFirstLoop = (runTime.timeIndex() > 0);
+Info<< "Runtime timeIndex = " << runTime.timeIndex() << endl;
+if (bRestartFirstLoop)
+{
+    // solver was restarted!
+    Info<< "\nSolver restart detected. Preventing correctPhi\'s on the first "
+        << "pass/loop, and restoring `.oldTime()` values as required by "
+        << "`fvc::ddt` methods (does not support fvc backwards scheme!).\n"
+        << endl;
+}
+
+// Local debugging ------------------------------------------------------------
+// Add debug entry for the solver (mainly to enable verbose fields)
+Switch debugFlag
+(
+    IOdictionary
+    (
+        IOobject
+        (
+            "controlDict",
+            mesh.time().system(),
+            mesh,
+            IOobject::MUST_READ_IF_MODIFIED,
+            IOobject::NO_WRITE
+        )
+    ).lookupOrDefault<Switch>("debugCompressibleLaserbeamFoam", false)
+);
+
+autoPtr<volScalarField> rhoCopyPreUpdatePtr; // reset after rho is constructed
+
+// ----------------------------------------------------------------------------
+
 dimensionedScalar deltaN=1e-8/pow(average(mesh.V()), 1.0/3.0);
 
 
@@ -29,7 +63,9 @@ volVectorField U
     mesh
 );
 
+
 #include "createPhi.H"
+
 
 Info<< "Constructing multiphaseMixtureThermo\n" << endl;
 multiphaseMixtureThermo mixture(U, phi);
@@ -46,6 +82,7 @@ volScalarField rho
     ),
     mixture.rho()
 );
+
 
 dimensionedScalar pMin("pMin", dimPressure, mixture);
 
@@ -81,7 +118,7 @@ autoPtr<compressible::turbulenceModel> turbulence
             IOobject::AUTO_WRITE
         ),
         mesh,
-       dimensionedScalar("vDot",dimensionSet(0,0,-1,0,0),0.0)
+        dimensionedScalar("vDot",dimensionSet(0,0,-1,0,0),0.0)
     );
 
 
@@ -257,7 +294,6 @@ volScalarField TSolidus
         //(cp*(Temperature-((fluid.Tliquidus()+fluid.Tsolidus())/(scalar(2)))) + delta1*fluid.Latentheat())
     );
 
-
         volScalarField electrical_resistivity//electrical resistivity of condensate only
     (
         IOobject
@@ -379,7 +415,15 @@ laserHeatSource laser(mesh);
        dimensionedScalar("epsilon1",dimensionSet(0,0,0,0,0),0.0)
     );
 
-    epsilon1=max(min((mixture.T()-TSolidus)/(TLiquidus-TSolidus),scalar(1)),scalar(0));
+    if (!epsilon1.headerOk())
+    {
+        Info<< "\nepsilon1: assuming fresh start, calculating the field...\n"
+            << endl;
+
+        epsilon1=max(min((mixture.T()-TSolidus)/(TLiquidus-TSolidus),scalar(1)),scalar(0));
+    }
+
+
     epsilon1.correctBoundaryConditions();
 
 
@@ -406,7 +450,7 @@ volScalarField TRHS
         "TRHS",
         runTime.timeName(),
         mesh,
-        IOobject::READ_IF_PRESENT,
+        IOobject::NO_READ, //READ_IF_PRESENT,
         IOobject::AUTO_WRITE
     ),
         mesh,
@@ -485,6 +529,159 @@ const volScalarField zeroJoulesource
     dimensionedScalar("zeroJoulesource", dimensionSet(1, -1, -3, 0, 0), 0.0)
 );
 
+// --- Perform oldTime restoration --------------------------------------------
+if (bRestartFirstLoop)
+{
+    // Any fields involved in `fvc::ddt` calls requires its `.oldTime()` field
+    // to be restored, otherwise you will get errors. For `Euler` the `fvc`
+    // scheme is: `fvc::ddt(y) = ( y(t[i], x) - y(t[i-1], x) ) / deltaT` where
+    // `t[i]` is the current time / latest time.
+
+    Info<< "Restoring oldTime values." << endl;
+    int errorCount = 0;
+
+    volVectorField UOldTime
+    (
+        IOobject
+        (
+            IOobject::groupName("U", "oldTime"),
+            runTime.timeName(),
+            mesh,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        U
+    );
+
+    if (UOldTime.headerOk())
+    {
+        U.oldTime() = UOldTime;
+    }
+    else
+    {
+        Info<<"Restart detected but U.oldTime not found!" << endl;
+        errorCount++;
+    }
+
+
+    // phi.oldTime() can be restored entirely local, no file read required.
+    phi.oldTime() = fvc::flux(UOldTime);
+
+
+    volScalarField rhoOldTime
+    (
+        IOobject
+        (
+            IOobject::groupName("rho", "oldTime"),
+            runTime.timeName(),
+            mesh,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        rho
+    );
+
+    if (rhoOldTime.headerOk())
+    {
+        Info<< "DEBUG: rho read fine... name: " << rhoOldTime.name() << endl;
+        rho.oldTime() = rhoOldTime;
+    }
+    else
+    {
+        Info<<"Restart detected but rho.oldTime not found!" << endl;
+        errorCount++;
+    }
+
+
+    volScalarField LatentHeatOldTime
+    (
+        IOobject
+        (
+            IOobject::groupName("LatentHeat", "oldTime"),
+            runTime.timeName(),
+            mesh,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        LatentHeat
+    );
+
+    if (LatentHeatOldTime.headerOk())
+    {
+        LatentHeat.oldTime() = LatentHeatOldTime;
+    }
+    else
+    {
+        Info<<"Restart detected but LatentHeat.oldTime not found!" << endl;
+        errorCount++;
+    }
+
+
+    volScalarField epsilon1OldTime
+    (
+        IOobject
+        (
+            IOobject::groupName("epsilon1", "oldTime"),
+            runTime.timeName(),
+            mesh,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        epsilon1
+    );
+
+    if (epsilon1OldTime.headerOk())
+    {
+        epsilon1.oldTime() = epsilon1OldTime;
+        epsilon1.correctBoundaryConditions();
+    }
+    else
+    {
+        Info<< "Restart detected but epsilon1.oldTime not found!" << endl;
+        errorCount++;
+    }
+
+
+    Info<< "\n\nEnd of 'Restart detected but *.oldTime not found' listing.\n"
+        << " if none seen - you are fine."
+        << endl;
+
+    if (errorCount)
+    {
+        Info<< "WARNING: " << errorCount << " fields' oldTime values were not "
+            << "restored! This will cause issues within any fvc::ddt terms!"
+            << "RECOMMENDED: please inspect your latest time folder!"
+            << endl;
+    }
+    else
+    {
+        Info<< "All relevant fields' oldTime values were restored using "
+            << "file reads. All good!"
+            << endl;
+    }
+}
+// ----------------------------------------------------------------------------
+// Debug fields related
+
+if (debugFlag)
+{
+    rhoCopyPreUpdatePtr.reset
+    (
+        new volScalarField
+        (
+            IOobject
+            (
+                "rhoCopyPreUpdate",
+                runTime.timeName(),
+                mesh,
+                IOobject::NO_READ,
+                IOobject::AUTO_WRITE
+            ),
+            (rho)
+        )
+    );
+}
+// ----------------------------------------------------------------------------
 
 #include "createMRF.H"
 #include "createK.H"

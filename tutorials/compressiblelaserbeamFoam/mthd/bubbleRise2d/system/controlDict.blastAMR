@@ -32,9 +32,9 @@ startTime           0;
 
 stopAt              endTime; // nextWrite
 
-endTime             0.18; // 0.09;
+endTime             0.18;
 
-deltaT              1e-12; //1e-9;
+deltaT              1e-12;
 
 // Reduce timestep for Alltest
 // For actual tutorial: run with `adjustableRunTime` and `writeInterval 0.01;`
@@ -63,5 +63,8 @@ maxAlphaCo          0.1;
 
 maxDeltaT           0.5;
 
+// Optional flag for solver - enables writing of debug fields useful for solver
+// restart debugging:
+debugCompressibleLaserbeamFoam false;
 
 // ************************************************************************* //

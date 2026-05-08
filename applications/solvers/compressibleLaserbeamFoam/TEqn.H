@@ -20,24 +20,142 @@
 
     TRHS*=0.0;//=TRHSzero;
 
-
-
     do{
 iter++;
 epsilon1.storePrevIter();
 
-
-
-TRHS=          LatentHeat*((
+TRHS=         LatentHeat*(
+              (
                 fvc::ddt(rho,epsilon1)
               + fvc::div(mixture.rhoPhi(), epsilon1)
               )
-
-
 );
 
 TRHS.correctBoundaryConditions();
 
+// RB: leaving this temporarily in case anyone is checking solver-restarting
+// during review.
+if (runTime.writeTime() && debugFlag)
+{
+    volScalarField& rhoCopyPreUpdate = rhoCopyPreUpdatePtr();
+
+    volScalarField ddt_term_error
+    (
+        IOobject
+        (
+            "ERROR_ddt_rho_euler_scheme",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+            fvc::ddt(rho, epsilon1)
+        - ( epsilon1*(rho - rho.oldTime())/mesh.time().deltaT())
+    );
+
+    volScalarField ddt_term
+    (
+        IOobject
+        (
+            "TRHS_ddt_rho_epsilon1",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        fvc::ddt(rho,epsilon1)
+    );
+
+    volScalarField delta_rho_rhoOldTime
+    (
+        IOobject
+        (
+            "Diff_rho_rhoOldTime",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+           (rho - rho.oldTime())
+    );
+
+    volScalarField delta_rho_rhoCopy
+    (
+        IOobject
+        (
+            "Diff_rho_rhoCopyPreUpdate",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+           (rho - rhoCopyPreUpdate)
+    );
+
+    volScalarField delta_rhocopy_in_time
+    (
+        IOobject
+        (
+            "Diff_rhoCopyPreUpdate_rhoCopyPreUpdate.oldTime",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+           (rhoCopyPreUpdate - rhoCopyPreUpdate.oldTime())
+    );
+
+    volScalarField ddt_term_rho_only
+    (
+        IOobject
+        (
+            "TRHS_ddt_rho",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        fvc::ddt(rho)
+    );
+
+    volScalarField div_term
+    (
+        IOobject
+        (
+            "TRHS_div_rhoPhi_epsilon1",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        fvc::div(mixture.rhoPhi(), epsilon1)
+    );
+
+    const volScalarField rhoOld_check
+    (
+        IOobject
+        (
+            "rhoOldTime_during_run",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        rho.oldTime()
+    );
+
+    delta_rhocopy_in_time.write();
+    rhoOld_check.write();
+
+    ddt_term.write();
+    ddt_term_rho_only.write();
+    div_term.write();
+    ddt_term_error.write();
+
+    delta_rho_rhoOldTime.write();
+    rhoCopyPreUpdate.write();
+    delta_rho_rhoCopy.write();
+}
 
     const volScalarField& Joulesource =
         mthd.valid()
@@ -83,7 +201,6 @@ meanResidual = gSum(mag(epsilon1.primitiveField()-epsilon1.prevIter().primitiveF
 
 
 }while((iter < minTCorr || (residual > epsilonTol)) && iter <= maxTCorr );
-
 
 
 

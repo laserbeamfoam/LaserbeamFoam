@@ -195,6 +195,9 @@ private:
         //- Partial density fields: alphaRho_k = alpha_k * rho_k
         PtrList<volScalarField> alphaRho_;
 
+        // --- Solver restart related ---
+
+        bool bFreshStart = true;
 
     // Private Member Functions
 
@@ -212,7 +215,9 @@ private:
         //- Initialise alphaRho fields from alpha * rho
         void initAlphaRho();
 
-        
+        //- Solver restart related:
+        void writeOldTimeValues();
+
 
         tmp<volScalarField> solveAlphas(volScalarField *massdotterm, bool finalIter);
 
@@ -301,7 +306,7 @@ public:
         void updateRhoPhi();
 
         //- Rebuild alphaRho from current alpha and rho
-        void syncAlphaRho();
+        void syncAlphaRho(); // Unused!
 
         //- Return the velocity
         const volVectorField& U() const
@@ -408,6 +413,19 @@ public:
 
             //- Density for patch [kg/m^3]
             virtual tmp<scalarField> rho(const label patchi) const;
+
+            // //- Density wrapper to restore oldTime values
+            // tmp<volScalarField> rho(volScalarField& rhoOldTime) const;
+            // ^ This was a wrapper method, it is now just handled in
+            //   `compressibleLaserbeamFoam.C`.
+
+            // Note: this uses a scalarField - probably not applicable?
+            // tmp<scalarField> rho
+            // (
+            //     const label patchi,
+            //     volScalarField& rhoOldTime
+            // ) const;
+
 
             //- Heat capacity at constant pressure [J/kg/K]
             virtual tmp<volScalarField> Cp() const;

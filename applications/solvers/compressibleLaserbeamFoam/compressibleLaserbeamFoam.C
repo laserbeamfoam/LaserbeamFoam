@@ -75,11 +75,13 @@ int main(int argc, char *argv[])
     #include "initContinuityErrs.H"//new
     #include "createDyMControls.H"//new
 
+    // bool bRestartFirstLoop = false; <- declared within createFields.H
     #include "createFields.H"
+
+    // bRestartFirstLoop = false;
 
     #include "initCorrectPhi.H"
     #include "createUfIfPresent.H"
-
 
 
     volScalarField& p = mixture.p();
@@ -88,7 +90,6 @@ int main(int argc, char *argv[])
     turbulence->validate();
 
     #include "update.H"
-
 
     #include "CourantNo.H"
     #include "setInitialDeltaT.H"
@@ -114,7 +115,6 @@ int main(int argc, char *argv[])
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
         {
-
             if (pimple.firstIter() || moveMeshOuterCorrectors)
             {
                 scalar timeBeforeMeshUpdate = runTime.elapsedCpuTime();
@@ -132,8 +132,11 @@ int main(int argc, char *argv[])
 
                     MRF.update();
 
-                    if (correctPhi)
+                    if (correctPhi && !bRestartFirstLoop)
                     {
+                        // Prevent corrections on the first loop of a restarted
+                        // solver.
+
                         // Calculate absolute flux
                         // from the mapped surface velocity
                         phi = mesh.Sf() & Uf();
@@ -152,16 +155,32 @@ int main(int argc, char *argv[])
                     }
                 }
             }
+        // Disable flag: this permits correctPhi on subsequent loops.
+        bRestartFirstLoop = false;
 
-
-
-        
 
         vDot = mixture.solve(&mass_dot,pimple.finalIter());  // always finalIter=true
         vDot.correctBoundaryConditions();
         mass_dot.correctBoundaryConditions();
 
+
+        if (debugFlag)
+        {
+            rhoCopyPreUpdatePtr() = rho;
+        }
+
+        //- (preparatory step for any future pimple looping)
+        if (pimple.firstIter())
+        {
+            // Make latest solution is == to oldTime
+            rho.oldTime() = rho;
+            // For whatever reason, this doesn't happen automatically like with
+            // other fields (at least for testing during bubble2dRise).
+            //   Not having this will break the solutions when restarting.
+        }
+
         rho = mixture.rho();
+
 
         #include "update.H"
 
@@ -191,7 +210,7 @@ int main(int argc, char *argv[])
             }
         }
 
-
+        #include "writeOldTimeStorage.H"
 
         runTime.write();
 

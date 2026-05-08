@@ -204,7 +204,7 @@ void Foam::multiphaseMixtureThermo::initAlphaRho()
             (
                 IOobject
                 (
-                    "alphaRho." + phase.name(),
+                    IOobject::groupName("alphaRho", phase.name()),
                     mesh_.time().timeName(),
                     mesh_,
                     IOobject::NO_READ,
@@ -240,12 +240,87 @@ void Foam::multiphaseMixtureThermo::initAlphaRho()
         alphaRho_[idx].correctBoundaryConditions();
         alphaRho_[idx].oldTime();
 
+        // Handle restarting the solver and maintaining the previous values
+        // (only needs to run if solver has restarted from latestTime.)
+        if (bFreshStart && mesh_.time().timeIndex() > 0)
+        {
+            volScalarField alphaRhoOldTime_idx_
+            (
+                IOobject
+                (
+                    "alphaRho." + phase.name() + ".oldTime",
+                    mesh_.time().timeName(),
+                    mesh_,
+                    IOobject::READ_IF_PRESENT,
+                    IOobject::AUTO_WRITE
+                ),
+                alphaRho_[idx]
+            );
+
+            if (alphaRhoOldTime_idx_.headerOk())
+            {
+                Info<< "Mixture: Restoring oldTime values "
+                    << "for alphaRho." << phase.name()
+                    << endl;
+
+                alphaRho_[idx].oldTime() = alphaRhoOldTime_idx_;
+            }
+            else
+            {
+                Info<< "Mixture: WARNING could not find field "
+                    << "for `alphaRho." << phase.name() << ".oldTime`. "
+                    << "This will cause issues in fvc::ddt terms!"
+                    << "PLEASE check your latestTime directory (folder)."
+                    << endl;
+            }
+
+            // bFreshStart is disabled after this loop!
+        }
+
         Info<< "Initialised alphaRho." << phase.name()
             << "  mass = "
             << gSum(alphaRho_[idx].primitiveField() * mesh_.V().field())
             << " kg" << endl;
 
         ++idx;
+    }
+
+    if (bFreshStart)
+    {
+        // close it off after the first read through
+        bFreshStart = false;
+    }
+}
+
+void Foam::multiphaseMixtureThermo::writeOldTimeValues(void)
+{
+    // Update any old time storage values related to `.oldTime()` calls
+    // Presently, this is just for `alphaRho_`.
+    if (mesh_.time().writeTime())
+    {
+        label idx = 0;
+        for (const phaseModel& phase : phases_)
+        {
+            // alphaRho_[idx].correctBoundaryConditions();
+
+            volScalarField alphaRhoOldTime_idx_
+            (
+                IOobject
+                (
+                    "alphaRho." + phase.name() + ".oldTime",
+                    mesh_.time().timeName(),
+                    mesh_,
+                    IOobject::NO_READ,
+                    IOobject::AUTO_WRITE
+                ),
+                alphaRho_[idx]
+            );
+            // alphaRhoOldTime_idx_.correctBoundaryConditions();
+            alphaRhoOldTime_idx_ = alphaRho_[idx].oldTime();
+            alphaRhoOldTime_idx_.write();
+
+            idx++;
+        }
     }
 }
 
@@ -271,8 +346,8 @@ Foam::multiphaseMixtureThermo::multiphaseMixtureThermo
             "rhoPhi",
             mesh_.time().timeName(),
             mesh_,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
+            IOobject::READ_IF_PRESENT, //NO_READ,
+            IOobject::AUTO_WRITE //NO_WRITE
         ),
         mesh_,
         dimensionedScalar(dimMass/dimTime, Zero)
@@ -311,7 +386,6 @@ Foam::multiphaseMixtureThermo::multiphaseMixtureThermo
     buildPhaseIndexMap();
     readPhaseTransitions();
     initAlphaRho();
-
 
     calcAlphas();
     alphas_.write();
@@ -1101,6 +1175,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
     bool finalIter
 )
 {
+
     tmp<volScalarField> tPCR
     (
         new volScalarField
@@ -1155,6 +1230,9 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
     {
         PCR = solveAlphas(massdotterm, finalIter);
     }
+
+    // write all `alphaRho.phase.oldTime()` to file for restart capability.
+    writeOldTimeValues();
 
     return tPCR;
 }
@@ -1313,43 +1391,43 @@ Foam::multiphaseMixtureThermo::nearInterface() const
 }
 
 
-void Foam::multiphaseMixtureThermo::updateRhoPhi()
-{
-    rhoPhi_ = dimensionedScalar(dimensionSet(1, 0, -1, 0, 0), Zero);
+// void Foam::multiphaseMixtureThermo::updateRhoPhi()
+// {
+//     rhoPhi_ = dimensionedScalar(dimensionSet(1, 0, -1, 0, 0), Zero);
 
-    label idx = 0;
-    for (const phaseModel& phase : phases_)
-    {
-        rhoPhi_ += fvc::interpolate(alphaRho_[idx]) * phi_;
-        ++idx;
-    }
-}
+//     label idx = 0;
+//     for (const phaseModel& phase : phases_)
+//     {
+//         rhoPhi_ += fvc::interpolate(alphaRho_[idx]) * phi_;
+//         ++idx;
+//     }
+// }
 
-void Foam::multiphaseMixtureThermo::syncAlphaRho()
-{
-    label idx = 0;
-    for (const phaseModel& phase : phases_)
-    {
-        const volScalarField& rhoK = phase.thermo().rho();
+// void Foam::multiphaseMixtureThermo::syncAlphaRho()
+// {
+//     label idx = 0;
+//     for (const phaseModel& phase : phases_)
+//     {
+//         const volScalarField& rhoK = phase.thermo().rho();
 
-        alphaRho_[idx].primitiveFieldRef() =
-            phase.primitiveField() * rhoK.primitiveField();
+//         alphaRho_[idx].primitiveFieldRef() =
+//             phase.primitiveField() * rhoK.primitiveField();
 
-        forAll(alphaRho_[idx].boundaryFieldRef(), patchi)
-        {
-            if (alphaRho_[idx].boundaryField()[patchi].type() == "fixedValue")
-            {
-                alphaRho_[idx].boundaryFieldRef()[patchi] ==
-                    phase.boundaryField()[patchi]
-                  * rhoK.boundaryField()[patchi];
-            }
-        }
+//         forAll(alphaRho_[idx].boundaryFieldRef(), patchi)
+//         {
+//             if (alphaRho_[idx].boundaryField()[patchi].type() == "fixedValue")
+//             {
+//                 alphaRho_[idx].boundaryFieldRef()[patchi] ==
+//                     phase.boundaryField()[patchi]
+//                   * rhoK.boundaryField()[patchi];
+//             }
+//         }
 
-        alphaRho_[idx].correctBoundaryConditions();
+//         alphaRho_[idx].correctBoundaryConditions();
 
-        ++idx;
-    }
-}
+//         ++idx;
+//     }
+// }
 
 Foam::tmp<Foam::volScalarField>
 Foam::multiphaseMixtureThermo::continuityError() const
