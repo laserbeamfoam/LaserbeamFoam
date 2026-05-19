@@ -78,8 +78,6 @@ int main(int argc, char *argv[])
     // bool bRestartFirstLoop = false; <- declared within createFields.H
     #include "createFields.H"
 
-    // bRestartFirstLoop = false;
-
     #include "initCorrectPhi.H"
     #include "createUfIfPresent.H"
 

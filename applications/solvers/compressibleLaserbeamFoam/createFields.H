@@ -583,7 +583,6 @@ if (bRestartFirstLoop)
 
     if (rhoOldTime.headerOk())
     {
-        Info<< "DEBUG: rho read fine... name: " << rhoOldTime.name() << endl;
         rho.oldTime() = rhoOldTime;
     }
     else
