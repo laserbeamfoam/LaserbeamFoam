@@ -153,41 +153,48 @@ int main(int argc, char *argv[])
                     }
                 }
             }
-        // Disable flag: this permits correctPhi on subsequent loops.
-        bRestartFirstLoop = false;
+
+            // Disable flag: this permits correctPhi on subsequent loops.
+            bRestartFirstLoop = false;
+
+            // Semi-PIMPLE Implementation:
+            // - Phase `alphaRho` related items are solved once.
+            // - Laser is also solved once.
+            // - To restore MTHD coupling, i.e., (U-p)-H-T, the pimple loop is
+            //   permitted on those terms.
+            //
+            // PISO Section (Phase related)
+            if (pimple.firstIter())
+            {
+                vDot = mixture.solve(&mass_dot,pimple.finalIter()); // always finalIter=true
+                vDot.correctBoundaryConditions();
+                mass_dot.correctBoundaryConditions();
 
 
-        vDot = mixture.solve(&mass_dot,pimple.finalIter());  // always finalIter=true
-        vDot.correctBoundaryConditions();
-        mass_dot.correctBoundaryConditions();
+                if (debugFlag)
+                {
+                    rhoCopyPreUpdatePtr() = rho;
+                }
 
 
-        if (debugFlag)
-        {
-            rhoCopyPreUpdatePtr() = rho;
-        }
-
-        //- (preparatory step for any future pimple looping)
-        if (pimple.firstIter())
-        {
-            // Make latest solution is == to oldTime
-            rho.oldTime() = rho;
-            // For whatever reason, this doesn't happen automatically like with
-            // other fields (at least for testing during bubble2dRise).
-            //   Not having this will break the solutions when restarting.
-        }
-
-        rho = mixture.rho();
+                // Make latest solution is == to oldTime
+                rho.oldTime() = rho;
+                // For whatever reason, this doesn't happen automatically like
+                // with other fields (at least for testing during bubble2dRise).
+                //   Not having this will break the solutions when restarting.
 
 
-        #include "update.H"
+                rho = mixture.rho();
 
-        laser.updateDeposition
-        (
-            condensateFiltered, n_filtered, electrical_resistivity
-        );
+                #include "update.H"
 
+                laser.updateDeposition
+                (
+                    condensateFiltered, n_filtered, electrical_resistivity
+                );
+            }
 
+            // PIMPLE Section ((U-p)-H-T coupling)
 
             #include "UEqn.H"
             if (mthd.valid())

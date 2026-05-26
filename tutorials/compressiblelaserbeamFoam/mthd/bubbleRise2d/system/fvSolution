@@ -159,8 +159,8 @@ MELTING
 
 PIMPLE
 {
-    nOuterCorrectors            1; // always 1
-    nCorrectors                 6;
+    nOuterCorrectors            2; // Only affects (U-p)-H-T
+    nCorrectors                 3;
     nNonOrthogonalCorrectors    2; // >0 when AMR used.
 }
 
@@ -168,7 +168,7 @@ PIMPLE
 BPISO
 {
     nOuterCorrectors            1; // always 1
-    nCorrectors                 6; // 3;
+    nCorrectors                 3;
     nNonOrthogonalCorrectors    2; // >0 when AMR used.
     pRefCell                    0;
     pRefValue                   0.0;
