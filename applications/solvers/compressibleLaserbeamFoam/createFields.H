@@ -1,6 +1,6 @@
 // Check for restarting solver
 // bRestartFirstLoop is used within `main()` also!
-bool bRestartFirstLoop = (runTime.timeIndex() > 0);
+bool bRestartFirstLoop = (runTime.timeIndex() > 1);
 Info<< "Runtime timeIndex = " << runTime.timeIndex() << endl;
 if (bRestartFirstLoop)
 {

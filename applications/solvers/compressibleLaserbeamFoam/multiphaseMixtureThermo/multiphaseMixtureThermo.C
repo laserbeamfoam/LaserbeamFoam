@@ -242,7 +242,7 @@ void Foam::multiphaseMixtureThermo::initAlphaRho()
 
         // Handle restarting the solver and maintaining the previous values
         // (only needs to run if solver has restarted from latestTime.)
-        if (bFreshStart && mesh_.time().timeIndex() > 0)
+        if (bFreshStart && mesh_.time().timeIndex() > 1)
         {
             volScalarField alphaRhoOldTime_idx_
             (
