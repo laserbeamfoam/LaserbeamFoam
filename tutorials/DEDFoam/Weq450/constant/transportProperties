@@ -38,7 +38,7 @@ metal
     // Specific heat [J/(kg·K)] - temperature dependent
     poly_cp         (546 0.17 0 0 0 0 0 0);
     
-    elec_resistivity 0.5e-6;  // Electrical resistivity [Ω·m]
+    elec_resistivity 2.0e-6;  // Electrical resistivity [Ω·m]
 }
 
 gas

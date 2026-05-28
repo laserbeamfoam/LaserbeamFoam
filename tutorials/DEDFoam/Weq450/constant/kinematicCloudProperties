@@ -52,7 +52,7 @@ constantProperties
     rho0            16650;
     
     // Thermal properties
-    Tmelt      2000;//2750;//3290;   // Melting point [K] (3017°C)
+    Tmelt      3290;   // Melting point [K] (3017°C)
     boilingTemperature      5731;   // Boiling point [K] (5458°C)
     CpParticle    140;    // Average Cp [J/kg/K]
     LfParticle      174000; // Latent heat of melting [J/kg]
