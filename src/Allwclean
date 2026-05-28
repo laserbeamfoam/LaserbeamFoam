@@ -5,5 +5,7 @@ wclean geometricVoF
 wclean laserHeatSource
 wclean transportModels/incompressible
 wclean turbulenceModel
+wclean MTHD
+wclean lagrangian
 
 #------------------------------------------------------------------------------

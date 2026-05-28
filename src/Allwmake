@@ -11,3 +11,4 @@ targetType=""
 (cd MTHD && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
 (cd transportModels/incompressible && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
 (cd turbulenceModel && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
+(cd lagrangian/movingConeInjection && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
