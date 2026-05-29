@@ -1,5 +1,12 @@
 {
 
+const volScalarField& pMag =
+        mthd.valid()
+      ? mthd->magneticPressure()
+      : zeroMagneticPressure;
+      
+      
+
      if (correctPhi)
     {
         rAU.ref() = 1.0/UEqn.A();
@@ -24,6 +31,7 @@
     (
         (
             mixture.surfaceTensionForce()
+            - fvc::snGrad(pMag)
           - ghf*fvc::snGrad(rho)
         )*rAUf*mesh.magSf()
     );
@@ -136,10 +144,5 @@
     {
         rAU.clear();
     }
-
-
-    DilationError = mixture.continuityError() / rho;
-    
-
 
 }

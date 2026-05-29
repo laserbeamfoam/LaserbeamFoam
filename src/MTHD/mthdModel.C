@@ -129,6 +129,54 @@ mthdModel::mthdModel(fvMesh& mesh, const word& propertiesDictName)
 :
     mesh_(mesh),
     bpiso_(mesh_, "BPISO"),
+    phiH_
+    (
+        IOobject
+        (
+            "phiH",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ
+        ).typeHeaderOk<surfaceScalarField>(true)
+      ? surfaceScalarField
+        (
+            IOobject
+            (
+                "phiH",
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::MUST_READ,
+                IOobject::AUTO_WRITE
+            ),
+            mesh_
+        )
+      : surfaceScalarField
+        (
+            IOobject
+            (
+                "phiH",
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::NO_READ,
+                IOobject::AUTO_WRITE
+            ),
+            fvc::flux
+            (
+                volVectorField
+                (
+                    IOobject
+                    (
+                        "H",
+                        mesh_.time().timeName(),
+                        mesh_,
+                        IOobject::MUST_READ,
+                        IOobject::AUTO_WRITE
+                    ),
+                    mesh_
+                )
+            )
+        )
+    ),
     H_
     (
         IOobject
@@ -140,18 +188,6 @@ mthdModel::mthdModel(fvMesh& mesh, const word& propertiesDictName)
             IOobject::AUTO_WRITE
         ),
         mesh_
-    ),
-    phiH_
-    (
-        IOobject
-        (
-            "phiH",
-            mesh_.time().timeName(),
-            mesh_,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        fvc::flux(H_)
     ),
     pH_
     (
@@ -272,11 +308,34 @@ mthdModel::mthdModel(fvMesh& mesh, const word& propertiesDictName)
         mesh_,
         dimensionedVector("JcrossB", dimensionSet(1, -2, -2, 0, 0), vector::zero),
         zeroGradientFvPatchVectorField::typeName
+    ),
+    pMag_
+    (
+        IOobject
+        (
+            "pMag",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar("pMag", dimensionSet(1, -1, -2, 0, 0), 0.0),
+        zeroGradientFvPatchScalarField::typeName
     )
 {
     (void)propertiesDictName;
 
-    if (phiH_.headerOk())
+    if
+    (
+        IOobject
+        (
+            "phiH",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ
+        ).typeHeaderOk<surfaceScalarField>(true)
+    )
     {
         Info<< "Reading face flux ";
     }
@@ -355,8 +414,23 @@ void mthdModel::finaliseTransportProperties()
 
 void mthdModel::updateLorentzForce()
 {
-    JcrossB_ = J_ ^ (magperm_*H_);
+   // JcrossB_ = J_ ^ (magperm_*H_);//OLD IMPLEMENTATION
+   // JcrossB_.correctBoundaryConditions();//OLD IMPLEMENTATION
+   
+       // tension: the rotationalpart of J x B,
+    // built from the divergence-free magnetic flux. body
+    // force passed to the momentum equation. @Roman, please check this. Dont trust me, I cannot be trusted!
+    const surfaceScalarField phiB(fvc::interpolate(magperm_)*phiH_);
+
+    JcrossB_ = fvc::div(phiB, H_)
+    + 0.5*magSqr(H_)*fvc::grad(magperm_);
     JcrossB_.correctBoundaryConditions();
+
+    //  pressure: the curl-free part of J x B. This is a pressure-like force (i think),
+    // applied in snGrad form inside the
+    // pressure equation where it balances snGrad(p_rgh). @Roman, please check this. Dont trust me, I cannot be trusted! I'll send you my notes on slacK
+    pMag_ = 0.5*magperm_*magSqr(H_);
+    pMag_.correctBoundaryConditions();
 }
 
 
@@ -395,8 +469,9 @@ void mthdModel::solve
         rAB.correctBoundaryConditions();
         surfaceScalarField rABf("rABf", fvc::interpolate(rAB));
 
-        volVectorField HbyAH("HbyAH", H_);
-        HbyAH = rAB*HEqn.H();
+        //volVectorField HbyAH("HbyAH", H_);
+        //HbyAH = rAB*HEqn.H();
+        volVectorField HbyAH("HbyAH", constrainHbyA(rAB*HEqn.H(), H_, pH_));
 
         surfaceScalarField phiHbyAH("phiHbyAH", fvc::flux(HbyAH));
 
@@ -407,15 +482,44 @@ void mthdModel::solve
                 fvm::laplacian(rABf, pH_)
              == fvc::div(fvc::interpolate(magperm_)*phiHbyAH)
             );
+            
+            label pHRefCell = 0;
+scalar pHRefValue = 0.0;
 
+
+
+		if (pH_.needReference())
+{
+    pHEqn.setReference(pHRefCell, pHRefValue);
+}
             pHEqn.solve();
             pH_.correctBoundaryConditions();
 
-            if (bpiso_.finalNonOrthogonalIter())
+           /* if (bpiso_.finalNonOrthogonalIter())
             {
                 phiH_ = phiHbyAH - pHEqn.flux()/fvc::interpolate(magperm_);
                 H_.correctBoundaryConditions();
-            }
+            }*/
+            
+            
+            
+                        if (bpiso_.finalNonOrthogonalIter())
+{
+    surfaceScalarField correctionFlux
+    (
+        pHEqn.flux()/fvc::interpolate(magperm_)
+    );
+
+    phiH_ = phiHbyAH - correctionFlux;
+    //H_    = HbyAH - fvc::reconstruct(correctionFlux);// dont need this if we formulate the Lorentz force using the divergence cleaned face fluxes of H!!!
+    H_.correctBoundaryConditions();
+}
+            
+            
+            
+            
+            
+            
         }
 
         Info<< "H magnetic flux divergence error {div(mu H)}= "

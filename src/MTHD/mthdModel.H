@@ -39,8 +39,8 @@ class mthdModel
 
         fvMesh& mesh_;
         pimpleControl bpiso_;
-        volVectorField H_;
         surfaceScalarField phiH_;
+        volVectorField H_;
         volScalarField pH_;
         volVectorField B_;
         volVectorField J_;
@@ -50,6 +50,7 @@ class mthdModel
         volScalarField oneoversigma_;
         volScalarField Joulesource_;
         volVectorField JcrossB_;
+        volScalarField pMag_; // magnetic pressure - splitting JcrossB into tension and pressure components for numerical stability
 
 
     // Private Member Functions
@@ -94,6 +95,11 @@ public:
         const volVectorField& JcrossB() const
         {
             return JcrossB_;
+        }
+        
+        const volScalarField& magneticPressure() const
+        {
+            return pMag_;
         }
 
         void correctIncompressibleProperties

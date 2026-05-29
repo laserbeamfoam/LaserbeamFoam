@@ -26,6 +26,11 @@ const volVectorField& JcrossB =
   ? mthd->JcrossB()
   : zeroJcrossB;
 
+const volScalarField& pMag =
+    mthd.valid()
+  ? mthd->magneticPressure()
+  : zeroMagneticPressure;
+  
 fvVectorMatrix UEqn
 (
     fvm::ddt(rho, U)
@@ -33,7 +38,7 @@ fvVectorMatrix UEqn
   + turbulence->divDevRhoReff(U)
   + fvm::Sp(DC, U)
   + Marangoni
-  - JcrossB
+  - JcrossB//this is now the magnetic tension force....Roman to check
 );
 
 
@@ -49,6 +54,7 @@ if (pimple.momentumPredictor())
         (
             (
                 mixture.surfaceTensionForce()
+                - fvc::snGrad(pMag)
               - ghf*fvc::snGrad(rho)
               - fvc::snGrad(p_rgh)
             ) * mesh.magSf()
