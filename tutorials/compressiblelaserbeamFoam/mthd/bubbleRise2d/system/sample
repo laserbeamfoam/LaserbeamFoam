@@ -1,0 +1,82 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      sampling;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+
+__surfaceFieldValue
+{
+    type            surfaceFieldValue;
+    libs            (fieldFunctionObjects);
+    log             on;
+    enabled         true;
+    writeControl    timeStep;
+    writeInterval   1;
+    writeFields     false;
+    surfaceFormat   vtk;
+}
+
+
+// * * * * * * * * * * * * * * * * Sampling  * * * * * * * * * * * * * * * * //
+
+// Sample volume fields to surfaces and hold on registry.
+sampled
+{
+    type    surfaces;
+    libs    (sampling);
+    log     true;
+
+    executeControl  timeStep;
+    executeInterval 1;
+    writeControl    none;
+    sampleOnExecute true;
+    surfaceFormat   none;
+    fields      ( p U );
+    surfaces
+    {
+        walls
+        {
+            type patch;
+            patches ( ".*Wall" );
+            // triangulate     false;
+        }
+    }
+}
+
+
+// * * * * * * * * * * * * * * * Calculations  * * * * * * * * * * * * * * * //
+
+nonWeightedAreaAverage
+{
+    ${__surfaceFieldValue}
+    enabled         true;
+
+    regionType      sampledSurface;
+    name            sampledTriSurf;
+    sampledSurfaceDict
+    {
+        type patch;
+        patches ( ".*Wall" );
+        interpolate true;
+    }
+
+    operation       areaAverage;
+    fields          ( p U );
+}
+
+// * * * * * * * * * * * * * * * * * Cleanup * * * * * * * * * * * * * * * * //
+
+#remove "__.*"
+
+// ************************************************************************* //

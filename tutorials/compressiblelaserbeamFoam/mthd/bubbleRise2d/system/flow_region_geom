@@ -1,0 +1,25 @@
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      flow_region_geom;
+}
+/*
+    Geometry parameters which are shared across
+    multiple dictionaries.
+*/
+xmin_value                  -35e-3;
+xmax_value                  35.0e-3;
+
+ymin_value                  0;
+ymax_value                  40e-3;
+
+// Bubble phase used by setFields
+bubble_center_x             0;
+bubble_center_y             10e-3;
+bubble_radius               2.6e-3;
+
+// Pertubation velocities used by setFields
+pertubtation_velocity       1e-2;
+pertubtation_velocity_neg   -1e-2;

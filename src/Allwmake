@@ -8,5 +8,6 @@ targetType=""
 
 (cd geometricVoF && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
 (cd laserHeatSource && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
+(cd MTHD && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
 (cd transportModels/incompressible && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)
 (cd turbulenceModel && ./Allwmake $targetType $* 2>&1 | tee log.Allwmake)

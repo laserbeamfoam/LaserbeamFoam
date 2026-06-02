@@ -224,14 +224,14 @@ volScalarField em
 (
     IOobject
     (
-        "em",                       
-        runTime.timeName(),         
-        mesh,                       
-        IOobject::NO_READ,          
-        IOobject::NO_WRITE          
+        "em",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
     ),
     mesh,
-    dimensionedScalar("zero", dimless, 0.0) 
+    dimensionedScalar("zero", dimless, 0.0)
 );
 
 const dimensionedScalar SB
@@ -241,8 +241,8 @@ const dimensionedScalar SB
     scalar(5.67e-8)
 ); // Stefan-Boltzmann Constant
 
-const scalar emL(readScalar(transportProperties.lookup("emL")));
-const scalar emS(readScalar(transportProperties.lookup("emS")));
+[[maybe_unused]]const scalar emL(readScalar(transportProperties.lookup("emL")));
+[[maybe_unused]]const scalar emS(readScalar(transportProperties.lookup("emS")));
 const dimensionedScalar TRef ("TRef",transportProperties);
 
 const Polynomial<8> polykappa_m(transportPropertiesMetal.lookup("poly_kappa"));
@@ -502,6 +502,34 @@ volVectorField Marangoni
     dimensionedVector("Marangoni", dimensionSet(1, -2, -2, 0, 0), vector::zero)
 );
 
+const volVectorField zeroJcrossB
+(
+    IOobject
+    (
+        "zeroJcrossB",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector("zeroJcrossB", dimensionSet(1, -2, -2, 0, 0), vector::zero)
+);
+
+const volScalarField zeroJoulesource
+(
+    IOobject
+    (
+        "zeroJoulesource",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("zeroJoulesource", dimensionSet(1, -1, -3, 0, 0), 0.0)
+);
+
 // Recoil Pressure
 volScalarField pVap
 (
@@ -591,11 +619,6 @@ volScalarField alpha_smoothed
     dimensionedScalar("alpha_smoothed", dimensionSet(0, 0, 0, -0, 0), 0.0)
 );
 
-// volVectorField gradepsilon1(fvc::grad(epsilon1));
-// volScalarField e1temp(fvc::average(epsilon1));
-// volScalarField e2temp(fvc::average(epsilon1mask));
-
-
 volScalarField e1temp
 (
     IOobject
@@ -610,30 +633,6 @@ volScalarField e1temp
     dimensionedScalar("e1temp", dimensionSet(0, 0, 0, -0, 0), 0.0)
 );
 e1temp = fvc::average(epsilon1);
-
-
-dimensionedScalar elec_resistivity_metal
-(
-    "elec_resistivity",
-    dimensionSet(1, 3, -3, 0, 0),
-    transportPropertiesMetal//.lookup("elec_resistivity")
-);
-
-
-// Electrical resistivity of condensate only
-volScalarField electrical_resistivity
-(
-    IOobject
-    (
-        "electrical_resistivity",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    elec_resistivity_metal
-);
 
 volScalarField rhoCp
 (
@@ -779,9 +778,41 @@ autoPtr<transportModelType> turbulence
 #include "readhRef.H"
 #include "gh.H"
 
+
+
+
+
+autoPtr<mthdModel> mthd(nullptr);
+
+if (mthdModel::electromagneticsEnabled(mesh, "transportProperties"))
+{
+    mthd.reset(new mthdModel(mesh, "transportProperties"));
+}
+
+const dimensionedScalar eleccond1 =
+    mthdModel::readElectricalConductivity(transportPropertiesMetal);
+
+volScalarField electrical_resistivity
+(
+    IOobject
+    (
+        "electrical_resistivity",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    1.0/eleccond1
+);
+
+
+
+
 // Create laser heat source
 laserHeatSource laser(mesh);
 
+#include "updateYDim.H"
 #include "updateProps.H"
 
 // volScalarField depositionTemp

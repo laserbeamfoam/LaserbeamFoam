@@ -39,23 +39,24 @@ TRHS=          LatentHeat*((
 TRHS.correctBoundaryConditions();
 
 
-
-
+    const volScalarField& Joulesource =
+        mthd.valid()
+      ? mthd->Joulesource()
+      : zeroJoulesource;
 
     fvScalarMatrix TEqn
     (
         fvm::ddt(rho, T)
       + fvm::div(mixture.rhoPhi(), T)
       - fvm::laplacian(mixture.alphaEff(turbulence->mut()), T)
-      // - (mixture.rCv()())*fvm::laplacian(mixture.Cv()()*mixture.alphaEff(rho*turbulence->mut()), T)
       + (
             fvc::div(fvc::absolute(phi, U), p)
           + fvc::ddt(rho, K) + fvc::div(mixture.rhoPhi(), K)
         )*mixture.rCv()
 
         ==
-        // // fvModels.source(rho, T)
           mixture.rCv()*laser.deposition()
+        + mixture.rCv()*Joulesource
         - mixture.rCv()*TRHS
         -mass_dot
     );

@@ -49,6 +49,7 @@ Description
 #include "CorrectPhi.H"
 
 #include "laserHeatSource.H"
+#include "mthdModel.H"
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 int main(int argc, char *argv[])
@@ -170,6 +171,10 @@ int main(int argc, char *argv[])
 
 
             #include "UEqn.H"
+            if (mthd.valid())
+            {
+                mthd->solve(phi, U);
+            }
             #include "TEqn.H"
 
             // --- Pressure corrector loop
@@ -186,8 +191,17 @@ int main(int argc, char *argv[])
 
         runTime.write();
 
+        // Write ray paths to VTK files
+        if (runTime.outputTime())
+        {
+            laser.writeRayPathsToVTK();
+        }
+
         runTime.printExecutionTime(Info);
     }
+
+    // Write a VTK series file for easy-opening of the ray files
+    laser.writeRayPathVTKSeriesFile();
 
     Info<< "End\n" << endl;
 

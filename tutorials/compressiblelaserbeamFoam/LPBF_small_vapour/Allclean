@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Source tutorial clean functions
+. $WM_PROJECT_DIR/bin/tools/CleanFunctions
+
+(cd DEM_small && ./Allclean)
+
+cleanCase
+
+echo "Removing 0 and VTKs"
+rm -rf 0 VTKs

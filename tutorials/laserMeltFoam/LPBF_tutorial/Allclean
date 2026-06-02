@@ -5,5 +5,7 @@
 
 cleanCase
 
+sed -i '' 's/value[[:space:]]*( 0 9.81 0);/value           ( 0 0 -9\.81);/' constant/g
+
 echo "Removing 0 and VTKs"
 rm -rf 0 VTKs

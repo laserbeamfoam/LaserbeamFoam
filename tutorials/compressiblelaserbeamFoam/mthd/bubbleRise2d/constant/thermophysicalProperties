@@ -1,0 +1,61 @@
+/*--------------------------------*- V++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      phaseProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+#include "../initial/initialValues"
+
+phases (air GaInSn);
+
+// For Compressible code * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+pMin                    -10000.0;
+P0                      $p_internal;
+
+interface_thickness     1e-4;
+electromagnetics        true;
+
+boils
+(
+    (air GaInSn)        1e-9
+);
+
+LatentHeatGas // Caution - do not use zero for pairs (div zero error)
+(
+    (air GaInSn)        1e-9
+);
+
+
+// Common to incomp and comp: * * * * * * * * * * * * * * * * * * * * * * * *
+
+sigmas
+(
+    (air GaInSn)        585e-3
+);
+
+dsigmadT
+(
+    (air GaInSn)        0.0
+);
+
+interfaceCompression
+(
+    (air GaInSn)        1.0
+);
+
+interfaceDiffusion
+(
+    (air GaInSn)        0.0
+);
+
+// ************************************************************************* //
