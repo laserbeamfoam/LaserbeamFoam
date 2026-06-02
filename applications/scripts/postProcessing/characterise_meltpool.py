@@ -83,8 +83,9 @@ Method:
 Outputs:
   - continuous.joblib          → Boolean indicating track continuity 
                                  (mesh-aware check).
-  - cross_section_metrics.csv  → Per cross-section values of W, H, H_depth, and
-  Porosity  (only if the track is continuous).
+  - cross_sections_statistics.csv  → Per cross-section values of W, H,
+                                      H_depth, and Porosity  (only if the
+                                      track is continuous).
 
 Authors
     Simon A. Rodriguez, University College Dublin (UCD)
@@ -96,6 +97,8 @@ Authors
 
 import os
 import sys
+import glob
+import shutil
 
 sys.path.insert(0, os.getcwd())
 
@@ -104,6 +107,15 @@ from input_data import *
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+def movePlotsToResults():
+    png_files = glob.glob("*.png")
+    if (len(png_files) == 0):
+        return
+
+    os.makedirs("results_plots", exist_ok=True)
+    for png_file in png_files:
+        shutil.move(png_file, os.path.join("results_plots", png_file))
+
 
 terminal(
     f'bash -c "source {OF_LOCATION} && pvpython {os.path.join(SCRIPT_DIR, "extract_meltpool.py")}"'
@@ -111,6 +123,6 @@ terminal(
 calculate_geometry_full_meltpool(CSV_3D = "./meltpool.csv")
 if (PLOT_GEOMETRY_VS_Y_LOCATION):
     plotResults()
-terminal("mkdir -p results_plots && mv *.png results_plots")
+movePlotsToResults()
 
 print("Geometry measurement finished.")

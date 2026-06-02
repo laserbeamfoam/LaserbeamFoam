@@ -121,12 +121,12 @@ The porosity values shown were computed automatically by this post-processing ut
 
 
 
-## Example Case Included in This Folder
+## Example Case
 
-Although this folder is primarily intended to contain only the Python post-processing scripts,  
-it also includes the results of a **small LPBF (Laser Powder Bed Fusion) simulation case**.  
-This minimal case has been added purely for demonstration purposes — to illustrate how the tool is used  
-and to showcase the type of outputs it produces (e.g. continuity slice, width, height, depth, and porosity plots).
+The `tutorials/laserbeamFoam/LPBF_small` tutorial includes a small precomputed
+LPBF result that can be used to test this post-processing workflow without
+rerunning the solver. The tutorial README explains how to run the case from
+scratch and how to use the included result as a post-processing example.
 
 ## Limitations
 

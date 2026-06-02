@@ -162,9 +162,6 @@ def is_meltpool_continuous(CSV_3D = "meltpool.csv"):
         if (len(void_iy_levels) > 0):
             dump(void_iy_levels, "./void_iy_levels.joblib")
     
-        if (len(void_iy_levels) > 0):
-            dump(void_iy_levels, "./void_iy_levels.joblib")
-    
     return meltpool_is_continuous
 
 def calculate_statistics_rows_meltpool(CSV_3D, meltpool_is_continuous):
@@ -335,8 +332,6 @@ def calculate_cross_sections_statistics(row_statistics,
     
     for iy in y_unique:
         if (iy not in void_iy_levels):
-            if (iy == 0.00037):
-                print("SIMON")
             mask = (iy == y)
             cross_section_at_iy = row_statistics[mask]
             z_at_iy = cross_section_at_iy["z_coord_"]
@@ -352,10 +347,10 @@ def calculate_cross_sections_statistics(row_statistics,
             if (True not in pores_at_iy.values): # This means there is no holes
                                                  # at this iy section, neither 
                                                 # internal nor upper boundaries
-                max_height_location_at_iy = z_at_iy[max(id_rows_at_iy)] #AQUI
+                max_height_location_at_iy = z_at_iy[max(id_rows_at_iy)]
                 height =  max_height_location_at_iy - min(z_at_iy)
                 width = max(width_rows_at_iy)
-                z_location_max_width = width_rows_at_iy.argmax(width)
+                z_location_max_width = width_rows_at_iy.to_numpy().argmax()
                 depth = max(z_at_iy) - z_at_iy.to_numpy()[z_location_max_width]
             
             else:
@@ -427,4 +422,3 @@ def calculate_geometry_full_meltpool(CSV_3D = "meltpool.csv"):
         
     else:
         print("Meltpool is not continuous")
-
