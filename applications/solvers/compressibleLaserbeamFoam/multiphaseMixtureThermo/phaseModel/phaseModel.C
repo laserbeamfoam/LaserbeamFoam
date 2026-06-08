@@ -35,7 +35,7 @@ Foam::phaseModel::phaseState Foam::phaseModel::readPhaseState
 ) const
 {
     word stateWord = dict.getOrDefault<word>("phaseState", "condensed");
-
+    
     if (stateWord == "condensed")
     {
         return phaseState::CONDENSED;
@@ -55,12 +55,12 @@ Foam::phaseModel::phaseState Foam::phaseModel::readPhaseState
     else
     {
         WarningInFunction
-            << "Unknown phase state '" << stateWord
+            << "Unknown phase state '" << stateWord 
             << "' for phase " << name_
             << ". Valid options: condensed, gaseous, solid, plasma"
             << nl << "Defaulting to condensed."
             << endl;
-
+        
         return phaseState::CONDENSED;
     }
 }
@@ -127,9 +127,9 @@ Foam::phaseModel::phaseModel
             IOobject::MUST_READ_IF_MODIFIED
         )
     );
-
+    
     state_ = readPhaseState(phaseDictionary);
-
+    
     Info<< "Phase " << phaseName << " state: " << stateAsWord() << endl;
 
 

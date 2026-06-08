@@ -75,11 +75,11 @@ int main(int argc, char *argv[])
     #include "initContinuityErrs.H"//new
     #include "createDyMControls.H"//new
 
-    // bool bRestartFirstLoop = false; <- declared within createFields.H
     #include "createFields.H"
 
     #include "initCorrectPhi.H"
     #include "createUfIfPresent.H"
+
 
 
     volScalarField& p = mixture.p();
@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
     turbulence->validate();
 
     #include "update.H"
+
 
     #include "CourantNo.H"
     #include "setInitialDeltaT.H"
@@ -113,6 +114,7 @@ int main(int argc, char *argv[])
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
         {
+
             if (pimple.firstIter() || moveMeshOuterCorrectors)
             {
                 scalar timeBeforeMeshUpdate = runTime.elapsedCpuTime();
@@ -130,11 +132,8 @@ int main(int argc, char *argv[])
 
                     MRF.update();
 
-                    if (correctPhi && !bRestartFirstLoop)
+                    if (correctPhi)
                     {
-                        // Prevent corrections on the first loop of a restarted
-                        // solver.
-
                         // Calculate absolute flux
                         // from the mapped surface velocity
                         phi = mesh.Sf() & Uf();
@@ -154,47 +153,22 @@ int main(int argc, char *argv[])
                 }
             }
 
-            // Disable flag: this permits correctPhi on subsequent loops.
-            bRestartFirstLoop = false;
 
-            // Semi-PIMPLE Implementation:
-            // - Phase `alphaRho` related items are solved once.
-            // - Laser is also solved once.
-            // - To restore MTHD coupling, i.e., (U-p)-H-T, the pimple loop is
-            //   permitted on those terms.
-            //
-            // PISO Section (Phase related)
-            if (pimple.firstIter())
-            {
-                vDot = mixture.solve(&mass_dot,pimple.finalIter()); // always finalIter=true
-                vDot.correctBoundaryConditions();
-                mass_dot.correctBoundaryConditions();
+            vDot = mixture.solve(&mass_dot);
+            vDot.correctBoundaryConditions();
 
+            mass_dot.correctBoundaryConditions();
 
-                if (debugFlag)
-                {
-                    rhoCopyPreUpdatePtr() = rho;
-                }
+            rho=mixture.rho();
 
+            #include "update.H"
 
-                // Make latest solution is == to oldTime
-                rho.oldTime() = rho;
-                // For whatever reason, this doesn't happen automatically like
-                // with other fields (at least for testing during bubble2dRise).
-                //   Not having this will break the solutions when restarting.
+            // Update the laser deposition field
+            laser.updateDeposition
+            (
+                condensateFiltered, n_filtered, electrical_resistivity
+            );
 
-
-                rho = mixture.rho();
-
-                #include "update.H"
-
-                laser.updateDeposition
-                (
-                    condensateFiltered, n_filtered, electrical_resistivity
-                );
-            }
-
-            // PIMPLE Section ((U-p)-H-T coupling)
 
             #include "UEqn.H"
             if (mthd.valid())
@@ -214,8 +188,6 @@ int main(int argc, char *argv[])
                 turbulence->correct();
             }
         }
-
-        #include "writeOldTimeStorage.H"
 
         runTime.write();
 
