@@ -1447,7 +1447,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
 
 
-        dimensionedScalar maxrate( "maxrate", dimensionSet(0,0,-1,0,0,0,0), 0.5/mesh_.time().deltaT().value() );//something like rate
+        dimensionedScalar maxrate( "maxrate", dimensionSet(0,0,-1,0,0,0,0), 0.05/mesh_.time().deltaT().value() );//something like rate
         dimensionedScalar gasconstant("gasconstant",dimensionSet(1, 2, -2, -1, -1),scalar(8.314));//1 2 -2 -1 -1 proper units
 
 
