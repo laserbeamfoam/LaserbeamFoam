@@ -11,9 +11,14 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties.mercury;
+    object      thermophysicalProperties.metal1vapour;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// metal1vapour = IRON VAPOUR
+// EOS switched perfectFluid -> perfectGas: the specific gas constant is now
+// derived from molWeight (R = 8314/M ~ 149 J/kg/K for Fe), instead of the
+// erroneous universal-R = 8.314 with a 5 kg/m3 incompressible floor.
 
 phaseState      gaseous;  // or: gaseous, solid
 
@@ -23,39 +28,40 @@ thermoType
     mixture         pureMixture;
     transport       const;
     thermo          eConst;
-    equationOfState perfectFluid;
+    equationOfState perfectFluid;//perfectGas;
     specie          specie;
     energy          sensibleInternalEnergy;
 }
 
+// Placeholders so the melting model never acts on a vapour phase.
+TSolidus    5.0;
+TLiquidus   10.0;
+LatentHeat  1.0;
 
-TSolidus	5.0;
-TLiquidus	10.0;
-LatentHeat	1.0;
-
-elec_conductivity	1.0;
-magnetic_permeability	1.256e-6;
+elec_conductivity   1.0;
+magnetic_permeability   1.256e-6;
 
 mixture
 {
+	
+	equationOfState
+{
+    R           149;
+    rho0        20.0;
+}
     specie
     {
-        molWeight   50.0;
-    }
-    equationOfState
-    {
-        rho0         5.0;
-        R	8.314;
+        molWeight   55.85;          // Fe -> R = 8314/55.85 ~ 149 J/kg/K
     }
     thermodynamics
     {
-        Cv          1039;
+        Cv          223;            // monatomic vapour, 1.5*R  (gamma ~ 1.67)
         Hf          0;
     }
     transport
     {
         mu          1.0e-5;
-        Pr          1.0;
+        Pr          0.67;           // monatomic ideal gas
     }
 }
 

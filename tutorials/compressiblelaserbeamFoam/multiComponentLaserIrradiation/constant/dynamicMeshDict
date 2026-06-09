@@ -30,10 +30,10 @@ upperRefineLevel 0.99;
 unrefineLevel   0.01;
 
 // Have slower than 2:1 refinement
-nBufferLayers   1;
+nBufferLayers   4;
 
 // Refine cells only up to maxRefinement levels
-maxRefinement   3;
+maxRefinement   2;
 
 // Stop refinement if maxCells reached
 maxCells        20000000;

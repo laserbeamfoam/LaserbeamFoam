@@ -119,48 +119,21 @@ dsigmadT
 	(metal4vapour air)	0.0
 );
 
+boils
+(
+(metal1vapour metal1) 3134.0   // Fe
+(metal2vapour metal2) 2944.0   // Cr
+(metal3vapour metal3) 3003.0   // Ni
+(metal4vapour metal4) 4912.0   // Mo
+);
 
-
-phaseTransitions
-{
-    metal1Boiling
-    {
-        type                boiling;
-        condensedPhase      metal1;
-        gaseousPhase        metal1vapour;
-        boilingTemperature  2900;       // [K]
-        latentHeat          6.5e6;      // [J/kg]
-    }
-    
-    metal2Boiling
-    {
-        type                boiling;
-        condensedPhase      metal2;
-        gaseousPhase        metal2vapour;
-        boilingTemperature  3000;       // [K]
-        latentHeat          6.5e6;      // [J/kg]
-    }
-    
-    metal3Boiling
-    {
-        type                boiling;
-        condensedPhase      metal3;
-        gaseousPhase        metal3vapour;
-        boilingTemperature  3100;       // [K]
-        latentHeat          6.5e6;      // [J/kg]
-    }
-    
-    metal4Boiling
-    {
-        type                boiling;
-        condensedPhase      metal4;
-        gaseousPhase        metal4vapour;
-        boilingTemperature  3200;       // [K]
-        latentHeat          6.5e6;      // [J/kg]
-    }
-
-
-}
+LatentHeatGas
+(
+(metal1vapour metal1) 6.09e6   // Fe
+(metal2vapour metal2) 6.62e6   // Cr
+(metal3vapour metal3) 6.48e6   // Ni
+(metal4vapour metal4) 6.20e6   // Mo
+);
 
 interfaceCompression
 (
