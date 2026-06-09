@@ -1447,7 +1447,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
 
 
-        dimensionedScalar maxrate( "maxrate", dimensionSet(0,0,-1,0,0,0,0), 0.05/mesh_.time().deltaT().value() );//something like rate
+        dimensionedScalar maxrate( "maxrate", dimensionSet(0,0,-1,0,0,0,0), 0.5/mesh_.time().deltaT().value() );//something like rate
         dimensionedScalar gasconstant("gasconstant",dimensionSet(1, 2, -2, -1, -1),scalar(8.314));//1 2 -2 -1 -1 proper units
 
 
@@ -1759,6 +1759,17 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
         << sumAlpha.weightedAverage(mesh_.V()).value()
         << ' ' << min(sumAlpha).value()
         << ' ' << max(sumAlpha).value()
+        << endl;
+
+
+    const scalar alphaVolCorrCoeff = 0.2;
+
+    PCR += (sumAlpha - 1.0) * alphaVolCorrCoeff
+         / mesh_.time().deltaT();
+
+    Info<< "Volume correction applied: mean(sumAlpha-1) = "
+        << (sumAlpha - 1.0)().weightedAverage(mesh_.V()).value()
+        << ", max = " << max(sumAlpha - 1.0).value()
         << endl;
 
 
