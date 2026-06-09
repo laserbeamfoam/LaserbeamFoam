@@ -37,19 +37,15 @@ dsigmadT
     (metal1vapour air)	0.0
 );
 
+boils
+(
+    (metal1vapour metal1)	2900
+);
 
-phaseTransitions
-{
-    metal1Boiling
-    {
-        type                boiling;
-        condensedPhase      metal1;
-        gaseousPhase        metal1vapour;
-        boilingTemperature  2900;       // [K]
-        latentHeat          1.0e6;      // [J/kg]
-    }
-
-}
+LatentHeatGas
+(
+    (metal1vapour metal1)	1e6
+);
 
 interfaceCompression
 (

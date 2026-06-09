@@ -16,9 +16,12 @@ if (correctPhi)
         dimensionedScalar("rAU", dimTime/dimDensity, 1)
     );
 
-    #include "correctPhi.esi.H"
+    if (!bRestartFirstLoop)
+    {
+        #include "correctPhi.esi.H"
+    }
 }
-else
+else if (!bRestartFirstLoop)
 {
     CorrectPhi
     (
@@ -26,7 +29,7 @@ else
         phi,
         p_rgh,
         dimensionedScalar("rAUf", dimTime/rho.dimensions(), 1),
-        geometricZeroField(),//deallocation error if mDot here?!?!
+        vDot, // geometricZeroField(),//deallocation error if mDot here?!?!
         pimple
     );
 

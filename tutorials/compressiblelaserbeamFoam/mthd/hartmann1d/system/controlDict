@@ -22,11 +22,11 @@ startTime       0;
 
 // Note: simulation takes ~25 seconds for endTime 50
 //       change stopAt to `endTime` for actual use.
-stopAt          writeNow; // endTime;
+stopAt          endTime;
 
 endTime         50;
 
-deltaT          1e-12;
+deltaT          1;
 
 writeControl    adjustableRunTime;
 
@@ -46,7 +46,7 @@ timePrecision   10;
 
 runTimeModifiable yes;
 
-adjustTimeStep  yes;
+adjustTimeStep  no;
 
 maxCo           0.98;
 maxAlphaCo      0.98;

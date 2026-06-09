@@ -152,14 +152,14 @@ private:
         dimensionSet dimLatentHeatGas_;
 
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
-        scalarCoeffSymmCTable;  
+        scalarCoeffSymmCTable;
 
-        scalarCoeffSymmCTable cAlphas_;    
+        scalarCoeffSymmCTable cAlphas_;
 
 
 
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
-            scalarCoeffSymmDTable;    
+            scalarCoeffSymmDTable;
 
         scalarCoeffSymmDTable dAlphas_;
         dimensionSet dimdiff_;
@@ -199,6 +199,10 @@ private:
             const phaseModel& alpha2
         ) const;
 
+        //- Solver restart related
+        void restoreOldTimeValues();
+
+        void writeOldTimeValues();
 
 public:
 

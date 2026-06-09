@@ -16,7 +16,7 @@ FoamFile
 
 ddtSchemes
 {
-    default         Euler; // steadyState no longer works;
+    default         steadyState;
 }
 
 gradSchemes
@@ -27,8 +27,8 @@ gradSchemes
 divSchemes
 {
     div(rhoPhi,U)                               Gauss upwind;
-    div(phi,alphaRho)                           Gauss vanLeer;
-    div(phiR,alphaRho)                          Gauss vanLeer;
+    div(phi,alpha)                              Gauss vanLeer;
+    div(phirb,alpha)                            Gauss vanLeer;
     "div\(phi,.*rho.*\)"                        Gauss upwind;
     div(rhoPhi,T)                               Gauss upwind;
     div(rhoPhi,K)                               Gauss upwind;

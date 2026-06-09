@@ -133,6 +133,150 @@ Foam::multiphaseMixtureThermo::multiphaseMixtureThermo
 
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
 
+void Foam::multiphaseMixtureThermo::restoreOldTimeValues()
+{
+    // Any term involved in `fvc::ddt` needs to have their `.oldTime()`
+    // value re-read from disk if the solver is restarted!
+
+    // Just initiate oldTimes (applicable for all cases)
+    rhoPhi_.oldTime();
+    for (phaseModel& alpha : phases_)
+    {
+        volScalarField& rhoK = alpha.thermo().rho();
+        rhoK.oldTime();
+    }
+
+    // Early exit check (is a fresh start)
+    if (!(mesh_.time().timeIndex() > 1))
+    {
+        // No restoration required
+        return;
+    }
+
+    label errorCount = 0;
+    // Restore values if solver restart is detected
+    //- Restore rhoPhi oldTime
+    {
+        surfaceScalarField rhoPhi_oldTime
+        (
+            IOobject
+            (
+                IOobject::groupName("rhoPhi", "oldTime"),
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::NO_WRITE
+            ),
+            rhoPhi_
+        );
+
+        // Check (mainly for compatability and errors)
+        if (rhoPhi_oldTime.headerOk())
+        {
+            rhoPhi_.oldTime() = rhoPhi_oldTime;
+        }
+        else
+        {
+            Info<< "Mixture: WARNING could not find field `"
+                << "rhoPhi.oldTime`. "
+                << "This will cause issues in fvc::ddt terms!"
+                << "Please check your latest time directory (folder)!"
+                << endl;
+
+            errorCount++;
+        }
+    }
+
+    //- Restore rhoK's oldTime
+    for (phaseModel& alpha : phases_)
+    {
+        volScalarField rhoKoldTime
+        (
+            IOobject
+            (
+                "rho." + alpha.name() + ".oldTime",
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::NO_WRITE
+            ),
+            alpha.thermo().rho()
+        );
+
+        // Check (mainly for compatability and errors)
+        if (rhoKoldTime.headerOk())
+        {
+            volScalarField& rhoK = alpha.thermo().rho();
+            rhoK.oldTime() = rhoKoldTime;
+        }
+        else
+        {
+            Info<< "Mixture: WARNING could not find field `"
+                << "rho." << alpha.name() << ".oldTime`. "
+                << "This will cause issues in fvc::ddt terms!"
+                << "Please check your latest time directory (folder)!"
+                << endl;
+
+            errorCount++;
+        }
+    }
+
+    if (errorCount)
+    {
+        Info<< "Mixture WARNING: " << errorCount << " fields' oldTime values were not "
+            << "restored! This will cause issues within any fvc::ddt terms!"
+            << "RECOMMENDED: please inspect your latest time folder!"
+            << endl;
+    }
+    else
+    {
+        Info<< "Mixture: All relevant fields' oldTime values were restored using "
+            << "file reads. All good!"
+            << endl;
+    }
+}
+
+
+void Foam::multiphaseMixtureThermo::writeOldTimeValues()
+{
+    if (mesh_.time().writeTime())
+    {
+        surfaceScalarField rhoPhi_oldTime
+        (
+            IOobject
+            (
+                IOobject::groupName("rhoPhi", "oldTime"),
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            rhoPhi_.oldTime()
+        );
+
+        for (phaseModel& alpha : phases_)
+        {
+            volScalarField& rhoK = alpha.thermo().rho();
+
+            volScalarField rhoKoldTime
+            (
+                IOobject
+                (
+                    "rho." + alpha.name() + ".oldTime",
+                    mesh_.time().timeName(),
+                    mesh_,
+                    IOobject::NO_READ,
+                    IOobject::AUTO_WRITE
+                ),
+                rhoK.oldTime()
+            );
+
+            rhoKoldTime.write();
+        }
+    }
+}
+
+
 void Foam::multiphaseMixtureThermo::correct()
 {
     for (phaseModel& phase : phases_)
@@ -956,6 +1100,8 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
         // solveAlphas(cAlpha);
     }
 
+    writeOldTimeValues();
+
     return tPCR;
 }
 
@@ -1248,7 +1394,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     //int fluiditer = 0;
     for (phaseModel& alpha : phases_)
     {
-        
+
         if (alpha.isGaseous())
         {
             condensate -= alpha;
@@ -1783,21 +1929,21 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
 
     // Calculate and print total mass
     Info << "Phase pair (liquid + vapor) masses in domain:" << endl;
-    
+
     HashTable<bool> processedPhases;
-    
+
     for (const phaseModel& phase : phases_)
     {
         if (processedPhases.found(phase.name())) continue;
-        
+
         word vaporName = phase.name() + "vapour";
         bool hasVaporPair = false;
         scalar liquidMass = 0.0;
         scalar vaporMass = 0.0;
-        
+
         const volScalarField phaseMassLiq(phase*phase.thermo().rho());
         liquidMass = gSum(phaseMassLiq.primitiveField()*mesh_.V().field());
-        
+
         for (const phaseModel& phase2 : phases_)
         {
             if (phase2.name() == vaporName)
@@ -1809,12 +1955,12 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
                 break;
             }
         }
-        
+
         if (hasVaporPair)
         {
             scalar totalPairMass = liquidMass + vaporMass;
-            Info << "    " << phase.name() << " + " << vaporName << ": " 
-                 << totalPairMass << " kg (liquid: " << liquidMass 
+            Info << "    " << phase.name() << " + " << vaporName << ": "
+                 << totalPairMass << " kg (liquid: " << liquidMass
                  << " kg, vapor: " << vaporMass << " kg)" << endl;
             processedPhases.insert(phase.name(), true);
         }
