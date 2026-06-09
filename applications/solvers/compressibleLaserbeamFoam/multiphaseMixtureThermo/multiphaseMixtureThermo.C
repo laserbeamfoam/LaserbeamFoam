@@ -1181,6 +1181,24 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
     *massdotterm *= 0.0;
 
+    // --- Temperature floor for the vaporisation kinetics only --------
+    //
+    //  The Clausius-Clapeyron vapour pressure and the Hertz-Knudsen
+    //  1/sqrt(T) prefactor below are constitutive correlations defined
+    //  only for T > 0 K.  For any physical T > 0 the C-C exponent
+    //  (1 - T_boil/T) is bounded above by its coefficient (~13 here),
+    //  so it cannot overflow; the overflow only ever arises from a
+    //  numerically negative T, where the exponent changes sign.  Tmin
+    //  is the case reference (ambient) temperature - below it the metal
+    //  vapour pressure is exp(-O(100)), i.e. negligible, so clamping the
+    //  ARGUMENT of these correlations to Tmin keeps them inside their
+    //  domain of validity without changing the rate returned for any
+    //  physically meaningful cell.  The temperature FIELD is NOT touched
+    //  here, so energy is conserved - this is a model-validity clamp,
+    //  not an energy source.
+    const dimensionedScalar Tmin("Tmin", dimTemperature, 300.0);
+    const volScalarField Tsafe(max(T_, Tmin));
+
     PtrList<volScalarField> Sps(phases_.size());
     PtrList<volScalarField> Sus(phases_.size());
 
@@ -1471,7 +1489,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         dimensionedScalar("Psat", dimensionSet(1, -1, -2, 0, 0), 0.0)
     );
 
-    Psat = P0*Foam::exp((((alpha.thermo().W()/1000.0)*pair_LHG)/(pair_boil_T*gasconstant))*(1.0-(pair_boil_T/T_)));
+    Psat = P0*Foam::exp((((alpha.thermo().W()/1000.0)*pair_LHG)/(pair_boil_T*gasconstant))*(1.0-(pair_boil_T/Tsafe)));
 
     // Info<<Psat<<endl;
 
@@ -1522,8 +1540,8 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
 
                         // Info<<"HERE1"<<endl;
                         //NEW Compressible cond and evap rates
-                        evaprate = 1.0*Foam::sqrt((alpha.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*liqdensity))*(Psat-p_);//*****************;
-                        condrate = -max(condensate,1e-6)*Foam::sqrt((alpha2.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*vapdensity))*(Psat-p_);//**********************;
+                        evaprate = 1.0*Foam::sqrt((alpha.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*Tsafe))*(1.0/(int_thickness*liqdensity))*(Psat-p_);//*****************;
+                        condrate = -max(condensate,1e-6)*Foam::sqrt((alpha2.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*Tsafe))*(1.0/(int_thickness*vapdensity))*(Psat-p_);//**********************;
                         //NEW Compressible cond and evap rates
                         // Info<<"HERE2"<<endl;
                         // evaprate=ratedummy;//L_Lee*(alpha.thermo().rho()/alpha2.thermo().rho())*((T_-pair_boil_T)/pair_boil_T);//Lee
@@ -1545,8 +1563,8 @@ Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<a
 
                     //NEW Compressible cond and evap rates
                     // Info<<"HERE3"<<endl;
-                        evaprate = 1.0*Foam::sqrt((alpha2.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*liqdensity))*(Psat-p_);//*****************;
-                        condrate = -max(condensate,1e-6)*Foam::sqrt((alpha.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*vapdensity))*(Psat-p_);//**********************;
+                        evaprate = 1.0*Foam::sqrt((alpha2.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*Tsafe))*(1.0/(int_thickness*liqdensity))*(Psat-p_);//*****************;
+                        condrate = -max(condensate,1e-6)*Foam::sqrt((alpha.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*Tsafe))*(1.0/(int_thickness*vapdensity))*(Psat-p_);//**********************;
                         //NEW Compressible cond and evap rates
 // Info<<"HERE4"<<endl;
 

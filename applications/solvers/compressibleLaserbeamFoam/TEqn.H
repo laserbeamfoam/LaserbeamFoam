@@ -48,6 +48,7 @@ TRHS.correctBoundaryConditions();
     (
         fvm::ddt(rho, T)
       + fvm::div(mixture.rhoPhi(), T)
+      - fvm::Sp(fvc::ddt(rho) + fvc::div(mixture.rhoPhi()), T)
       - fvm::laplacian(mixture.alphaEff(turbulence->mut()), T)
       + (
             fvc::div(fvc::absolute(phi, U), p)
