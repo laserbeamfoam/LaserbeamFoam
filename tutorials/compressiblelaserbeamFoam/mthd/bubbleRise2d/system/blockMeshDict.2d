@@ -12,7 +12,7 @@ FoamFile
     object      blockMeshDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-#include "flow_region_geom"
+#include "flowRegionGeom"
 
 scale 1;
 
@@ -30,7 +30,7 @@ zmax 10.1e-3;
 nx #eval "mag(($xmax - $xmin) / $dx)";
 ny #eval "mag(($ymax - $ymin) / $dx)";
 
-vertices        
+vertices
 (
     ($xmin  $ymin  $zmin) // 0
     ($xmax  $ymin  $zmin) // 1
@@ -84,7 +84,7 @@ boundary
             (2 3 7 6)//(3 7 6 2)
         );
     }
-    
+
     back
     {
         type empty;

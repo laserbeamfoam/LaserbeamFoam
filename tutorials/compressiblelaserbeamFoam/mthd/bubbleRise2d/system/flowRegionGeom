@@ -3,7 +3,7 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      flow_region_geom;
+    object      flowRegionGeom;
 }
 /*
     Geometry parameters which are shared across

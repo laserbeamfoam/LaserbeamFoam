@@ -12,12 +12,12 @@ FoamFile
     object      blockMeshDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-#include "flow_region_geom"
+#include "flowRegionGeom"
 
 scale 1;
 
 // Background mesh sizing
-dx 0.5e-3; // #eval "(20.0e-3)/40.0";
+dx 1.0e-3; // #eval "(20.0e-3)/40.0";
 
 // Automated sizing below (no user modification required)
 xmin $xmin_value ;

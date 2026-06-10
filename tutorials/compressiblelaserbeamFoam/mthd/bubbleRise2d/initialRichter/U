@@ -13,7 +13,7 @@ FoamFile
     object      U;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-// #include "../system/flow_region_geom"
+// #include "../system/flowRegionGeom"
 #include "initialValues"
 
 dimensions      [0 1 -1 0 0 0 0];
