@@ -95,7 +95,7 @@ MELTING
 
 PIMPLE
 {
-    nOuterCorrectors 1;
+    nOuterCorrectors 2;
     nCorrectors     3;
     nNonOrthogonalCorrectors 3;
 }
