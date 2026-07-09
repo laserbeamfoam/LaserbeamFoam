@@ -37,20 +37,21 @@ BeamShape::BeamShape
     const fileName& shapeFile,
     const fileName& scheduleFile,
     const fvMesh& mesh,
-    const dictionary& laserProperties // This line accepts the LaserProperties dictionary
+    const dictionary& laserProperties, // This line accepts the LaserProperties dictionary
+    const dictionary& laserDict
 )
 : 
     shapeFile_(shapeFile), // Initialize shapeFile_
     scheduleFile_(scheduleFile),
-    mesh_(mesh),           // Initialize mesh_ if it is needed later
-    laserProperties_(laserProperties) // Properly initialize laserProperties_ here
+    mesh_(mesh)           // Initialize mesh_ if it is needed later
 {
     // read the laserProperties file for the debug flag
     debug = laserProperties.lookupOrDefault<bool>("debug", false);
     
     // read the LaserProperties dictionary here for the pixel size
-    
-    pixelSize_ = laserProperties.lookupOrDefault<scalar>("pixelSize", 2.5814851E-6); // default for 1.5 m free space propagation
+    const scalar defaultPixelSize =
+        laserProperties.lookupOrDefault<scalar>("pixelSize", 2.5814851E-6);
+    pixelSize_ = laserDict.lookupOrDefault<scalar>("pixelSize", defaultPixelSize);
     pixelArea_ = pow(pixelSize_, 2);
     // set the imageLength_
     imageLength_ = dim_ * pixelSize_;
@@ -318,6 +319,21 @@ void BeamShape::beamShapeScheduler
         label n_addresses = addressList.size();
         scalar freq = shapeFrequency_[i];
         scalar shapeDur = shapeDuration_[i];
+
+        // The 80 MHz single-address hardware ceiling applies per address switch,
+        // so a shape cycling through n_addresses can only repeat as fast as
+        // maxSingleAddressFrequency_ / n_addresses.
+        const scalar maxFreqForShape = maxSingleAddressFrequency_ / scalar(n_addresses);
+        if (freq > maxFreqForShape + SMALL)
+        {
+            FatalErrorInFunction
+                << "shapeFrequency " << freq << " Hz requested for shape '"
+                << beamShapesList_[i] << "' (" << n_addresses << " addresses) "
+                << "exceeds the maximum achievable frequency of "
+                << maxFreqForShape << " Hz (= maxSingleAddressFrequency_ "
+                << maxSingleAddressFrequency_ << " Hz / " << n_addresses
+                << " addresses)." << exit(FatalError);
+        }
 
         if (n_addresses == 1)
         {

@@ -872,7 +872,8 @@ volScalarField State
         IOobject::AUTO_WRITE
     ),
     mesh,
-    dimensionedScalar("State", dimless, 0.0)
+    dimensionedScalar("State", dimless, 0.0),
+    "zeroGradient"
 );
 
 volScalarField transitionState

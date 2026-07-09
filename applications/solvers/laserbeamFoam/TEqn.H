@@ -70,7 +70,7 @@
           //- (tau && gradU) // Viscous dissipation
          ==
             laser.deposition()
-          - Qv*mag(gradAlpha)*thermalDamper
+        //   - Qv*mag(gradAlpha)*thermalDamper
           + (Qrad_expl - Qv)*gradAlphaDamper
           - TRHS
         );

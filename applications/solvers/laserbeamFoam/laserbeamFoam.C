@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     if (isA<dynamicRefineFvMesh>(mesh))
     {
         #include "cellMasks.H"
-        Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+        Foam::updateRefineFlag(refineFlag, State, alpha_smoothed);
 
         if (interfaceTrackingScheme == "isoAdvector")
         {
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 
         #include "updateProps.H"
         #include "cellMasks.H"
-        Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+        Foam::updateRefineFlag(refineFlag, State, alpha_smoothed);
     }
 
     if (interfaceTrackingScheme == "MULES")
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
         Info<< "Time = " << runTime.timeName() << nl << endl;
 
         #include "cellMasks.H"
-        Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+        Foam::updateRefineFlag(refineFlag, State, alpha_smoothed);
 
         // --- Pressure-velocity PIMPLE corrector loop
         while (pimple.loop())
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 
             #include "updateProps.H"
             #include "cellMasks.H"
-            Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+            Foam::updateRefineFlag(refineFlag, State, alpha_smoothed);
 
             // Update the laser deposition field
             laser.updateDeposition
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
             heatingRate = fvc::ddt(T);
             heatingRate.correctBoundaryConditions();
             #include "cellMasks.H"
-            Foam::updateRefineFlag(refineFlag, State, alpha_filtered);
+            Foam::updateRefineFlag(refineFlag, State, alpha_smoothed);
 
             // --- Pressure corrector loop
             while (pimple.correct())

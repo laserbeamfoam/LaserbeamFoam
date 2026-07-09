@@ -1711,7 +1711,8 @@ BeamShapeProfile::BeamShapeProfile
                 fileName("beamShapeDict")
             ),
             mesh,
-            laserProperties
+            laserProperties,
+            laserDict
         )
     ),
     halfLength_(scalar(0.5)*beamShape_().imageLength_.value()),

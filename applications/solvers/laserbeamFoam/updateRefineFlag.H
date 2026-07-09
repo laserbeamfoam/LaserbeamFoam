@@ -2,7 +2,6 @@
 #define updateRefineFlag_H
 
 #include "volFields.H"
-#include "fvc.H"
 
 namespace Foam
 {
@@ -11,38 +10,31 @@ inline void updateRefineFlag
 (
     volScalarField& refineFlag,
     const volScalarField& State,
-    const volScalarField& alphaField
+    const volScalarField& alphaSmoothed
 )
 {
-    const scalar gradCondThresh = 0.5;
     const scalar liquidStateMin = -0.5;
     const scalar liquidStateMax = 1.5;
+    const scalar interfaceProductThresh = 0.01;
 
     refineFlag *= 0.0;
 
     scalarField& refineInternal = refineFlag.ref();
     const scalarField& stateInternal = State.internalField();
-    const tmp<volScalarField> tGradCondMag = mag(fvc::grad(alphaField));
-    const scalarField& gradCondMagInternal = tGradCondMag().internalField();
+    const scalarField& alphaSmoothedInternal = alphaSmoothed.internalField();
 
     forAll(stateInternal, celli)
     {
-        // Refine liquid and mushy condensed material:
-        //   State = 0 -> liquid
-        //   State = 1 -> mushy
         const bool liquidVolume =
             stateInternal[celli] > liquidStateMin
          && stateInternal[celli] < liquidStateMax;
 
-        // Refine the gas/condensed interface using the condensate gradient.
         const bool condensedInterface =
-            gradCondMagInternal[celli] > gradCondThresh;
+            alphaSmoothedInternal[celli]
+          * (1.0 - alphaSmoothedInternal[celli])
+            > interfaceProductThresh;
 
-        if
-        (
-            liquidVolume
-         || condensedInterface
-        )
+        if (liquidVolume || condensedInterface)
         {
             refineInternal[celli] = 1.0;
         }

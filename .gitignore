@@ -88,3 +88,6 @@ linuxming*/
 SiCortex*Gcc*/
 solaris*Gcc*/
 SunOS*Gcc*/
+
+# local workbook files
+workbook/

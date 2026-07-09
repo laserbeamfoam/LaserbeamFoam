@@ -90,7 +90,6 @@ private:
     fileName shapeFile_;                         // Filename for the beam shape
     fileName scheduleFile_;                      // Per-profile beam-shape schedule file
     const fvMesh& mesh_; // If you also need mesh to be accessible later on
-    const dictionary& laserProperties_; // Add this line to store LaserProperties
     DynamicList<word> beamShapesList_;                  // This is read in from the laser properties file
     DynamicList<List<Pair<label>>> beamShapeLibrary_;   // List of beam shape addresses, organized by shape
     DynamicList<Pair<label>> beamShapeAddresses_;       // List of beam shape addresses, organized by time, ++switch state
@@ -106,10 +105,17 @@ private:
     List<scalar> shapeDuration_;     // Duration of each beam shape exposure
     label shapeRepetitions_;        // Number of times the shape is repeated in shapeDuration_
     scalar cycleDuration_;           // total time of all shapes in cycle
-    scalar addressInterchange_       = 1E-8;  /* Time between address changes, 
+    scalar addressInterchange_       = 1E-8;  /* Time between address changes,
                                                         should this be computed depending on:
                                                         - address distance? r2?
-                                                        - OPA controller time? - how to measure this */ 
+                                                        - OPA controller time? - how to measure this */
+    const scalar maxSingleAddressFrequency_ = 80E6;
+                                                      /* Hardware ceiling (Hz) for switching to a single
+                                                         address (e.g. AOD/OPA deflector drive limit).
+                                                         For a shape with N addresses, the maximum
+                                                         achievable full-cycle shapeFrequency is
+                                                         maxSingleAddressFrequency_ / N; requesting
+                                                         higher is rejected in beamShapeScheduler(). */
     
     /*********************************\
      * Storage array static sizes    *
@@ -167,7 +173,8 @@ public:
         const Foam::fileName& shapeFile,
         const Foam::fileName& scheduleFile,
         const fvMesh& mesh,
-        const dictionary& laserProperties
+        const dictionary& laserProperties,
+        const dictionary& laserDict
     );
     ~BeamShape();
 
