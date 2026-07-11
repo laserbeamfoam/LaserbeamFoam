@@ -55,7 +55,7 @@ boundaryField
   defaultFaces
   {
     type            empty;
-  }
+  } 
 
 }
 

@@ -24,14 +24,13 @@ timeVsLaserPosition
 }
 
 timeVsLaserPower
-
 {
     file    "$FOAM_CASE/constant/timeVsLaserPower";
     outOfBounds clamp;
 }
 
 // Laser angle (normalised in the code)
-V_incident (0 0 -1);
+V_incident (0 1 0);
 
 laserRadius 10e-6;
 
@@ -40,4 +39,4 @@ N_sub_divisions	1;
 wavelength	1.064e-6;
 e_num_density	5.83e29;
 Radius_Flavour	2.0;
-PowderSim false;
+PowderSim true;

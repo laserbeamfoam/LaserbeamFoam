@@ -758,6 +758,38 @@ volScalarField liquidMetalCells
     dimensionedScalar("liquidMetalCells", dimensionSet(0, 0, 0, -0, 0), 0.0)
 );
 
+// Time at which a previously liquid metallic cell solidified.
+// A value of -1 means that the cell is currently liquid or has not solidified.
+volScalarField solidificationTime
+(
+    IOobject
+    (
+        "solidificationTime",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("minusOne", dimTime, -1.0),
+    zeroGradientFvPatchScalarField::typeName
+);
+
+volVectorField gradTSol
+(
+    IOobject
+    (
+        "gradTSol",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedVector("zero", dimTemperature/dimLength, vector::zero),
+    zeroGradientFvPatchVectorField::typeName
+);
+
 
 
 

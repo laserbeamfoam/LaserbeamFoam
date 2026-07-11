@@ -195,6 +195,53 @@ int main(int argc, char *argv[])
         liquidMetalCells = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
         meltHistory += liquidMetalCells;
 
+        volVectorField gradT(fvc::grad(T));
+
+        forAll(epsilon1, cellI)
+        {
+            const scalar liquidFraction = epsilon1[cellI];
+            const scalar oldLiquidFraction = epsilon1.oldTime()[cellI];
+
+            if
+            (
+                liquidFraction <= SMALL
+             && oldLiquidFraction > SMALL
+             && alphaMetal[cellI] > 0.5 - SMALL
+            )
+            {
+                scalar tSol = runTime.deltaT().value();
+
+                if (mag(oldLiquidFraction - liquidFraction) > SMALL)
+                {
+                    tSol =
+                        runTime.deltaT().value()
+                       *oldLiquidFraction/(oldLiquidFraction - liquidFraction);
+                }
+
+                if (tSol < 0.0)
+                {
+                    tSol = 0.0;
+                }
+                else if (tSol > runTime.deltaT().value())
+                {
+                    tSol = runTime.deltaT().value();
+                }
+
+                solidificationTime[cellI] =
+                    runTime.value() - runTime.deltaT().value() + tSol;
+                gradTSol[cellI] = gradT[cellI];
+            }
+
+            if (liquidFraction > SMALL)
+            {
+                solidificationTime[cellI] = -1.0;
+                gradTSol[cellI] = vector::zero;
+            }
+        }
+
+        solidificationTime.correctBoundaryConditions();
+        gradTSol.correctBoundaryConditions();
+
         runTime.write();
 
         // Write ray paths to VTK files

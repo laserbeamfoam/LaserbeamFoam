@@ -17,7 +17,7 @@ FoamFile
 
 application     Flint_multiphaseEulerFoamD;
 
-startFrom       startTime;
+startFrom       latestTime;
 
 startTime       0;
 

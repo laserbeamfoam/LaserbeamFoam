@@ -47,9 +47,9 @@ fix				pts3 all particletemplate/sphere 49979687 atom_type 1 density constant 4.
 fix				pts4 all particletemplate/sphere 15485867 atom_type 1 density constant 4.43 &
 				radius constant 0.000678
 fix				pts5 all particletemplate/sphere 32452843 atom_type 1 density constant 4.43 &
-				radius constant 0.0007705
+				radius constant 0.0007705	
 fix				pts6 all particletemplate/sphere 32452867 atom_type 1 density constant 4.43 &
-				radius constant 0.0008755
+				radius constant 0.0008755	
 fix				pts7 all particletemplate/sphere 67867979 atom_type 1 density constant 4.43 &
 				radius constant 0.0009945
 fix				pts8 all particletemplate/sphere 86028121 atom_type 1 density constant 4.43 &
@@ -65,15 +65,15 @@ fix				pts12 all particletemplate/sphere 17609 atom_type 1 density constant 4.43
 fix				pts13 all particletemplate/sphere 67867967 atom_type 1 density constant 4.43 &
 				radius constant 0.0021395
 fix				pts14 all particletemplate/sphere 49979693 atom_type 1 density constant 4.43 &
-				radius constant 0.0024309
+				radius constant 0.0024309			
 fix				pts15 all particletemplate/sphere 31891 atom_type 1 density constant 4.43 &
-				radius constant 0.002762
+				radius constant 0.002762	
 fix				pts16 all particletemplate/sphere 31223 atom_type 1 density constant 4.43 &
-				radius constant 0.003138
+				radius constant 0.003138	
 fix				pts17 all particletemplate/sphere 27191 atom_type 1 density constant 4.43 &
-				radius constant 0.00356531
+				radius constant 0.00356531	
 fix				pts18 all particletemplate/sphere 27751 atom_type 1 density constant 4.43 &
-				radius constant 0.0040505
+				radius constant 0.0040505	
 
 fix 				pdd all particledistribution/discrete 78593 18 pts1 1.97883E-06 pts2 0.000158863 pts3 0.002123547 pts4 0.009419927 &
 				pts5 0.024542522 pts6 0.047522205 pts7 0.07564377 pts8 0.103955961 pts9 0.126582204 pts10 0.138350101 pts11 0.136320196 &
@@ -84,8 +84,8 @@ region 				factory block 0.0 0.01 0.0 0.015 0.02 0.1 units box
 fix 				ins all insert/rate/region seed 51869 distributiontemplate pdd &
 				nparticles 240 particlerate 200000 insert_every 5 &
 				overlapcheck yes vel constant 0. 0. 0.0 region factory ntry_mc 10000
-
-
+				
+			
 # Boundary
 fix box all mesh/surface file meshes/domain.stl type 1 scale 0.1 curvature 1e-5
 fix plate all mesh/surface file meshes/plate.stl type 1 scale 0.1 curvature 1e-5
@@ -122,3 +122,4 @@ delete_atoms group layer compress yes
 
 # Initial stage
 run			750000 upto
+

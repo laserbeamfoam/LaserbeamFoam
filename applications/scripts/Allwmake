@@ -1,5 +1,0 @@
-#!/bin/bash
-cd "${0%/*}" || exit  # Run from this directory
-
-echo; echo "Copying postProcessing  scripts to ${FOAM_USER_APPBIN}"; echo
-\cp -r postProcessing ${FOAM_USER_APPBIN}/

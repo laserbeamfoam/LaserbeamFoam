@@ -13,49 +13,49 @@ FoamFile
     object      phaseProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-// phase properties for the metal and gas phases
+
+// Interface tracking method: isoAdvector or MULES
 interfaceTrackingScheme isoAdvector;
 
 phases          (metal gas);
-// phase proerties for the metal and gas phases
 
+// phase properties for the metal and gas phases
 metal
 {
-    transportModel      Newtonian; // set
-    nu                  0.8e-06;   // set
-    rho                 7280;      // set
-    Tsolidus            1658;      // set
-    Tliquidus           1723.0;    // set
-    LatentHeat          2.7e5;   //set - but there is no in laserMeltFoam
-    beta                5.0e-6; //set - but there is no in laserMeltFoam
-    poly_kappa          (10 0.015  0 0 0 0 0 0);  //set
-    poly_cp             (412.0  2e-1    -2e-5 0 0 0 0 0);   //set
-    elec_resistivity    0.1e-6;  // set
+    transportModel      Newtonian;
+    nu                  5e-07;
+    rho                 8000;
+    Tsolidus            1658;
+    Tliquidus           1723;
+    LatentHeat          2.7e5;
+    beta                5.0e-6;
+    poly_kappa          (10 0.015 0 0 0 0 0 0);
+    poly_cp             (520 0.075 0 0 0 0 0 0);
+    elec_resistivity    1.0e-6; 
 }
 
 gas
 {
-    transportModel      Newtonian; //set
-    nu                  1.5e-05;  //set
-    rho                 1.6337;  //set
-    Tsolidus            1.0;//set - but there is no in laserMeltFoam
-    Tliquidus           10.0;//set - but there is no in laserMeltFoam
-    LatentHeat          1; //set - but there is no in laserMeltFoam
-    beta                4.0e-5; //set - but there is no in laserMeltFoam
-    poly_kappa          (0.0177 0.0 0 0 0 0 0 0);  //set
-    poly_cp             (520 0.0 0 0 0 0 0 0);  //set
+    transportModel      Newtonian;
+    nu                  1.48e-05;
+    rho                 1;
+    Tsolidus            1.0;
+    Tliquidus           10.0;
+    LatentHeat          1;
+    beta                4.0e-5;
+    poly_kappa          (0.04 0.0 0 0 0 0 0 0);
+    poly_cp             (520 0.0 0 0 0 0 0 0);
 }
 
 // phase change properties
-sigma                   1.4;  // set
-Marangoni_Constant      -4e-4;  //set
-p0                      101000;  //set
-Tvap                    3090.0; //set
-Mm                      0.05593; //set
-LatentHeatVap           7.45e6;  //set
-TRef                    TRef [0 0 0 1 0 0 0]   298.0;
+sigma                   0.07;
+Marangoni_Constant	    -0.5e-4;
+p0		                100000.0;
+Tvap                    3068.0;
+Mm                      5.58e-2;
+LatentHeatVap           7.45e6;
 emS                     0.4;
 emL                     0.1;
-hC                      hC   [1 0 -3 -1 0 0 0]    40;
+TRef                    TRef [0 0 0 1 0 0 0]   300;
 
 // ************************************************************************* //

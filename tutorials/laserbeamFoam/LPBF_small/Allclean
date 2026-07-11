@@ -5,15 +5,7 @@
 
 (cd DEM_small && ./Allclean)
 
-echo "Removing generated logs and processor directories"
-rm -rf log.* processor* postProcessing VTKs dynamicCode
+cleanCase
 
-echo "Removing generated time directories"
-for timeDir in [1-9]* 0.* -0.*
-do
-    [ -d "$timeDir" ] || continue
-    [ "$timeDir" = "0.0001" ] && continue
-    rm -rf "$timeDir"
-done
-
-echo "Keeping 0, 0.0001 and constant/polyMesh for the precomputed post-processing example"
+echo "Removing 0 and VTKs"
+rm -rf 0 VTKs

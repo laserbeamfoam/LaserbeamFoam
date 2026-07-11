@@ -118,7 +118,8 @@ cp DEM_small/post/location LPBF_small/constant/
 ### ▶️ Running the LPBF Simulation
 
 Once the `LPBF_small/constant/location` file exists, the LPBF simulation can be
-run by executing the `Allrun` script in the main `LPBF_small` directory:
+ run by executing the `Allrun` script in the main `LPBF_small` directory:
+The characteristics of the particles in the powder bed are defined in the file:
 
 ```bash
 ./Allrun
@@ -132,45 +133,6 @@ This `Allrun` script performs five tasks:
   reads the particle locations from `constant/location`
 - Rotates the mesh using `transformPoints`
 - Run the `laserbeamFoam` solver
-
----
-
-## Melt Pool Post-Processing Example
-
-This tutorial also includes a small precomputed result that can be used to test
-the melt pool post-processing tools without rerunning the solver. The included
-`0`, `0.0001`, and `constant/polyMesh` directories are kept intentionally for
-this purpose.
-
-To run the post-processing example, first build `laserbeamFoam` so that the
-Python scripts are copied to `$FOAM_USER_APPBIN/postProcessing`. The included
-`main.foam` file is an empty case marker used by ParaView's OpenFOAM reader.
-If it is removed, it can be recreated with:
-
-```bash
-touch main.foam
-```
-
-Create and activate the post-processing Python environment if needed:
-
-```bash
-conda env create -f $FOAM_USER_APPBIN/postProcessing/environment.yml
-conda activate meltpool-postproc
-```
-
-Then run the post-processing script from this `LPBF_small` directory:
-
-```bash
-python $FOAM_USER_APPBIN/postProcessing/characterise_meltpool.py
-```
-
-The workflow writes the extracted melt pool and calculated metrics in the case
-directory, including `meltpool.csv`, `row_statistics.csv`,
-`cross_sections_statistics.csv`, and optional plots in `results_plots/`.
-
-The `Allclean` script preserves the included `0`, `0.0001`, and
-`constant/polyMesh` directories so that the precomputed post-processing example
-remains available after cleaning logs and generated processor directories.
 
 ---
 
