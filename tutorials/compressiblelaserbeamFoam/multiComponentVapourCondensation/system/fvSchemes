@@ -22,16 +22,13 @@ ddtSchemes
 
 gradSchemes
 {
-    default         Gauss linear;
+    default         leastSquares;
 }
 
 divSchemes
 {
     div(rhoPhi,U)  Gauss upwind;
-    div(phi,alpha)  Gauss vanLeer; //ROUNDAplus01;
-    div(phiR,alphaRho) Gauss vanLeer; //ROUNDAplus01;
-
-
+    div(phi,alpha)  Gauss vanLeer;
     div(phirb,alpha) Gauss linear;
     "div\(phi,.*rho.*\)" Gauss upwind;
     div(rhoPhi,T)  Gauss upwind;
@@ -40,10 +37,6 @@ divSchemes
     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
 
     div(rhoPhi,epsilon1)	Gauss linear;//Gauss vanLeer01;
-
-    div(phi,alphaRho)   Gauss vanLeer;   // Gauss limitedLinear 1
-    div(phiR,alphaRho)  Gauss vanLeer;
-
 }
 
 laplacianSchemes
@@ -59,13 +52,6 @@ interpolationSchemes
 snGradSchemes
 {
     default         corrected;
-}
-
-fluxRequired
-{
-    default         no;
-    p_rgh;
-    "alphaRho.*";
 }
 
 

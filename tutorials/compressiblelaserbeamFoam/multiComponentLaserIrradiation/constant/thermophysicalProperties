@@ -20,7 +20,7 @@ phases (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal
 pMin            1000;
 
 P0	1e5;
-interface_thickness	1e-5;
+interface_thickness	1e-2;
 
 
 sigmas

@@ -138,6 +138,29 @@ autoPtr<compressible::turbulenceModel> turbulence
     );
 
 
+        volScalarField vDotP // -d(vDot)/dp >= 0: implicit phase-change
+                             // pressure-coupling coefficient for pEqn,
+                             // [1/(s.Pa)] = dimensionSet(-1,1,1,0,0).
+                             // Filled by mixture.solve() once per time step;
+                             // zero wherever a rate clamp is active.
+                             // NO_READ: recomputed on the first PIMPLE iter
+                             // of every step, so restarts need no file;
+                             // AUTO_WRITE so the implicit-coupling footprint
+                             // can be inspected in ParaView.
+    (
+        IOobject
+        (
+            "vDotP",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("vDotP", dimensionSet(-1, 1, 1, 0, 0), 0.0)
+    );
+
+
      volScalarField alphasum
     (
         IOobject
@@ -420,7 +443,21 @@ laserHeatSource laser(mesh);
         Info<< "\nepsilon1: assuming fresh start, calculating the field...\n"
             << endl;
 
-        epsilon1=max(min((mixture.T()-TSolidus)/(TLiquidus-TSolidus),scalar(1)),scalar(0));
+        // TSolidus/TLiquidus are condensed-only (see update.H), hence identically
+        // zero in pure-gas cells, so floor the denominator to avoid a fresh-start
+        // divide-by-zero.  In gas cells (T - 0)/SMALL -> huge -> clamps to 1, i.e.
+        // gas is treated as fully "liquid" for melt purposes (no spurious mush);
+        // metal cells are unaffected.
+        epsilon1 = max
+        (
+            min
+            (
+                (mixture.T() - TSolidus)
+               /max(TLiquidus - TSolidus, dimensionedScalar("dTfloor", dimTemperature, SMALL)),
+                scalar(1)
+            ),
+            scalar(0)
+        );
     }
 
 

@@ -59,11 +59,28 @@
 
     while (pimple.correctNonOrthogonal())
     {
+        // Phase change, backward-Euler in pressure.  vDot was evaluated
+        // (and clamped) once per step at start-of-step p; vDotP holds
+        // -d(vDot)/dp >= 0 in the cells where no clamp bit.  The pair
+        //     + fvm::Sp(vDotP, p_rgh) - vDotP*p_rgh.oldTime()
+        // turns the frozen explicit source into
+        //     vDot - vDotP*(p_rgh - p_rgh^n)
+        //       ==  SUM_pairs sigma_e*A_i/delta*dV_i*(x_i*Psat_i - y_i*p_new)
+        // in those cells: the solve itself relaxes each species' partial
+        // pressure y_i*p toward its Raoult equilibrium x_i*Psat_i, the added
+        // diagonal is positive (unconditionally stabilising), and it GROWS
+        // as interface_thickness shrinks - inverting the explicit-lag
+        // blow-up.  (interPhaseChangeFoam's vDotP pattern.)  For a pure
+        // iteration stabiliser that leaves the converged source at the
+        // frozen vDot, anchor on the current value instead: replace
+        // p_rgh.oldTime() with p_rgh.
         fvScalarMatrix p_rghEqnIncomp
         (
             fvc::div(phiHbyA)
           - fvm::laplacian(rAUf, p_rgh)
           - vDot
+          + fvm::Sp(vDotP, p_rgh)
+          - vDotP*p_rgh.oldTime()
         );
 
         tmp<fvScalarMatrix> p_rghEqnComp;

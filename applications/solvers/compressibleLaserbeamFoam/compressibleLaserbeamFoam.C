@@ -24,19 +24,18 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Application
-    compressibleMultiphaseInterFoam
+    compressibleLaserbeamFoam
 
 Group
     grpMultiphaseSolvers
 
 Description
-    Solver for N compressible, non-isothermal immiscible fluids using a VOF
-    (volume of fluid) phase-fraction based interface capturing approach.
+    cheeky bad solver for wicked simulation of laser-substrate interactions. A true naughty piece of work
 
-    The momentum and other fluid properties are of the "mixture" and a single
-    momentum equation is solved.
-
-    Turbulence modelling is generic, i.e.  laminar, RAS or LES may be selected.
+Authors
+    Tom Flint UoM
+    Roman Bialek UoM
+    Philip Cardiff UcD
 
 \*---------------------------------------------------------------------------*/
 
@@ -160,32 +159,32 @@ int main(int argc, char *argv[])
             // Disable flag: this permits correctPhi on subsequent loops.
             bRestartFirstLoop = false;
 
-            // Semi-PIMPLE Implementation:
-            // - Phase `alpha` related items are solved once.
-            // - Laser is also solved once.
-            // - To restore MTHD coupling, i.e., (U-p)-H-T, the pimple loop is
-            //   permitted on those terms.
-            //
-            // PISO Section (Phase related)
+            // Semi-PIMPLE Implementation - Roman Bialek
             if (pimple.firstIter())
             {
-                vDot = mixture.solve(&mass_dot); // always finalIter=true
+                rho.oldTime() = rho;   // set once per time step
+
+                vDot = mixture.solve(&mass_dot, &vDotP);
                 vDot.correctBoundaryConditions();
                 mass_dot.correctBoundaryConditions();
+                vDotP.correctBoundaryConditions();
 
-
-
-                // Make latest solution is == to oldTime
-                rho.oldTime() = rho;
-                // For whatever reason, this doesn't happen automatically like
-                // with other fields (at least for testing during bubble2dRise).
-                //   Not having this will break the solutions when restarting.
-
-
-                rho = mixture.rho();
 
                 #include "update.H"
 
+
+            }
+
+            // density, rho, recompute every corrector amd alpha is fixed in the semi-PIMPLE above.
+            // per-phase EOS densities are updated in correctRho() in pEqn.H, so
+            // mixture density must track them.
+            rho = mixture.rho();
+
+            
+
+            // Ray-trace expensive: evaluate once per time step.
+            if (pimple.firstIter())
+            {
                 laser.updateDeposition
                 (
                     condensateFiltered, n_filtered, electrical_resistivity

@@ -50,7 +50,8 @@ correctFluxes
     (ghf none)
     (alphaPhiUn none)
     (rhophicp none)
-    // (phi_0 none)
+    (phi_0 none)
+    (rhoPhi_0 none)
 );
 
 // Write the refinement level as a volScalarField

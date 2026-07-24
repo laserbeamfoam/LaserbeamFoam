@@ -68,9 +68,20 @@
         );
 
 
-        TSolidus += alpha1*phaseTSolidus;
-        TLiquidus += alpha1*phaseTLiquidus;
-        LatentHeat += alpha1*phaseLH;
+        // Melt properties are a CONDENSED-PHASE quantity.  Accumulating them
+        // over all phases lets the vapour/air dummies (TSol~5K, L~1) leak in;
+        // TEqn then recovers the metal value by dividing by `condensate`, which
+        // does not remove the dummy - it AMPLIFIES it (e.g. 0.998*5/0.002 ~ 2500
+        // K), so TSolidusCond/TLiquidusCond blow up in low-condensate cells and
+        // the melt update spuriously freezes hot liquid at the interface.  Sum
+        // over condensed phases only => `/condensate` recovers the exact metal
+        // value (TSolidusCond -> metal T_sol, etc.) with no gas contamination.
+        if (phase1.isCondensed())
+        {
+            TSolidus   += alpha1*phaseTSolidus;
+            TLiquidus  += alpha1*phaseTLiquidus;
+            LatentHeat += alpha1*phaseLH;
+        }
 
         if (mthd.valid())
         {

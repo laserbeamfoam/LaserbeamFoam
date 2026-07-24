@@ -23,7 +23,7 @@ thermoType
     mixture         pureMixture;
     transport       const;
     thermo          eConst;
-    equationOfState perfectFluid;
+    equationOfState perfectFluid;//rhoConst;//
     specie          specie;
     energy          sensibleInternalEnergy;
 }
