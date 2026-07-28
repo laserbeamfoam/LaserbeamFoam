@@ -130,6 +130,81 @@
             U = HbyA
               + rAU()*fvc::reconstruct((phig + p_rghEqnIncomp.flux())/rAUf);
             U.correctBoundaryConditions();
+
+            // --- Velocity/flux parachute ------------------------------------
+            // Nothing physical here exceeds a few hundred m/s (softened EOS:
+            // c_liq ~ 70-90 m/s, c_vap ~ 160 m/s).  Each corrector rebuilds
+            // HbyA from UEqn.H(), i.e. from the just-reconstructed neighbour
+            // U; once seeded with garbage that loop amplifies per corrector
+            // until double overflow gives Inf/NaN coefficients and
+            // GAMGSolver::scale raises SIGFPE.  Never engages in healthy
+            // operation; converts divergence into a loud, local, recoverable
+            // event.  Persistent engagement = ALARM to root-cause, not a
+            // controller.  Override in fvSolution: PIMPLE { UMax 1000; }
+            {
+                const scalar UMax =
+                    pimple.dict().getOrDefault<scalar>("UMax", 1000.0);
+
+                vectorField& UI = U.primitiveFieldRef();
+                label nUClip = 0;
+                forAll(UI, celli)
+                {
+                    const scalar magU = mag(UI[celli]);
+                    if (magU > UMax)
+                    {
+                        UI[celli] *= UMax/magU;
+                        ++nUClip;
+                    }
+                }
+                reduce(nUClip, sumOp<label>());
+
+                if (nUClip)
+                {
+                    U.correctBoundaryConditions();
+                    Info<< "pEqn: |U| ceiling (" << UMax
+                        << " m/s) engaged in " << nUClip
+                        << " cell(s)" << endl;
+                }
+
+                label nPhiClip = 0;
+                const scalarField& magSfI = mesh.magSf().primitiveField();
+                scalarField& phiI = phi.primitiveFieldRef();
+                forAll(phiI, facei)
+                {
+                    const scalar phiMax = UMax*magSfI[facei];
+                    if (mag(phiI[facei]) > phiMax)
+                    {
+                        phiI[facei] = sign(phiI[facei])*phiMax;
+                        ++nPhiClip;
+                    }
+                }
+
+                surfaceScalarField::Boundary& phiBf = phi.boundaryFieldRef();
+                const surfaceScalarField::Boundary& magSfBf =
+                    mesh.magSf().boundaryField();
+                forAll(phiBf, patchi)
+                {
+                    scalarField& phiP = phiBf[patchi];
+                    const scalarField& magSfP = magSfBf[patchi];
+                    forAll(phiP, facei)
+                    {
+                        const scalar phiMax = UMax*magSfP[facei];
+                        if (mag(phiP[facei]) > phiMax)
+                        {
+                            phiP[facei] = sign(phiP[facei])*phiMax;
+                            ++nPhiClip;
+                        }
+                    }
+                }
+                reduce(nPhiClip, sumOp<label>());
+
+                if (nPhiClip)
+                {
+                    Info<< "pEqn: |phi| ceiling engaged on " << nPhiClip
+                        << " face(s)" << endl;
+                }
+            }
+            // ----------------------------------------------------------------
         }
     }
 
@@ -146,8 +221,11 @@
     K = 0.5*magSqr(U);
 
     Info<< "max(U) " << max(mag(U)).value() << endl;
-    Info<< "min(p_rgh) " << min(p_rgh).value() << endl;
+    Info<< "min,max(p_rgh) " << min(p_rgh).value()
+        << " " << max(p_rgh).value() << endl;
     Info<< "min(T) " << min(T).value() << endl;
+    Info<< "max|vDot|*dt " << max(mag(vDot)).value()*mesh.time().deltaTValue()
+        << endl;
 
     if (!correctPhi)
     {

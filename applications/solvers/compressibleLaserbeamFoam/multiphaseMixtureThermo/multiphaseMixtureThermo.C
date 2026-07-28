@@ -1491,6 +1491,38 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     // numerically pin to [0,1] for the thing gooing through the change value (MULES re-bounds)
     condensate = max(min(condensate, scalar(1)), scalar(0));
 
+    // --- Interface gate for the HK kinetics ---------------------------------
+    // r is an interface flux spread over int_thickness; ungated it fires in
+    // PURE cells too, with the driving degenerating at both ends:
+    //   * beta -> 0 (gas-only cavity/plume): xLiq comes from the trace
+    //     condensed residue while y*p is real, so the driving is generically
+    //     negative: sustained condensation-to-fog with NO liquid present.
+    //     The mass clamp (0.5*c_vap/dt) only checks VAPOUR availability, so
+    //     the volume sink runs continuously, and kP (nonzero there) makes the
+    //     implicit pEqn term relax cavity pressure toward the fog equilibrium
+    //     x*Psat/y -- typically BELOW pMin: the persistently pinned floor and
+    //     the air-filled keyhole.
+    //   * beta -> 1 (bulk superheated melt): yVap -> 0 so the driving becomes
+    //     +x*Psat: spurious sub-surface flash boiling with no interface.
+    // Gate on co-presence of both groups.  Saturates to 1 across the resolved
+    // interface band (min(beta,1-beta) >= betaGate), so calibrated interface
+    // rates are untouched; exactly zero in pure cells.  Supersaturated vapour
+    // then simply advects until it reaches an interface (no homogeneous
+    // nucleation model -- add an area-density closure if plume fog is wanted).
+    const scalar betaGate
+    (
+        phasedictionary.getOrDefault<scalar>("phaseChangeGate", 0.01)
+    );
+    const volScalarField gInt
+    (
+        IOobject("phaseChangeGateField", runTime.timeName(), mesh_),
+        min
+        (
+            min(condensate, scalar(1) - condensate)/betaGate,
+            scalar(1)
+        )
+    );
+
 
     if (runTime.timeIndex() != curTimeIndex_)
     {
@@ -1673,7 +1705,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         const volScalarField rhoLiq(max(liq.thermo().rho(), rhoFloorPC));
                         const volScalarField rhoVap(max(vap.thermo().rho(), rhoFloorPC));
 
-                        // Raoult-Dalton composition of this pair (ledger-based)
+                        // Raoult-Dalton composition of this pair (balance of mass-based)
                         const volScalarField& xLiq = moleFrac[li];
                         const volScalarField& yVap = moleFrac[vi];
 
@@ -1702,6 +1734,11 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             )
                            *(xLiq*Psat - yVap*p_)/int_thickness
                         );
+
+                        // interface gating (see gInt construction above):
+                        // applied BEFORE the clamps so unclampedI and kP see
+                        // the gated kinetic rate consistently.
+                        r *= gInt;
 
                         
                         //  Composition-consistent saturation temperature: the T//////////////// //  NEW ADDED BY TOM July
@@ -1871,6 +1908,12 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                     )
                                 )
                             );
+                            // same gate as r: d(gInt*rate)/dp = gInt*d(rate)/dp
+                            // (gInt frozen in the linearisation).  Without
+                            // this, the implicit term keeps pulling cavity
+                            // pressure toward x*Psat/y in liquid-free cells
+                            // even after the explicit rate is gated off.
+                            kP *= gInt;
                             kP.primitiveFieldRef() *= unclampedI;
                             *vDotPptr += kP;
                         }
@@ -2182,6 +2225,15 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
             ++i;
         }
     }
+
+    // Volume-closure residual BEFORE the rescale: sum(c_i/rho_i) - 1 is the
+    // real health metric for the phase-change <-> pressure coupling (the
+    // rescale below hides it).  Persistent |dev| growth in keyhole cells
+    // means vDot/dgdt and the balance of mass are fighting; investigate before
+    // trusting porosity/entrainment results.
+    Info<< "sum(alpha) BEFORE rescale: min = " << min(sumAll).value()
+        << ", max = " << max(sumAll).value()
+        << ", max|dev| = " << max(mag(sumAll - 1.0)).value() << endl;
 
     const dimensionedScalar sumFloor("sumFloor", dimless, 1e-30);
     for (phaseModel& ph : phases_)
