@@ -1705,7 +1705,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         const volScalarField rhoLiq(max(liq.thermo().rho(), rhoFloorPC));
                         const volScalarField rhoVap(max(vap.thermo().rho(), rhoFloorPC));
 
-                        // Raoult-Dalton composition of this pair (balance of mass-based)
+                        // Raoult-Dalton composition of this pair (ledger-based)
                         const volScalarField& xLiq = moleFrac[li];
                         const volScalarField& yVap = moleFrac[vi];
 
@@ -1908,11 +1908,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                     )
                                 )
                             );
-                            // same gate as r: d(gInt*rate)/dp = gInt*d(rate)/dp
-                            // (gInt frozen in the linearisation).  Without
-                            // this, the implicit term keeps pulling cavity
-                            // pressure toward x*Psat/y in liquid-free cells
-                            // even after the explicit rate is gated off.
+                            // same gate
                             kP *= gInt;
                             kP.primitiveFieldRef() *= unclampedI;
                             *vDotPptr += kP;
@@ -2103,13 +2099,14 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                 mesh_,
                 dimensionedScalar("hostFrac", dimless, 0.0)
             );
+            // START-OF-STEP group fraction, NOT the post-update 
             if (isGas[i])
             {
-                hostFrac = scalar(1) - beta;
+                hostFrac = scalar(1) - condensate;
             }
             else
             {
-                hostFrac = beta;
+                hostFrac = condensate;
             }
 
             const volScalarField psi
@@ -2226,11 +2223,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
-    // Volume-closure residual BEFORE the rescale: sum(c_i/rho_i) - 1 is the
-    // real health metric for the phase-change <-> pressure coupling (the
-    // rescale below hides it).  Persistent |dev| growth in keyhole cells
-    // means vDot/dgdt and the balance of mass are fighting; investigate before
-    // trusting porosity/entrainment results.
+    // Volume-closure residual BEFORE rescale
     Info<< "sum(alpha) BEFORE rescale: min = " << min(sumAll).value()
         << ", max = " << max(sumAll).value()
         << ", max|dev| = " << max(mag(sumAll - 1.0)).value() << endl;
@@ -2246,6 +2239,22 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
     //  DIAGNOSTIC STUFFF
     
+
+
+    // {
+    //     Info<< "Ledger negativity (min c_i, integrated debt):" << endl;
+    //     label i = 0;
+    //     for (const phaseModel& ph : phases_)
+    //     {
+    //         const scalarField& cI = c_[i].primitiveField();
+    //         const scalar cMin = gMin(cI);
+    //         const scalar debt =
+    //             gSum(Foam::min(cI, scalar(0))*mesh_.V().field());
+    //         Info<< "    " << ph.name() << ": min = " << cMin
+    //             << " kg/m3, debt = " << debt << " kg" << endl;
+    //         ++i;
+    //     }
+    // }
 
     Info<< "Conserved partial-mass(c_i = alpha_i*rho_i):" << endl;
     {
