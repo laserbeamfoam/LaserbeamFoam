@@ -727,21 +727,6 @@ volVectorField nHatM
 nHatM = gradAlpha/(mag(gradAlpha) + deltaN);
 
 
-// This variable is >=0 if the cell has been liquid
-volScalarField meltHistory
-(
-    IOobject
-    (
-        "meltHistory",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("meltHistory", dimensionSet(0, 0, 0, -0, 0), 0.0)
-);
-
 // This variable is 1 if (alpha.metal >= 0.5 and epsilon1 >=0.5), 0 otherwise.
 // These are the cells that are liquid and metallic at the current time
 volScalarField liquidMetalCells
@@ -757,40 +742,6 @@ volScalarField liquidMetalCells
     mesh,
     dimensionedScalar("liquidMetalCells", dimensionSet(0, 0, 0, -0, 0), 0.0)
 );
-
-// Time at which a previously liquid metallic cell solidified.
-// A value of -1 means that the cell is currently liquid or has not solidified.
-volScalarField solidificationTime
-(
-    IOobject
-    (
-        "solidificationTime",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("minusOne", dimTime, -1.0),
-    zeroGradientFvPatchScalarField::typeName
-);
-
-volVectorField gradTSol
-(
-    IOobject
-    (
-        "gradTSol",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedVector("zero", dimTemperature/dimLength, vector::zero),
-    zeroGradientFvPatchVectorField::typeName
-);
-
-
 
 
 typedef incompressibleInterPhaseTransportModel
