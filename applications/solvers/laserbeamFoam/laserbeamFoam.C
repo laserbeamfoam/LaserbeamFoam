@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
         // Update instantaneous liquid metal indicator
         const volScalarField& alphaMetal =
             mesh.lookupObject<volScalarField>("alpha.metal");
-        liquidMetalCells = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
+        liquidMetalCells = pos(alphaMetal - 0.5)*pos(epsilon1 - 0.5);
 
         runTime.write();
 
