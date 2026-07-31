@@ -530,6 +530,15 @@ const volScalarField zeroJoulesource
     dimensionedScalar("zeroJoulesource", dimensionSet(1, -1, -3, 0, 0), 0.0)
 );
 
+// Recoil pressure coefficient (read from transportProperties, default 1.0)
+const dimensionedScalar recoilCoeff
+(
+    "recoilCoeff",
+    dimless,
+    transportProperties.lookupOrDefault<scalar>("recoilCoeff", scalar(1.0))
+);
+
+
 // Recoil Pressure
 volScalarField pVap
 (
