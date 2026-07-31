@@ -126,7 +126,7 @@
          // || (meanResidual > epsilonTol.value())
          || (maxResidual > epsilonTol.value())
         )
-     && iter <= maxTCorr
+     && iter < maxTCorr
     );
 
     gradT = fvc::grad(T);
