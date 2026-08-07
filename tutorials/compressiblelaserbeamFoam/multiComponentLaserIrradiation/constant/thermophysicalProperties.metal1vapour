@@ -47,7 +47,7 @@ mixture
 	equationOfState
 {
     R           149;
-    rho0        2.0;
+    rho0        0.0;
 }
     specie
     {
