@@ -11,7 +11,7 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties.mercury;
+    object      thermophysicalProperties.metal1vapour;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -28,7 +28,7 @@ thermoType
     energy          sensibleInternalEnergy;
 }
 
-
+// Sn vapour (monatomic): R = Ru/W = 70.04 J/kg/K, Cv = 3/2 R
 TSolidus	5.0;
 TLiquidus	10.0;
 LatentHeat	1.0;
@@ -40,16 +40,16 @@ mixture
 {
     specie
     {
-        molWeight   50.0;
+        molWeight   118.71;
     }
     equationOfState
     {
-        rho0         5.0;
-        R	8.314;
+        rho0         0.0;        // ideal gas: rho = p/(R T)
+        R	70.04;
     }
     thermodynamics
     {
-        Cv          1039;
+        Cv          105.1;
         Hf          0;
     }
     transport

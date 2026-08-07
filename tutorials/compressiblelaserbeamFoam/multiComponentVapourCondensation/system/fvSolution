@@ -95,8 +95,8 @@ MELTING
 
 PIMPLE
 {
-    momentumPredictor        yes;     // keep on if you put U in the list
-    nOuterCorrectors         3;       // now a ceiling, not a fixed count
+    momentumPredictor        yes;     
+    nOuterCorrectors         5;       
     nCorrectors              2;
     nNonOrthogonalCorrectors 2;
 

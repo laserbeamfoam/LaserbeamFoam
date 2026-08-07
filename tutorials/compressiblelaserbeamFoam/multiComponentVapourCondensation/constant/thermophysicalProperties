@@ -17,13 +17,18 @@ FoamFile
 
 phases (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal4vapour air);
 
+//   metal1 = Sn (host melt)      Tb = 2875 K   Psat(750) ~ 6e-11 Pa
+//   metal2 = Pb (host melt)      Tb = 2022 K   Psat(750) ~ 1e-3  Pa
+//   metal3 = Zn (bubble vapour)  Tb = 1180 K   Psat(750) ~ 120   Pa
+//   metal4 = Cd (bubble vapour)  Tb = 1040 K   Psat(750) ~ 1150  Pa
+
 pMin            5000;
 
 P0	1e5;
 interface_thickness	1e-3;
 
-
-//phaseChangeDilatationLimit  1.0e-1;//1e-5;   // lower = more stable / slower phase change
+// Hertz-Knudsen accommodation (evaporation/condensation) coefficient.
+accommodationCoeff	0.1;
 
 
 sigmas
@@ -120,27 +125,30 @@ dsigmadT
 	(air metal4)	-1.0e-4
 
 	(metal4vapour air)	0.0
+
 );
 
-
-
+// Boiling temperature per liquid-vapour pair [K]: Psat(Tboil) = P0 = 1 bar
 boils
 (
-(metal1vapour metal1) 4101.0
-(metal2vapour metal2) 4202.0
-(metal3vapour metal3) 3010.0
-(metal4vapour metal4) 3004.0
+(metal1vapour metal1) 2875.0     // Sn
+(metal2vapour metal2) 2022.0     // Pb
+(metal3vapour metal3) 1180.0     // Zn
+(metal4vapour metal4) 1040.0     // Cd
 );
 
+// Latent heat of vaporisation [J/kg] (dHvap at Tb / W):
+//   Sn 296.1 kJ/mol / 118.71 g/mol,  Pb 179.5/207.2,
+//   Zn 115.3/65.38,                  Cd  99.9/112.41
+// C-C steepness K = W*Lvap/(R*Tboil): Sn 12.4, Pb 10.7, Zn 11.8, Cd 11.6
 LatentHeatGas
 (
-(metal1vapour metal1) 1.0e6
-(metal2vapour metal2) 1.0e6
-(metal3vapour metal3) 1.0e6
-(metal4vapour metal4) 1.0e6
+(metal1vapour metal1) 2.494e6
+(metal2vapour metal2) 8.663e5
+(metal3vapour metal3) 1.764e6
+(metal4vapour metal4) 8.884e5
 );
 
-/*
 interfaceCompression
 (
 	(metal1vapour metal1)	0.5
@@ -187,7 +195,7 @@ interfaceCompression
 
 	(metal4vapour air)	0.0
 );
-*/
+
 interfaceDiffusion
 (
 	(metal1vapour metal1)	0.0
