@@ -59,21 +59,7 @@
 
     while (pimple.correctNonOrthogonal())
     {
-        // Phase change, backward-Euler in pressure.  vDot was evaluated
-        // (and clamped) once per step at start-of-step p; vDotP holds
-        // -d(vDot)/dp >= 0 in the cells where no clamp bit.  The pair
-        //     + fvm::Sp(vDotP, p_rgh) - vDotP*p_rgh.oldTime()
-        // turns the frozen explicit source into
-        //     vDot - vDotP*(p_rgh - p_rgh^n)
-        //       ==  SUM_pairs sigma_e*A_i/delta*dV_i*(x_i*Psat_i - y_i*p_new)
-        // in those cells: the solve itself relaxes each species' partial
-        // pressure y_i*p toward its Raoult equilibrium x_i*Psat_i, the added
-        // diagonal is positive (unconditionally stabilising), and it GROWS
-        // as interface_thickness shrinks - inverting the explicit-lag
-        // blow-up.  (interPhaseChangeFoam's vDotP pattern.)  For a pure
-        // iteration stabiliser that leaves the converged source at the
-        // frozen vDot, anchor on the current value instead: replace
-        // p_rgh.oldTime() with p_rgh.
+        // Phase change, backward-Euler in pressure.
         fvScalarMatrix p_rghEqnIncomp
         (
             fvc::div(phiHbyA)
@@ -131,16 +117,7 @@
               + rAU()*fvc::reconstruct((phig + p_rghEqnIncomp.flux())/rAUf);
             U.correctBoundaryConditions();
 
-            // --- Velocity/flux parachute ------------------------------------
-            // Nothing physical here exceeds a few hundred m/s (softened EOS:
-            // c_liq ~ 70-90 m/s, c_vap ~ 160 m/s).  Each corrector rebuilds
-            // HbyA from UEqn.H(), i.e. from the just-reconstructed neighbour
-            // U; once seeded with garbage that loop amplifies per corrector
-            // until double overflow gives Inf/NaN coefficients and
-            // GAMGSolver::scale raises SIGFPE.  Never engages in healthy
-            // operation; converts divergence into a loud, local, recoverable
-            // event.  Persistent engagement = ALARM to root-cause, not a
-            // controller.  Override in fvSolution: PIMPLE { UMax 1000; }
+
             {
                 const scalar UMax =
                     pimple.dict().getOrDefault<scalar>("UMax", 1000.0);
@@ -219,6 +196,8 @@
     p_rgh.correctBoundaryConditions();
 
     K = 0.5*magSqr(U);
+
+    fvc::correctUf(Uf, U, phi);
 
     Info<< "max(U) " << max(mag(U)).value() << endl;
     Info<< "min,max(p_rgh) " << min(p_rgh).value()

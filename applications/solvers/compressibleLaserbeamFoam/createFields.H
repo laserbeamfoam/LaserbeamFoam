@@ -138,15 +138,8 @@ autoPtr<compressible::turbulenceModel> turbulence
     );
 
 
-        volScalarField vDotP // -d(vDot)/dp >= 0: implicit phase-change
-                             // pressure-coupling coefficient for pEqn,
-                             // [1/(s.Pa)] = dimensionSet(-1,1,1,0,0).
-                             // Filled by mixture.solve() once per time step;
-                             // zero wherever a rate clamp is active.
-                             // NO_READ: recomputed on the first PIMPLE iter
-                             // of every step, so restarts need no file;
-                             // AUTO_WRITE so the implicit-coupling footprint
-                             // can be inspected in ParaView.
+        volScalarField vDotP // -d(vDot)/dp >= 0: implicit phase-change pressure-coupling coefficient for pEqn,  [1/(s.Pa)] = dimensionSet(-1,1,1,0,0).  Filled by mixture.solve() once per time step;
+                            
     (
         IOobject
         (
@@ -235,6 +228,25 @@ autoPtr<compressible::turbulenceModel> turbulence
     dimensionedScalar("metalaverage",dimensionSet(0,0,0,0,0),0.0)
 );
 metalaverage = fvc::average(condensate);
+
+
+
+
+volScalarField refineIndicator
+(
+    IOobject
+    (
+        "refineIndicator",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("refineIndicator", dimless, 0.0)
+);
+
+
 
 
     // volScalarField refine_test //kg per m^3 per s
@@ -443,11 +455,7 @@ laserHeatSource laser(mesh);
         Info<< "\nepsilon1: assuming fresh start, calculating the field...\n"
             << endl;
 
-        // TSolidus/TLiquidus are condensed-only (see update.H), hence identically
-        // zero in pure-gas cells, so floor the denominator to avoid a fresh-start
-        // divide-by-zero.  In gas cells (T - 0)/SMALL -> huge -> clamps to 1, i.e.
-        // gas is treated as fully "liquid" for melt purposes (no spurious mush);
-        // metal cells are unaffected.
+        // TSolidus/TLiquidus are condensed-only 
         epsilon1 = max
         (
             min
@@ -569,10 +577,7 @@ const volScalarField zeroJoulesource
 // --- Perform oldTime restoration --------------------------------------------
 if (bRestartFirstLoop)
 {
-    // Any fields involved in `fvc::ddt` calls requires its `.oldTime()` field
-    // to be restored, otherwise you will get errors. For `Euler` the `fvc`
-    // scheme is: `fvc::ddt(y) = ( y(t[i], x) - y(t[i-1], x) ) / deltaT` where
-    // `t[i]` is the current time / latest time.
+    
 
     Info<< "Restoring oldTime values." << endl;
     int errorCount = 0;

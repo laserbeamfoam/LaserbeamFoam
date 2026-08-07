@@ -16,6 +16,23 @@
         mthd->resetTransportProperties();
     }
 
+
+
+     volScalarField vapourSum
+    (
+        IOobject
+        (
+            "vapourSum",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("vapourSum", dimless, 0.0)
+    );
+
+
     forAllConstIter(PtrDictionary<phaseModel>, mixture.phases(), iter)
     {
         const phaseModel& phase1 = iter();
@@ -68,14 +85,7 @@
         );
 
 
-        // Melt properties are a CONDENSED-PHASE quantity.  Accumulating them
-        // over all phases lets the vapour/air dummies (TSol~5K, L~1) leak in;
-        // TEqn then recovers the metal value by dividing by `condensate`, which
-        // does not remove the dummy - it AMPLIFIES it (e.g. 0.998*5/0.002 ~ 2500
-        // K), so TSolidusCond/TLiquidusCond blow up in low-condensate cells and
-        // the melt update spuriously freezes hot liquid at the interface.  Sum
-        // over condensed phases only => `/condensate` recovers the exact metal
-        // value (TSolidusCond -> metal T_sol, etc.) with no gas contamination.
+        // Melt properties are a condensed-phase quantity. 
         if (phase1.isCondensed())
         {
             TSolidus   += alpha1*phaseTSolidus;
@@ -108,6 +118,14 @@
         if (phase1.isGaseous())
         {
             condensate -= alpha1;
+
+                       if (phase1.name().find("vapour") != string::npos)
+            {
+                vapourSum += alpha1;
+            }
+
+
+
         }
 
         if (phase1.isCondensed())
@@ -174,6 +192,34 @@
     metalaverage = fvc::average(condensate);
     condensateFiltered = max(min(condensate, scalar(1)), scalar(0));
     condensateFiltered.correctBoundaryConditions();
+
+
+
+        {
+        const dimensionedScalar betaBand("betaBand", dimless, 0.01);
+        const dimensionedScalar vapRefineThresh
+        (
+            "vapRefineThresh", dimless, 0.01
+        );
+
+        const volScalarField vapourAverage(fvc::average(vapourSum));
+
+        refineIndicator =
+            max
+            (
+                min
+                (
+                    min(metalaverage, scalar(1) - metalaverage)/betaBand,
+                    scalar(1)
+                ),
+                min(vapourAverage/vapRefineThresh, scalar(1))
+            );
+        refineIndicator.correctBoundaryConditions();
+    }
+
+
+
+
 
     // laser.refineFlag() *= 0.0;
     // laser.refineFlag() += metalaverage;

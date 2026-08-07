@@ -1,9 +1,3 @@
-//  Courant   (CoNum, from CourantNo.H)
-//  interface  Courant   (alphaCoNum, from alphaCourantNo.H)
-// vapour acoustic Courant   (the stiff phase you never softened)
-//  phase-change fractional rate  (limits evaporation volume source per step)
-//  kinetic-energy temperature excursion  (the term that craters vapour T)
-
 if (adjustTimeStep)
 {
     // --- user limits (optional; sensible defaults) -----------------------
@@ -78,11 +72,5 @@ if (runTime.deltaTValue() < minDeltaT)
 
 
 
-    Info<< "deltaT = " << runTime.deltaTValue()
-        << "  [Co " << CoNum
-        << " | alphaCo " << alphaCoNum
-        << " | acCo " << acousticCoNum
-        << " | dV/V " << phaseChangeNum
-        << " | dT_K " << deltaTKnum << " K]"
-        << "  (limiter = " << limiter << ")" << endl;
+    Info<< "deltaT = " << runTime.deltaTValue() << endl;
 }

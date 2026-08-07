@@ -162,32 +162,19 @@ private:
         const dimensionedScalar deltaN_;
 
 
-        // ----------------------------------------------------------------
-        //  Per-species mass-conservation ledger (beta-master scheme)
-        // ----------------------------------------------------------------
+        //  Per-species mass-conservation 
 
         //- Conserved per-species partial masses  c_i = alpha_i * rho_i
-        //  [kg/m^3].  This is the PRIMARY mass variable: it is advanced
-        //  ONLY by conservative flux-form updates (and exactly-paired
-        //  phase-change sources) in solveAlphas, so the integral of each
-        //  c_i is conserved to machine precision regardless of the flux
-        //  used.  READ_IF_PRESENT + AUTO_WRITE: written every write-time
-        //  and READ BACK VERBATIM on restart, so the conservation contract
-        //  survives restarts; it is derived from alpha*rho only on a fresh
-        //  start (no c.<phase> files), where that is exact by definition.
+        
         PtrList<volScalarField> c_;
 
-        //- Start-of-timestep snapshot of c_ (the c^n that every outer
-        //  PIMPLE corrector re-solves from).  Internal scratch (NO_WRITE).
+        
         PtrList<volScalarField> c0_;
 
-        //- Start-of-timestep aggregate condensate fraction beta^n,
-        //  used as the oldTime anchor for the sharp beta transport.
+        
         volScalarField beta0_;
 
-        //- timeIndex of the last start-of-timestep snapshot
-        //  (enables once-per-timestep snapshotting while solveAlphas is
-        //  called on every outer corrector).  Initialised to -1.
+        
         label curTimeIndex_;
 
 
@@ -195,13 +182,7 @@ private:
 
         void calcAlphas();
 
-        //- Advance the phase fractions / conserved masses; returns the
-        //  phase-change volumetric rate (-> vDot).
-        //    massdotterm : latent-heat sink for TEqn (existing behaviour)
-        //    vDotPptr    : optional; filled with  -d(vDot)/dp >= 0, the
-        //                  implicit pressure-coupling coefficient for pEqn
-        //                  (fvm::Sp).  Zero in cells where a rate clamp is
-        //                  active, since dr/dp = 0 there.
+
         tmp<volScalarField> solveAlphas
         (
             volScalarField* massdotterm,
