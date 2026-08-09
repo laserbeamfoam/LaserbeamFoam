@@ -20,16 +20,23 @@ timeVsLaserPosition
     outOfBounds clamp;
 }
 
+timeVsLaserIncidentVector
+{
+    file    "$FOAM_CASE/constant/timeVsLaserIncidentVector";
+    outOfBounds clamp;
+}
+
 timeVsLaserPower
 {
     file    "$FOAM_CASE/constant/timeVsLaserPower";
     outOfBounds clamp;
 }
 
-V_incident	(0 1 0);//(0 1 0);//NORMALISED IN CODE
-
-laserRadius 0.002;
-
+timeVsLaserRadius
+{
+    file    "$FOAM_CASE/constant/timeVsLaserRadius";
+    outOfBounds clamp;
+}
 
 N_sub_divisions	2;
 

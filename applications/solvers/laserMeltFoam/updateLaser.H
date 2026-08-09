@@ -2,9 +2,11 @@ t = mesh.time();
 
 Power.value() = laserPowerSeries(runTime.time().timeOutputValue());
 laserPos.value() = laserPositionSeries(runTime.time().timeOutputValue());
+r0.value() = laserRadiusSeries(runTime.time().timeOutputValue());
 
 Info<< "Laser power: " << Power.value()<< "\n";
 Info<< "Laser position: " << laserPos.value()<< "\n";
+Info<< "Laser radius: " << r0.value()<< "\n";
 
 dimensionedScalar x = laserPos.component(0);
 dimensionedScalar y = laserPos.component(1);

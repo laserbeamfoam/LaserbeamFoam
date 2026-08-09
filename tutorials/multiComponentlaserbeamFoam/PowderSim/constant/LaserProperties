@@ -14,11 +14,15 @@ FoamFile
     object      PhaseFieldProperties;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
-V_incident	(0 1 0);//(0 1 0);//NORMALISED IN CODE
-
 timeVsLaserPosition
 {
     file    "$FOAM_CASE/constant/timeVsLaserPosition";
+    outOfBounds clamp;
+}
+
+timeVsLaserIncidentVector
+{
+    file    "$FOAM_CASE/constant/timeVsLaserIncidentVector";
     outOfBounds clamp;
 }
 
@@ -28,10 +32,13 @@ timeVsLaserPower
     outOfBounds clamp;
 }
 
+timeVsLaserRadius
+{
+    file    "$FOAM_CASE/constant/timeVsLaserRadius";
+    outOfBounds clamp;
+}
+
 N_sub_divisions	2;
-
-HS_a 10e-5;
-
 
 wavelength	1.064e-6;
 

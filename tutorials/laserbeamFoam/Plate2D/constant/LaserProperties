@@ -27,17 +27,24 @@ lasers
             outOfBounds clamp;
         }
 
+        // Laser angle (normalised in the code)
+        timeVsLaserIncidentVector
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserIncidentVector0";
+            outOfBounds clamp;
+        }
+
         timeVsLaserPower
         {
             file    "$FOAM_CASE/constant/timeVsLaserPower0";
             outOfBounds clamp;
         }
-
-        // Laser angle (normalised in the code)
-        V_incident (0 1 1);
-
-        // Laser radius
-        laserRadius 0.0005;
+        
+        timeVsLaserRadius
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserRadius0";
+            outOfBounds clamp;
+        }
 
         // Laser physical properties
         wavelength      1.064e-6;
@@ -55,17 +62,24 @@ lasers
             outOfBounds clamp;
         }
 
+        // Laser angle (normalised in the code)
+        timeVsLaserIncidentVector
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserIncidentVector1";
+            outOfBounds clamp;
+        }
+
         timeVsLaserPower
         {
             file    "$FOAM_CASE/constant/timeVsLaserPower1";
             outOfBounds clamp;
         }
 
-        // Laser angle (normalised in the code)
-        V_incident (0 1 0);
-
-        // Laser radius
-        laserRadius 0.0005;
+        timeVsLaserRadius
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserRadius1";
+            outOfBounds clamp;
+        }
 
         // Laser physical properties
         wavelength      1.064e-6;

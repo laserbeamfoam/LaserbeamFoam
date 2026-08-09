@@ -101,8 +101,14 @@ class laserHeatSource
         //- List of the time vs laser position interpolation series
         PtrList<interpolationTable<vector>> timeVsLaserPosition_;
 
+        //- List of the time vs laser incident vector interpolation series
+        PtrList<interpolationTable<vector>> timeVsLaserIncidentVector_;
+
         //- List of the time vs laser power interpolation series
         PtrList<interpolationTable<scalar>> timeVsLaserPower_;
+        
+        //- List of the time vs laser radius interpolation series
+        PtrList<interpolationTable<scalar>> timeVsLaserRadius_;
 
         //- Record the ray paths for each laser
         List<List<DynamicList<point>>> rayPaths_;
@@ -126,11 +132,11 @@ class laserHeatSource
             Cloud<laserRayParticle>& cloud,
             const fvMesh& mesh,
             const vector& currentLaserPosition,
-            const scalar laserRadius,
+            const scalar currentLaserRadius,
             const label N_sub_divisions,
             const label nRadial,
             const label nAngular,
-            const vector& V_incident,
+            const vector& currentLaserIncidentVector,
             const scalar Radius_Flavour,
             const scalar Q_cond,
             const scalar beam_radius,
@@ -205,11 +211,11 @@ public:
             const label laserID,
             const vector& currentLaserPosition,
             const scalar currentLaserPower,
-            const scalar laserRadius,
+            const scalar currentLaserRadius,
             const label N_sub_divisions,
             const label nRadial,
             const label nAngular,
-            const vector& V_incident,
+            const vector& currentLaserIncidentVector,
             const scalar wavelength,
             const scalar e_num_density,
             const scalar dep_cutoff,

@@ -23,17 +23,24 @@ timeVsLaserPosition
     outOfBounds clamp;
 }
 
+// Laser angle (normalised in the code)
+timeVsLaserIncidentVector
+{
+    file    "$FOAM_CASE/constant/timeVsLaserIncidentVector0";
+    outOfBounds clamp;
+}
+
 timeVsLaserPower
 {
     file    "$FOAM_CASE/constant/timeVsLaserPower0";
     outOfBounds clamp;
 }
 
-// Laser angle (normalised in the code)
-V_incident (0 1 0.25);
-
-// Laser radius
-laserRadius 0.00025;
+timeVsLaserRadius
+{
+    file    "$FOAM_CASE/constant/timeVsLaserRadius0";
+    outOfBounds clamp;
+}
 
 // number of Rays per cell
 N_sub_divisions	1;
