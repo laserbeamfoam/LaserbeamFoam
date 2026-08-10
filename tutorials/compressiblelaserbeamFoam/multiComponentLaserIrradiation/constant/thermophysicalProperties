@@ -26,6 +26,8 @@ accommodationCoeffEvap   1.0;    // clean liquid metal
 accommodationCoeffCond   0.05;   // stand-in for non-condensable diffusion resistance
 
 
+closureMaskPatches (back);//in cells touching patch back, don't let the numerical volume-closure correction inject or remove volume — let the boundary condition itself absorb any ledger-vs-EOS mismatch there.
+
 sigmas
 (
 

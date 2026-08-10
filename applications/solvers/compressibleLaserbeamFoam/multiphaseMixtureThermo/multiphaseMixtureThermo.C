@@ -2528,7 +2528,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     const dimensionedScalar cZero("cZero", dimensionSet(1, -3, 0, 0, 0), 0.0);
 
 
-    //  HIERARCHICAL VOLUME-CLOSURE RECOVERY  (global rescale was shit))
+    //  hierarchical recovery of alpha's  (global rescale was shit))
     //
     //  alpha = c/rho only sums to 1 if the transported masses match the EOS
     //  densities at the current p and T, and they never quite do (species
@@ -2747,12 +2747,68 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
-    // dump the closure diff into the pressuqre equation term. 
+    // refresh the ledger patch values from the freshly corrected alphas
+    {
+        label i = 0;
+        for (phaseModel& ph : phases_)
+        {
+            const volScalarField::Boundary& aBf = ph.boundaryField();
+            const volScalarField& rhoPh = ph.thermo().rho();
+            const volScalarField::Boundary& rBf = rhoPh.boundaryField();
+
+            volScalarField::Boundary& cBf = c_[i].boundaryFieldRef();
+
+            forAll(cBf, patchi)
+            {
+                cBf[patchi] == aBf[patchi]*rBf[patchi];
+            }
+            ++i;
+        }
+    }
+
+    // dump the closure diff into the pressuqre equation term.
     {
         const scalar closureRelax =
             phasedictionary.getOrDefault<scalar>("closureRelax", 0.5);
         const scalar closureVolLimit =
             phasedictionary.getOrDefault<scalar>("closureVolLimit", 0.02);
+
+        // dont run the closure source in cells touching the open patches
+        // listed in closureMaskPatches, eg (back). 
+        List<bool> closureMask(mesh_.nCells(), false);
+        label nMasked = 0;
+        {
+            wordList maskPatchNames
+            (
+                phasedictionary.lookupOrDefault<wordList>
+                (
+                    "closureMaskPatches",
+                    wordList()
+                )
+            );
+
+            for (const word& pn : maskPatchNames)
+            {
+                const label patchi = mesh_.boundaryMesh().findPatchID(pn);
+                if (patchi < 0)
+                {
+                    WarningInFunction
+                        << "closureMaskPatches: patch " << pn
+                        << " not found, skipping" << endl;
+                    continue;
+                }
+
+                const labelUList& fc = mesh_.boundary()[patchi].faceCells();
+                forAll(fc, bfacei)
+                {
+                    if (!closureMask[fc[bfacei]])
+                    {
+                        closureMask[fc[bfacei]] = true;
+                        ++nMasked;
+                    }
+                }
+            }
+        }
 
         if (closureRelax > 0)
         {
@@ -2765,6 +2821,12 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
             forAll(src, celli)
             {
+                if (closureMask[celli])
+                {
+                    // patch adjacent: leave the healing to the BC
+                    unclampedC[celli] = 0;
+                    continue;
+                }
                 scalar s = closureRelax*(sI[celli] - 1.0)*rDeltaT;
                 if (s >  srcMax) { s =  srcMax; unclampedC[celli] = 0; ++nClampC; }
                 if (s < -srcMax) { s = -srcMax; unclampedC[celli] = 0; ++nClampC; }
@@ -2802,8 +2864,10 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
             }
 
             reduce(nClampC, sumOp<label>());
+            reduce(nMasked, sumOp<label>());
             Info<< "closure feedback: relax = " << closureRelax
-                << ", capped cells = " << nClampC << endl;
+                << ", capped cells = " << nClampC
+                << ", boundary-masked cells = " << nMasked << endl;
         }
     }
 
