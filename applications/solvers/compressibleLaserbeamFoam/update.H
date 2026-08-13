@@ -196,23 +196,34 @@
 
 
         {
-        const dimensionedScalar betaBand("betaBand", dimless, 0.01);
+        const dimensionedScalar betaBand("betaBand", dimless, 0.001);
         const dimensionedScalar vapRefineThresh
         (
-            "vapRefineThresh", dimless, 0.01
+            "vapRefineThresh", dimless, 0.001
         );
 
         const volScalarField vapourAverage(fvc::average(vapourSum));
 
+
+        const dimensionedScalar coarsenGuard("coarsenGuard", dimless, 0.02);
+        const volScalarField minorityFrac
+        (
+            min(condensateFiltered, scalar(1) - condensateFiltered)
+        );
+
         refineIndicator =
             max
             (
-                min
+                max
                 (
-                    min(metalaverage, scalar(1) - metalaverage)/betaBand,
-                    scalar(1)
+                    min
+                    (
+                        min(metalaverage, scalar(1) - metalaverage)/betaBand,
+                        scalar(1)
+                    ),
+                    min(vapourAverage/vapRefineThresh, scalar(1))
                 ),
-                min(vapourAverage/vapRefineThresh, scalar(1))
+                min(minorityFrac/coarsenGuard, scalar(0.45))
             );
         refineIndicator.correctBoundaryConditions();
     }
