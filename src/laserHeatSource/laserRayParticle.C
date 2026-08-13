@@ -438,6 +438,7 @@ Foam::scalar Foam::laserRayParticle::computeFresnelAbsorptivity
 
     const scalar alpha_laser = Foam::sqrt
     (
+        (
         Foam::sqrt
         (
             sqr(sqr(ref_index) - sqr(ext_coefficient) - sqr(sinTheta))
@@ -445,7 +446,8 @@ Foam::scalar Foam::laserRayParticle::computeFresnelAbsorptivity
         )
       + sqr(ref_index)
       - sqr(ext_coefficient)
-      - sqr(sinTheta)/2.0
+      - sqr(sinTheta)
+    )/2.0
     );
 
     const scalar beta_laser = Foam::sqrt
