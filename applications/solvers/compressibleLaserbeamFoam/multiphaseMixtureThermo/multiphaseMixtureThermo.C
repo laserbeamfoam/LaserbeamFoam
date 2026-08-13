@@ -2747,7 +2747,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
-    // refresh the ledger patch values from the freshly corrected alphas
+
     {
         label i = 0;
         for (phaseModel& ph : phases_)
@@ -2760,8 +2760,16 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
             forAll(cBf, patchi)
             {
+                if (cBf[patchi].coupled())
+                {
+                    // halo, gets the proper swap below
+                    continue;
+                }
                 cBf[patchi] == aBf[patchi]*rBf[patchi];
             }
+
+            // true halo exchange on the processor/cyclic patches
+            c_[i].correctBoundaryConditions();
             ++i;
         }
     }
