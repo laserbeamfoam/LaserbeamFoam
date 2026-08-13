@@ -23,7 +23,7 @@ refineInterval  5;
 field           refineIndicator;
 
 // Refine field inbetween lower..upper
-lowerRefineLevel 0.5;
+lowerRefineLevel 0.025;
 upperRefineLevel 2;
 
 // If value < unrefineLevel unrefine
