@@ -95,6 +95,8 @@ MELTING
 
 PIMPLE
 {
+
+correctPhi no;//VERY FUCKING IMPORTANT ON AMR RUNS!!!!!!!!!!
     momentumPredictor        yes;     
     nOuterCorrectors         5;       
     nCorrectors              2;

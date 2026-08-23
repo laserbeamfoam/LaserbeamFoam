@@ -145,9 +145,10 @@ int main(int argc, char *argv[])
 
                         // Make the flux relative to the mesh motion
                         fvc::makeRelative(phi, U);
-
-                        mixture.correct();
                     }
+
+                    
+                    mixture.correct();
 
                     if (checkMeshCourantNo)
                     {
@@ -175,9 +176,7 @@ int main(int argc, char *argv[])
 
             }
 
-            // density, rho, recompute every corrector amd alpha is fixed in the semi-PIMPLE above.
-            // per-phase EOS densities are updated in correctRho() in pEqn.H, so
-            // mixture density must track them.
+            
             rho = mixture.rho();
 
             

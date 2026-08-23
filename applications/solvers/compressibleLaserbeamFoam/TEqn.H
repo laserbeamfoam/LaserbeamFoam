@@ -90,12 +90,20 @@ TRHS.correctBoundaryConditions();
 
  {
         const dimensionedScalar Tfloor("Tfloor", dimTemperature, 250.0);
+        // ceiling to match the floor, kinetic heating spikes have no other
+        // bound. default 1e6 = off, set TMax in PIMPLE dict to arm it
+        const scalar Tceil = pimple.dict().getOrDefault<scalar>("TMax", 1e6);
         scalarField& TI = T.primitiveFieldRef();
-        label nClip = 0;
+        label nClip = 0, nClipHi = 0;
         forAll(TI, celli)
+        {
             if (TI[celli] < Tfloor.value()) { TI[celli] = Tfloor.value(); ++nClip; }
+            if (TI[celli] > Tceil) { TI[celli] = Tceil; ++nClipHi; }
+        }
         reduce(nClip, sumOp<label>());
+        reduce(nClipHi, sumOp<label>());
         if (nClip) Info<< "TEqn: floored " << nClip << " cell(s)" << endl;
+        if (nClipHi) Info<< "TEqn: ceilinged " << nClipHi << " cell(s)" << endl;
         T.correctBoundaryConditions();
     }
 
@@ -108,6 +116,40 @@ Tcorr.correctBoundaryConditions();
 epsilon1 =
     meltMask*max(min(epsilon1 + meltCoeff*(T - Tcorr), scalar(1)), scalar(0))
   + (scalar(1) - meltMask);
+
+
+{
+    const wordList e1MaskNames
+    (
+        mesh.lookupObject<IOdictionary>("thermophysicalProperties")
+            .lookupOrDefault<wordList>("phaseChangeMaskPatches", wordList())
+    );
+
+    label nE1Mask = 0;
+    scalarField& e1I = epsilon1.primitiveFieldRef();
+
+    for (const word& pn : e1MaskNames)
+    {
+        const label patchi = mesh.boundaryMesh().findPatchID(pn);
+        if (patchi < 0) continue;   // typo already warned about in solveAlphas
+
+        const labelUList& fc = mesh.boundary()[patchi].faceCells();
+        forAll(fc, bfacei)
+        {
+            if (e1I[fc[bfacei]] < 1.0)
+            {
+                e1I[fc[bfacei]] = 1.0;
+                ++nE1Mask;
+            }
+        }
+    }
+    reduce(nE1Mask, sumOp<label>());
+    if (nE1Mask)
+    {
+        Info<< "solidification masked in " << nE1Mask
+            << " boundary cell(s)" << endl;
+    }
+}
 epsilon1.correctBoundaryConditions();
 
 

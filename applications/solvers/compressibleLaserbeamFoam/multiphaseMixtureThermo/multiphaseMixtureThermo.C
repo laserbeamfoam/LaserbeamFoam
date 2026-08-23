@@ -408,7 +408,9 @@ void Foam::multiphaseMixtureThermo::correctRho(const volScalarField& dp)
     {
         volScalarField& rhoPh = phase.thermo().rho();
         rhoPh += phase.thermo().psi()*dp;
-        rhoPh = max(rhoPh, dimensionedScalar("rhoMinEOS", dimDensity, 1e-4));
+        // was 1e-4.. 1/rho feeds the p matrix coefficients and the extra
+        // decade of conditioning bought nothing, match the other floors
+        rhoPh = max(rhoPh, dimensionedScalar("rhoMinEOS", dimDensity, 1e-3));
     }
 }
 
@@ -1445,6 +1447,31 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     const dimensionedScalar int_thickness
         ("interface_thickness", dimensionSet(0, 1, 0, 0, 0), phasedictionary);
 
+    // local interface thickness: delta follows the local cell size so the
+    // integrated flux is resolution independant. one global delta can only
+    // be right at ONE refinement level.. false/absent = old global behaviour
+    const bool localDelta
+    (
+        phasedictionary.getOrDefault<bool>("localInterfaceThickness", false)
+    );
+    const scalar deltaCellFac
+    (
+        phasedictionary.getOrDefault<scalar>("interfaceCellFactor", 2.5)
+    );
+
+    volScalarField deltaPC
+    (
+        IOobject("deltaPC", runTime.timeName(), mesh_),
+        mesh_,
+        int_thickness
+    );
+    if (localDelta)
+    {
+        deltaPC.primitiveFieldRef() =
+            deltaCellFac*Foam::cbrt(mesh_.V().field());
+        deltaPC.correctBoundaryConditions();
+    }
+
     // per step cap on how much volume phase change can make/remove 
     const scalar etaVol
     (
@@ -1600,7 +1627,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     (
         phasedictionary.getOrDefault<scalar>("phaseChangeGate", 0.01)
     );
-    const volScalarField gInt
+    volScalarField gInt
     (
         IOobject("phaseChangeGateField", runTime.timeName(), mesh_),
         min
@@ -1609,6 +1636,54 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
             scalar(1)
         )
     );
+
+    // no phase change in cells touching the open patches listed in
+    // phaseChangeMaskPatches, eg (back). the domain is a truncated
+    // atmosphere.. vapour that would condense to fume metres downstream
+    // condenses AT the patch insted, freezes, and a solid crust grows
+    // across the exhaust (7064 gate cells in the crash log). masking gInt
+    // kills r AND kP together there so vapour just leaves as vapour, which
+    // is the physicaly correct truncation. same style as closureMaskPatches
+    {
+        wordList pcMaskNames
+        (
+            phasedictionary.lookupOrDefault<wordList>
+            (
+                "phaseChangeMaskPatches",
+                wordList()
+            )
+        );
+
+        label nPCMask = 0;
+        scalarField& gI = gInt.primitiveFieldRef();
+
+        for (const word& pn : pcMaskNames)
+        {
+            const label patchi = mesh_.boundaryMesh().findPatchID(pn);
+            if (patchi < 0)
+            {
+                WarningInFunction
+                    << "phaseChangeMaskPatches: patch " << pn
+                    << " not found, skipping" << endl;
+                continue;
+            }
+            const labelUList& fc = mesh_.boundary()[patchi].faceCells();
+            forAll(fc, bfacei)
+            {
+                if (gI[fc[bfacei]] > 0)
+                {
+                    gI[fc[bfacei]] = 0.0;
+                    ++nPCMask;
+                }
+            }
+        }
+        reduce(nPCMask, sumOp<label>());
+        if (nPCMask)
+        {
+            Info<< "phase change masked in " << nPCMask
+                << " boundary cell(s)" << endl;
+        }
+    }
 
 
     // once per timestep snapshot. every outer corrector re-solves from the
@@ -1781,8 +1856,19 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         );
 
 
-                        const dimensionedScalar rhoFloorPC// dont let density go below this as it messes up the solve and crashes.. maybe try other values
-                            ("rhoFloorPC", dimDensity, 1e-3);
+                        // dont let density go below this, dVspec = 1/rhoVap
+                        // feeds kP and PCR and a floored cell at 1e-3 handed
+                        // the presure eqn a coefficent 100x a healthy band
+                        // cell. 0.01 caps 1/rho at 100. dict phaseChangeRhoFloor
+                        const dimensionedScalar rhoFloorPC
+                        (
+                            "rhoFloorPC",
+                            dimDensity,
+                            phasedictionary.getOrDefault<scalar>
+                            (
+                                "phaseChangeRhoFloor", 0.01
+                            )
+                        );
                         const volScalarField rhoLiq(max(liq.thermo().rho(), rhoFloorPC));
                         const volScalarField rhoVap(max(vap.thermo().rho(), rhoFloorPC));
 
@@ -1812,7 +1898,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             (
                                 (Wliq/1000.0)/(2.0*M_PI*gasconstant*Tsafe)
                             )
-                           *(xLiq*Psat - yVap*p_)/int_thickness
+                           *(xLiq*Psat - yVap*p_)/deltaPC
                         );
 
                         // apply the split sigma by sign. 
@@ -1932,8 +2018,12 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                     Foam::max(TI[celli] - TsatI[celli], 0.0);
                                 const scalar rMinE = -headUp*eFac;  // cond cap (<=0)
                                 const scalar rMaxE =  headDn*eFac;  // evap cap (>=0)
-                                if (rc > rMaxE) { rc = rMaxE; ++nClampE; }
-                                if (rc < rMinE) { rc = rMinE; ++nClampE; }
+                                // only count clamps that MATTER.. a trace
+                                // rate clamped to a smaller trace is not news
+                                // (the log read 14k "clamped" cells at 1e-51
+                                // kg/m3/s, pure census noise)
+                                if (rc > rMaxE) { rc = rMaxE; if (mag(rcKinetic) > 1e-3) ++nClampE; }
+                                if (rc < rMinE) { rc = rMinE; if (mag(rcKinetic) > 1e-3) ++nClampE; }
 
                                 //  mass limit: half of whats there per step,
                                 //  max. NB the positivity limiter budget below
@@ -1999,7 +2089,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                     (Wliq/1000.0)
                                    /(2.0*M_PI*gasconstant*Tsafe)
                                 )
-                               /int_thickness
+                               /deltaPC
                                *max
                                 (
                                     1.0/rhoVap - 1.0/rhoLiq,
@@ -2510,15 +2600,14 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
             }
             else
             {
+                // physical patch: exports keep the positivity factor, INFLOW
+                // is never throttled.. BCs outrank the limiter, throttling
+                // BC inflow = volume without mass = the boundary air jet
                 forAll(pF, bfacei)
                 {
                     if (pF[bfacei] > 0)
                     {
                         pF[bfacei] *= loI[fc[bfacei]];
-                    }
-                    else
-                    {
-                        pF[bfacei] *= liI[fc[bfacei]];
                     }
                 }
             }
@@ -2938,7 +3027,35 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
-    // dump the closure diff into the pressuqre equation term. 
+    // ceiling on the PAIR implicit coupling only
+    if (vDotPptr)
+    {
+        const scalar implicitVolLimit =
+            phasedictionary.getOrDefault<scalar>("implicitVolLimit", 0.2);
+
+        scalarField& vpI = vDotPptr->primitiveFieldRef();
+        const scalarField& pI = p_.primitiveField();
+
+        label nCapKP = 0;
+        forAll(vpI, celli)
+        {
+            const scalar kPmax =
+                implicitVolLimit*rDeltaT/Foam::max(pI[celli], scalar(1e4));
+            if (vpI[celli] > kPmax)
+            {
+                vpI[celli] = kPmax;
+                ++nCapKP;
+            }
+        }
+        reduce(nCapKP, sumOp<label>());
+        if (nCapKP)
+        {
+            Info<< "implicit coupling ceiling: " << nCapKP
+                << " cell(s) capped" << endl;
+        }
+    }
+
+    // dump the closure diff into the pressuqre equation term.
     {
         const scalar closureRelax =
             phasedictionary.getOrDefault<scalar>("closureRelax", 0.5);
