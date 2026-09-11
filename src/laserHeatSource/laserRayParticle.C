@@ -55,6 +55,8 @@ Foam::laserRayParticle::laserRayParticle
     initialPower_(power),
     dA_(dA),
     bounceCount_(0),
+    minAbsorptivity_(GREAT),
+    nearZeroAbsorptivityCount_(0),
     globalRayIndex_(globalRayIndex),
     active_(true),
     path_()
@@ -77,6 +79,8 @@ Foam::laserRayParticle::laserRayParticle
     initialPower_(0),
     dA_(0),
     bounceCount_(0),
+    minAbsorptivity_(GREAT),
+    nearZeroAbsorptivityCount_(0),
     globalRayIndex_(-1),
     active_(true),
     path_()
@@ -88,6 +92,8 @@ Foam::laserRayParticle::laserRayParticle
             >> initialPower_
             >> dA_
             >> bounceCount_
+            >> minAbsorptivity_
+            >> nearZeroAbsorptivityCount_
             >> globalRayIndex_
             >> active_;
     }
@@ -161,8 +167,8 @@ bool Foam::laserRayParticle::move
         td.rayQ_[cellI] += power_;
         td.rayNumber_[cellI] = globalRayIndex_;
 
-        // Check if power is exhausted
-        if (power_ < td.rayPowerAbsTol_ || power_ < SMALL)
+        // Check if power is exhausted relative to this ray's initial power
+        if (power_ < td.rayPowerRelTol_*initialPower_ || power_ < SMALL)
         {
             path_.append(position());
             td.finishedRayIDs_.append(globalRayIndex_);
@@ -238,7 +244,7 @@ bool Foam::laserRayParticle::move
             // Interface cell - Fresnel reflection/absorption
             // ================================================
 
-            const scalar absorptivity = computeFresnelAbsorptivity
+            const scalar fresnelAbsorptivity = computeFresnelAbsorptivity
             (
                 direction_,
                 nI[cellI],
@@ -247,11 +253,22 @@ bool Foam::laserRayParticle::move
                 td.resistivity_[cellI]
             );
 
+            minAbsorptivity_ =
+                min(minAbsorptivity_, fresnelAbsorptivity);
+            td.minAbsorptivity_ =
+                min(td.minAbsorptivity_, fresnelAbsorptivity);
+
+            if (fresnelAbsorptivity <= td.nearZeroAbsorptivityTol_)
+            {
+                nearZeroAbsorptivityCount_++;
+                td.nearZeroAbsorptivityCount_++;
+            }
+
             // Deposit absorbed fraction
-            td.deposition_[cellI] += absorptivity * power_ / VI[cellI];
+            td.deposition_[cellI] += fresnelAbsorptivity * power_ / VI[cellI];
 
             // Reduce ray power
-            power_ *= (1.0 - absorptivity);
+            power_ *= (1.0 - fresnelAbsorptivity);
 
             // Specular reflection about the interface normal
             vector n = nI[cellI];
@@ -267,14 +284,80 @@ bool Foam::laserRayParticle::move
             direction_ /= mag(direction_) + VSMALL;
 
             bounceCount_++;
+            td.maxObservedBounces_ =
+                max(td.maxObservedBounces_, bounceCount_);
             path_.append(position());
 
             // Suppress further events until the ray exits this band
             escapingInterface = true;
             escapeHops = 0;
 
+            if (td.maxRayBounces_ > 0 && bounceCount_ >= td.maxRayBounces_)
+            {
+                const scalar residualPower = power_;
+
+                td.maxBounceTerminations_++;
+                td.maxBounceResidualPower_ += residualPower;
+
+                const word& action = td.maxRayBounceAction_;
+
+                if (action == "error")
+                {
+                    FatalErrorInFunction
+                        << "Ray " << globalRayIndex_
+                        << " exceeded maxRayBounces="
+                        << td.maxRayBounces_
+                        << " at position " << position()
+                        << ", cell " << cellI
+                        << ", residualPower=" << residualPower
+                        << ", initialPower=" << initialPower_
+                        << ", minAbsorptivity=" << minAbsorptivity_
+                        << ", nearZeroAbsorptivityCount="
+                        << nearZeroAbsorptivityCount_
+                        << ". Set maxRayBounceAction to escape or deposit "
+                        << "to continue explicitly."
+                        << exit(FatalError);
+                }
+                else if (action == "deposit")
+                {
+                    td.deposition_[cellI] += power_ / VI[cellI];
+                    power_ = 0.0;
+                }
+                else if (action == "escape" || action == "discard")
+                {
+                    power_ = 0.0;
+                }
+                else
+                {
+                    FatalErrorInFunction
+                        << "Unknown maxRayBounceAction '" << action
+                        << "'. Valid options are error, escape, discard, "
+                        << "deposit."
+                        << exit(FatalError);
+                }
+
+                WarningInFunction
+                    << "Terminating ray " << globalRayIndex_
+                    << " after maxRayBounces=" << td.maxRayBounces_
+                    << " with action=" << action
+                    << " at position " << position()
+                    << ", cell " << cellI
+                    << ", residualPower=" << residualPower
+                    << ", initialPower=" << initialPower_
+                    << ", minAbsorptivity=" << minAbsorptivity_
+                    << ", nearZeroAbsorptivityCount="
+                    << nearZeroAbsorptivityCount_
+                    << endl;
+
+                td.finishedRayIDs_.append(globalRayIndex_);
+                td.finishedRayPaths_.append(path_);
+                active_ = false;
+                td.keepParticle = false;
+                break;
+            }
+
             // If power is now below tolerance, kill the ray
-            if (power_ < td.rayPowerAbsTol_)
+            if (power_ < td.rayPowerRelTol_*initialPower_)
             {
                 td.finishedRayIDs_.append(globalRayIndex_);
                 td.finishedRayPaths_.append(path_);
@@ -543,6 +626,20 @@ void Foam::laserRayParticle::readFields
     );
     cloud.checkFieldIOobject(cloud, bounceCount);
 
+    IOField<scalar> minAbsorptivity
+    (
+        cloud.newIOobject("minAbsorptivity", IOobject::MUST_READ),
+        valid
+    );
+    cloud.checkFieldIOobject(cloud, minAbsorptivity);
+
+    IOField<label> nearZeroAbsorptivityCount
+    (
+        cloud.newIOobject("nearZeroAbsorptivityCount", IOobject::MUST_READ),
+        valid
+    );
+    cloud.checkFieldIOobject(cloud, nearZeroAbsorptivityCount);
+
     IOField<label> globalRayIndex
     (
         cloud.newIOobject("globalRayIndex", IOobject::MUST_READ),
@@ -558,6 +655,8 @@ void Foam::laserRayParticle::readFields
         p.initialPower_ = initialPower[i];
         p.dA_ = dA[i];
         p.bounceCount_ = bounceCount[i];
+        p.minAbsorptivity_ = minAbsorptivity[i];
+        p.nearZeroAbsorptivityCount_ = nearZeroAbsorptivityCount[i];
         p.globalRayIndex_ = globalRayIndex[i];
         ++i;
     }
@@ -598,6 +697,16 @@ void Foam::laserRayParticle::writeFields
         cloud.newIOobject("bounceCount", IOobject::NO_READ),
         np
     );
+    IOField<scalar> minAbsorptivity
+    (
+        cloud.newIOobject("minAbsorptivity", IOobject::NO_READ),
+        np
+    );
+    IOField<label> nearZeroAbsorptivityCount
+    (
+        cloud.newIOobject("nearZeroAbsorptivityCount", IOobject::NO_READ),
+        np
+    );
     IOField<label> globalRayIndex
     (
         cloud.newIOobject("globalRayIndex", IOobject::NO_READ),
@@ -612,6 +721,8 @@ void Foam::laserRayParticle::writeFields
         initialPower[i] = p.initialPower_;
         dA[i] = p.dA_;
         bounceCount[i] = p.bounceCount_;
+        minAbsorptivity[i] = p.minAbsorptivity_;
+        nearZeroAbsorptivityCount[i] = p.nearZeroAbsorptivityCount_;
         globalRayIndex[i] = p.globalRayIndex_;
         ++i;
     }
@@ -621,6 +732,8 @@ void Foam::laserRayParticle::writeFields
     initialPower.write(np > 0);
     dA.write(np > 0);
     bounceCount.write(np > 0);
+    minAbsorptivity.write(np > 0);
+    nearZeroAbsorptivityCount.write(np > 0);
     globalRayIndex.write(np > 0);
 }
 
@@ -639,6 +752,8 @@ Foam::Ostream& Foam::operator<<
         << token::SPACE << p.initialPower_
         << token::SPACE << p.dA_
         << token::SPACE << p.bounceCount_
+        << token::SPACE << p.minAbsorptivity_
+        << token::SPACE << p.nearZeroAbsorptivityCount_
         << token::SPACE << p.globalRayIndex_
         << token::SPACE << p.active_;
 

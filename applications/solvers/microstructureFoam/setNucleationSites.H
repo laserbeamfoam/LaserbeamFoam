@@ -209,7 +209,7 @@ scalar maxItersNucSet // how many interface thicknesses each nuc site should be 
 
 Info << "Generating list of nucleation site locations" << endl;
 // Do it in serial on the master processor, then sync to others
-if (Pstream::master)
+if (Pstream::master())
 {
     forAll(nucCentres,i){
         bool nucOK = true;
