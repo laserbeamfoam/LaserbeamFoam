@@ -1,6 +1,6 @@
 // Check for restarting solver
 // bRestartFirstLoop is used within `main()` also!
-bool bRestartFirstLoop = (runTime.timeIndex() > 1);
+bool bRestartFirstLoop = (runTime.timeIndex() > 0);
 Info<< "Runtime timeIndex = " << runTime.timeIndex() << endl;
 if (bRestartFirstLoop)
 {
@@ -577,10 +577,10 @@ const volScalarField zeroJoulesource
 // --- Perform oldTime restoration --------------------------------------------
 if (bRestartFirstLoop)
 {
-    
-
     Info<< "Restoring oldTime values." << endl;
     int errorCount = 0;
+
+    mixture.restoreOldTimeValues();
 
     volVectorField UOldTime
     (
@@ -606,8 +606,30 @@ if (bRestartFirstLoop)
     }
 
 
-    // phi.oldTime() can be restored entirely local, no file read required.
-    phi.oldTime() = fvc::flux(UOldTime);
+    surfaceScalarField phiOldTime
+    (
+        IOobject
+        (
+            IOobject::groupName("phi", "oldTime"),
+            runTime.timeName(),
+            mesh,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        fvc::flux(UOldTime)
+    );
+
+    if (phiOldTime.headerOk())
+    {
+        phi.oldTime() = phiOldTime;
+    }
+    else
+    {
+        Info<< "Restart detected but phi.oldTime not found; reconstructing "
+            << "it from U.oldTime." << endl;
+        phi.oldTime() = phiOldTime;
+        errorCount++;
+    }
 
 
     volScalarField rhoOldTime

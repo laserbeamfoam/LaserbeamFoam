@@ -13,6 +13,19 @@ if (runTime.writeTime()) // this doesnt do what it does :&& pimple.finalIter())
         U.oldTime()
     );
 
+    surfaceScalarField phiOldTime
+    (
+        IOobject
+        (
+            IOobject::groupName("phi", "oldTime"),
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        phi.oldTime()
+    );
+
 
     volScalarField rhoOldTime
     (
@@ -56,6 +69,7 @@ if (runTime.writeTime()) // this doesnt do what it does :&& pimple.finalIter())
     );
 
     UOldTime.write();
+    phiOldTime.write();
     rhoOldTime.write();
     LatentHeatOldTime.write();
     epsilon1OldTime.write();

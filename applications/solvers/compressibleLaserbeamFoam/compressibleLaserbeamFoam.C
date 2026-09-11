@@ -211,6 +211,7 @@ int main(int argc, char *argv[])
             }
         }
 
+        mixture.writeOldTimeValues();
         #include "writeOldTimeStorage.H"
 
         runTime.write();

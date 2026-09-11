@@ -214,11 +214,6 @@ private:
             const phaseModel& alpha2
         ) const;
 
-        //- Solver restart related
-        void restoreOldTimeValues();
-
-        void writeOldTimeValues();
-
 public:
 
     //- Runtime type information
@@ -240,6 +235,12 @@ public:
 
 
     // Member Functions
+
+        //- Restore fields required for consistent restart time derivatives
+        void restoreOldTimeValues();
+
+        //- Write fields required for consistent restart time derivatives
+        void writeOldTimeValues();
 
         //- Return the phases
         const PtrDictionary<phaseModel>& phases() const

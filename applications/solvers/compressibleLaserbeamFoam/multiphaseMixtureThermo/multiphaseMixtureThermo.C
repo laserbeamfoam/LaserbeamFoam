@@ -244,7 +244,7 @@ void Foam::multiphaseMixtureThermo::restoreOldTimeValues()
     }
 
     
-    if (!(mesh_.time().timeIndex() > 1))
+    if (!(mesh_.time().timeIndex() > 0))
     {
         
         return;
@@ -348,6 +348,8 @@ void Foam::multiphaseMixtureThermo::writeOldTimeValues()
             ),
             rhoPhi_.oldTime()
         );
+
+        rhoPhi_oldTime.write();
 
         for (phaseModel& alpha : phases_)
         {
