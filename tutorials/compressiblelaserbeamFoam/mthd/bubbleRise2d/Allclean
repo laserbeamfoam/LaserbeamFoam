@@ -13,4 +13,5 @@ rm -r VTKs
 
 rm log.*
 
+rm initial # here we select from either initial2d or initialRichter
 #------------------------------------------------------------------------------

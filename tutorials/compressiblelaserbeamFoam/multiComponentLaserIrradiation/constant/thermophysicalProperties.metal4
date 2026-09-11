@@ -11,9 +11,14 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties.mercury;
+    object      thermophysicalProperties.metal4;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// metal4 = MOLYBDENUM (Mo) - ~2.5 wt% of 316L
+// (was rho0 = 800 in the original - corrected to the liquid Mo value below.)
+// NOTE: Mo boils at ~4912 K, far above Fe/Cr/Ni; that boiling point lives in
+// the master thermophysicalProperties 'boils' dict, not here.
 
 phaseState      condensed;  // or: gaseous, solid
 
@@ -28,25 +33,24 @@ thermoType
     energy          sensibleInternalEnergy;
 }
 
-TSolidus	1800.0;
-TLiquidus	1825.0;
-LatentHeat	2.7e5;
-
-elec_conductivity	1.0e6;
-magnetic_permeability	1.256e-6;
+TSolidus    1658.0;
+TLiquidus   1723.0;
+LatentHeat  2.7e5;          // fusion latent heat of 316L
+elec_conductivity   1.0e6;
+magnetic_permeability   1.256e-6;
 
 mixture
 {
     specie
     {
-        molWeight   50.0;
+        molWeight   95.95;          // Mo
     }
     equationOfState
     {
-        p0	1e5;
-        rho0         800;
-        gamma	1.2;
-        B	1e7;
+        p0      1e5;
+        rho0    9330;               // liquid Mo density near melting [kg/m3]
+        gamma   1.2;
+        B       1e7;                // softened for acoustic CFL; physical ~1.6e11
     }
     thermodynamics
     {
@@ -55,8 +59,8 @@ mixture
     }
     transport
     {
-        mu          5.0e-4;
-        Pr          0.005;
+        mu          6.0e-3;
+        Pr          0.16;
     }
 }
 

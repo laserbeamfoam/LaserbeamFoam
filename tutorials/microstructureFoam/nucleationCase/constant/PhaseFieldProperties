@@ -1,0 +1,47 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  6
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      PhaseFieldProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+grainNumThreshold 1e-4;
+
+Aniso_strength 0.4;
+
+gamma_pf	1.5;
+
+sigma_P	0.2;
+sigma_G	1.0;
+lp	4.0e-5;
+lg	4.0e-5;
+deltaf_g	0.125;
+deltaf_p	0.25;
+D0	10.0;//0.034;
+Qg	25000;//140e3;
+
+
+
+//Voronoi Tesselation Parameters
+N_Seeds 100; //used to seed the initial microstructure with tesselatefoam
+
+Xmin -0.05e-3;
+Xmax 0.05e-3;
+Ymin 0e-3;
+Ymax 1e-3;
+Zmin 1e-3;
+Zmax 2e-3;
+//Voronoi Tesselation Parameters
+
+
+write_ni_all  false;
+write_ni_active  true;

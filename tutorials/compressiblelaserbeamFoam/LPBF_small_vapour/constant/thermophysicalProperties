@@ -39,12 +39,12 @@ dsigmadT
 
 boils
 (
-    (metal1vapour metal1) 2900.0
+    (metal1vapour metal1)	2900
 );
 
 LatentHeatGas
 (
-    (metal1vapour metal1) 1.0e6
+    (metal1vapour metal1)	1e6
 );
 
 interfaceCompression

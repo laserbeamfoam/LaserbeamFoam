@@ -14,16 +14,24 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-std_tol     1e-7;
-final_tol   1e-8;
+// For serious runs, consider using tightened tolerances in trailing comments:
+std_tol         1e-6;  // 1e-11;
+final_tol       1e-7;  // 1e-12;
+mthd_std_tol    1e-10; // 1e-11;
+mthd_final_tol  1e-11; // 1e-12;
 
 solvers
 {
     "alpha.*"
     {
-        nAlphaSubCycles 4;
-        cAlpha          1;
-        tolerance 1e-12;
+        nAlphaSubCycles 0; // seems to be causing issues when >0
+
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-12;
+        relTol          0;
+
+        MULEScorr       yes;
     }
 
     "pcorr.*"
@@ -70,19 +78,40 @@ solvers
         maxIter         2000;
     }
 
-    "(U|T|k|B|nuTilda)"
+    "(U|k|B|nuTilda)"
     {
         solver          smoothSolver;
         smoother        symGaussSeidel;
-        tolerance       1e-012;
+        tolerance       $std_tol; // 1e-012;
         relTol          0.0;
         nSweeps         1;
     }
 
-    "(U|T|k|B|nuTilda)Final"
+    "(U|k|B|nuTilda)Final"
     {
         $U;
+        tolerance       $final_tol;
         relTol          0;
+    }
+
+
+    // For Richter: case has no to negigble temperature change for 0<=B<=0.505
+    // [T]. If the user modifies the magnetic properties, please adjust the T
+    // and TFinal settings accordingly.
+    T
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-5;
+        relTol          0.0;
+        nSweeps         1;
+
+        maxIter         25; // <- main bottle neck on standard Richter runs.
+    }
+
+    TFinal
+    {
+        $T;
     }
 
     // ----------------------------------------------------------------------------- //
@@ -98,9 +127,9 @@ solvers
         */
         solver          PBiCG;
         preconditioner  DILU;
-        tolerance       $std_tol;
+        tolerance       $mthd_std_tol;
         minIter         1;
-        maxIter         500;//2
+        maxIter         500;
 
 
     }
@@ -108,7 +137,7 @@ solvers
     HFinal
     {
         $H;
-        tolerance       $final_tol;
+        tolerance       $mthd_final_tol;
         relTol          0;
     }
 
@@ -152,15 +181,15 @@ MELTING
 
 PIMPLE
 {
-    nOuterCorrectors            1; // always 1
-    nCorrectors                 4;
+    nOuterCorrectors            2; // Only affects (U-p)-H-T
+    nCorrectors                 3;
     nNonOrthogonalCorrectors    2; // >0 when AMR used.
 }
 
 // MHD Specific
 BPISO
 {
-    nOuterCorrectors            1; // always 1 
+    nOuterCorrectors            1; // always 1
     nCorrectors                 3;
     nNonOrthogonalCorrectors    2; // >0 when AMR used.
     pRefCell                    0;

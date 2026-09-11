@@ -1,6 +1,12 @@
 # Hartmann 1D
 **This case is intended as a simple smoke test for the MHD model solvers.**
+## N.B.
+**Please set `stopAt    endTime` for intended usage. It is set to `writeNow` by
+default for the use in `./Alltest`.**
 
+**Recent changes: `steadyState` does not work, using `Euler` with relaxation factors as a pseudo-steady state approach.**
+
+## Summary
 A planar Hartmann problem solved in steady state. Using a pseudo-incompressible
 density model:
 $$

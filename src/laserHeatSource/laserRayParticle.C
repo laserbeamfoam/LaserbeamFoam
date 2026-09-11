@@ -143,6 +143,14 @@ bool Foam::laserRayParticle::move
 
     const scalar maxTrackLength = mesh.bounds().mag();
 
+    // One smeared interface crossing = one Fresnel event.  After an event
+    // the ray is still inside the alpha >= depCutoff band (which spans
+    // 2-3 cells), and at grazing incidence the reflected leg traverses
+    // several band cells laterally 
+    bool escapingInterface = false;
+    label escapeHops = 0;
+    label escapeRedirects = 0;
+
     while (td.keepParticle && !td.switchProcessor && active_)
     {
         const label cellI = cell();
@@ -172,7 +180,61 @@ bool Foam::laserRayParticle::move
 
         // ---- Physics: check for interface or bulk metal ----
 
-        if
+        if (escapingInterface)
+        {
+            if (alphaI[cellI] < td.depCutoff_)
+            {
+                // Clear of the band: resume normal physics next cell
+                escapingInterface = false;
+                escapeHops = 0;
+                escapeRedirects = 0;
+            }
+            else if
+            (
+                alphaI[cellI] > Foam::max(scalar(0.98), td.depCutoff_)
+            )
+            {
+                // The reflected bit is heading into the metal
+                if (escapeRedirects < 3 && mag(nI[cellI]) > 0.5)
+                {
+                    vector n = nI[cellI];
+                    n /= mag(n);
+                    if ((direction_ & n) > 0)
+                    {
+                        n = -n;
+                    }
+                    direction_ = direction_ - 2.0*(direction_ & n)*n;
+                    direction_ /= mag(direction_) + VSMALL;
+                    ++escapeRedirects;
+                    path_.append(position());
+                }
+                else
+                {
+                    td.deposition_[cellI] += power_ / VI[cellI];
+                    power_ = 0.0;
+                    path_.append(position());
+                    td.finishedRayIDs_.append(globalRayIndex_);
+                    td.finishedRayPaths_.append(path_);
+                    active_ = false;
+                    td.keepParticle = false;
+                    break;
+                }
+            }
+            else if (++escapeHops > 200)
+            {
+                // Stuck skimming the band: absorb the remainder and die.
+                td.deposition_[cellI] += power_ / VI[cellI];
+                power_ = 0.0;
+                path_.append(position());
+                td.finishedRayIDs_.append(globalRayIndex_);
+                td.finishedRayPaths_.append(path_);
+                active_ = false;
+                td.keepParticle = false;
+                break;
+            }
+            // else: still inside the band -- no event, keep tracking
+        }
+        else if
         (
             mag(nI[cellI]) > 0.5
          && alphaI[cellI] >= td.depCutoff_
@@ -225,6 +287,10 @@ bool Foam::laserRayParticle::move
             td.maxObservedBounces_ =
                 max(td.maxObservedBounces_, bounceCount_);
             path_.append(position());
+
+            // Suppress further events until the ray exits this band
+            escapingInterface = true;
+            escapeHops = 0;
 
             if (td.maxRayBounces_ > 0 && bounceCount_ >= td.maxRayBounces_)
             {
@@ -318,7 +384,7 @@ bool Foam::laserRayParticle::move
 
         // ---- Track to the next face ----
 
-        // Reset stepFraction before each tracking call. We are NOT
+        // Reset stepFraction before each tracking call. We are not
         // doing time-based tracking (rays are instantaneous), so
         // stepFraction should not accumulate across cell crossings.
         // Without this reset, stepFraction eventually reaches 1.0
@@ -455,6 +521,7 @@ Foam::scalar Foam::laserRayParticle::computeFresnelAbsorptivity
 
     const scalar alpha_laser = Foam::sqrt
     (
+        (
         Foam::sqrt
         (
             sqr(sqr(ref_index) - sqr(ext_coefficient) - sqr(sinTheta))
@@ -462,7 +529,8 @@ Foam::scalar Foam::laserRayParticle::computeFresnelAbsorptivity
         )
       + sqr(ref_index)
       - sqr(ext_coefficient)
-      - sqr(sinTheta)/2.0
+      - sqr(sinTheta)
+    )/2.0
     );
 
     const scalar beta_laser = Foam::sqrt

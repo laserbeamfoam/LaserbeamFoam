@@ -1,0 +1,43 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      LaserProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+radialPolarHeatSource no;
+
+timeVsLaserPosition
+{
+    file        "$FOAM_CASE/constant/timeVsLaserPosition0";
+    outOfBounds clamp;
+}
+
+timeVsLaserPower
+{
+    file        "$FOAM_CASE/constant/timeVsLaserPower0";
+    outOfBounds clamp;
+}
+
+// Laser fires in +Y (downward, from atmosphere toward lowerWall)
+V_incident      (0 1 0);
+
+// 35 µm 1/e² beam radius
+laserRadius     2e-5;
+
+N_sub_divisions 1;
+
+wavelength      1.064e-6;
+e_num_density   5.83e29;
+
+Radius_Flavour  2.0;
+
+PowderSim       false;
+useLocalSearch  true;
+maxLocalSearch  100;
+debug           false;
+
+// ************************************************************************* //

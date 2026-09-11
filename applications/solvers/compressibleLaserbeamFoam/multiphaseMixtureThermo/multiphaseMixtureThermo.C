@@ -29,6 +29,7 @@ License
 #include "multiphaseMixtureThermo.H"
 #include "alphaContactAngleFvPatchScalarField.H"
 #include "Time.H"
+#include "PstreamReduceOps.H"   // reduce()/sumOp for the clamp counters
 #include "subCycle.H"
 #include "MULES.H"
 #include "fvcDiv.H"
@@ -115,23 +116,263 @@ Foam::multiphaseMixtureThermo::multiphaseMixtureThermo
     dimBoil_(0, 0, 0, 1, 0),
     LatentHeatGass_(lookup("LatentHeatGas")),
     dimLatentHeatGas_(0, 2, -2, 0, 0),
-    cAlphas_(lookup("interfaceCompression")),
     dAlphas_(lookup("interfaceDiffusion")),
     dimdiff_(0, 2, -1, 0, 0),
     deltaN_
     (
         "deltaN",
         1e-8/cbrt(average(mesh_.V()))
-    )
+    ),
+
+    // ----- conserved-partial-mass scheme state (ADDED) ---------------------
+    //  Declaration order in the header is: ... deltaN_, c_, c0_, beta0_,
+    //  curTimeIndex_  -- this initialiser list must match that order.
+    c_(),       // sized + seeded in the body (needs the densities from correct())
+    c0_(),      // sized + seeded in the body
+    beta0_
+    (
+        IOobject
+        (
+            "beta0",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar(dimless, Zero)
+    ),
+    curTimeIndex_(-1)
 {
     rhoPhi_.setOriented();
     calcAlphas();
     alphas_.write();
-    correct();
+    correct();                  // therm    o (phase densities) are valid after this
+
+         c_.setSize(phases_.size());
+    c0_.setSize(phases_.size());
+
+    label phasei = 0;
+    for (phaseModel& phase : phases_)
+    {
+        {
+            IOobject cIO
+            (
+                "c." + phase.name(),
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::AUTO_WRITE
+            );
+
+            if (cIO.typeHeaderOk<volScalarField>(true))
+            {
+                c_.set
+                (
+                    phasei,
+                    new volScalarField
+                    (
+                        IOobject
+                        (
+                            "c." + phase.name(),
+                            mesh_.time().timeName(),
+                            mesh_,
+                            IOobject::MUST_READ,
+                            IOobject::AUTO_WRITE
+                        ),
+                        mesh_
+                    )
+                );
+            }
+            else
+            {
+                // Fresh start: derive once from alpha*rho (EXACt here).
+                c_.set
+                (
+                    phasei,
+                    new volScalarField(cIO, phase*phase.thermo().rho())
+                );
+            }
+        }
+
+        c0_.set
+        (
+            phasei,
+            new volScalarField
+            (
+                IOobject
+                (
+                    "c0." + phase.name(),
+                    mesh_.time().timeName(),
+                    mesh_,
+                    IOobject::NO_READ,
+                    IOobject::NO_WRITE
+                ),
+                c_[phasei]
+            )
+        );
+
+        ++phasei;
+    }
+
+    beta0_ == dimensionedScalar("zero", dimless, 0.0);
+    for (const phaseModel& phase : phases_)
+    {
+        if (!phase.isGaseous())
+        {
+            beta0_ += phase;
+        }
+    }
 }
 
 
+
+
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
+
+void Foam::multiphaseMixtureThermo::restoreOldTimeValues()
+{
+    // Any term used or involbed  in `fvc::ddt` needs to have their `.oldTime()`
+    // value reread from disk if solver restarted!
+
+    
+    rhoPhi_.oldTime();
+    for (phaseModel& alpha : phases_)
+    {
+        volScalarField& rhoK = alpha.thermo().rho();
+        rhoK.oldTime();
+    }
+
+    
+    if (!(mesh_.time().timeIndex() > 0))
+    {
+        
+        return;
+    }
+
+    label errorCount = 0;
+    // Restore values if solver restart detected
+    //- Restore rhoPhi oldTime
+    {
+        surfaceScalarField rhoPhi_oldTime
+        (
+            IOobject
+            (
+                IOobject::groupName("rhoPhi", "oldTime"),
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::NO_WRITE
+            ),
+            rhoPhi_
+        );
+
+        if (rhoPhi_oldTime.headerOk())
+        {
+            rhoPhi_.oldTime() = rhoPhi_oldTime;
+        }
+        else
+        {
+            Info<< "Mixture: WARNING could not find field `"
+                << "rhoPhi.oldTime`. "
+                << "This will cause issues in fvc::ddt terms!"
+                << "Please check your latest time directory (folder)!"
+                << endl;
+
+            errorCount++;
+        }
+    }
+
+
+    for (phaseModel& alpha : phases_)
+    {
+        volScalarField rhoKoldTime
+        (
+            IOobject
+            (
+                "rho." + alpha.name() + ".oldTime",
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::READ_IF_PRESENT,
+                IOobject::NO_WRITE
+            ),
+            alpha.thermo().rho()
+        );
+
+        if (rhoKoldTime.headerOk())
+        {
+            volScalarField& rhoK = alpha.thermo().rho();
+            rhoK.oldTime() = rhoKoldTime;
+        }
+        else
+        {
+            Info<< "Mixture: WARNING could not find field `"
+                << "rho." << alpha.name() << ".oldTime`. "
+                << "This will cause issues in fvc::ddt terms!"
+                << "Please check your latest time directory (folder)!"
+                << endl;
+
+            errorCount++;
+        }
+    }
+
+    if (errorCount)
+    {
+        Info<< "Mixture WARNING: " << errorCount << " fields' oldTime values were not "
+            << "restored! This will cause issues within any fvc::ddt terms!"
+            << "RECOMMENDED: please inspect your latest time folder!"
+            << endl;
+    }
+    else
+    {
+        Info<< "Mixture: All relevant fields' oldTime values were restored using "
+            << "file reads. All good!"
+            << endl;
+    }
+}
+
+
+void Foam::multiphaseMixtureThermo::writeOldTimeValues()
+{
+    if (mesh_.time().writeTime())
+    {
+        surfaceScalarField rhoPhi_oldTime
+        (
+            IOobject
+            (
+                IOobject::groupName("rhoPhi", "oldTime"),
+                mesh_.time().timeName(),
+                mesh_,
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            rhoPhi_.oldTime()
+        );
+
+        rhoPhi_oldTime.write();
+
+        for (phaseModel& alpha : phases_)
+        {
+            volScalarField& rhoK = alpha.thermo().rho();
+
+            volScalarField rhoKoldTime
+            (
+                IOobject
+                (
+                    "rho." + alpha.name() + ".oldTime",
+                    mesh_.time().timeName(),
+                    mesh_,
+                    IOobject::NO_READ,
+                    IOobject::AUTO_WRITE
+                ),
+                rhoK.oldTime()
+            );
+
+            rhoKoldTime.write();
+        }
+    }
+}
+
 
 void Foam::multiphaseMixtureThermo::correct()
 {
@@ -155,11 +396,23 @@ void Foam::multiphaseMixtureThermo::correct()
 }
 
 
+// void Foam::multiphaseMixtureThermo::correctRho(const volScalarField& dp)
+// {
+//     for (phaseModel& phase : phases_)
+//     {
+//         phase.thermo().rho() += phase.thermo().psi()*dp;
+//     }
+// }
+
 void Foam::multiphaseMixtureThermo::correctRho(const volScalarField& dp)
 {
     for (phaseModel& phase : phases_)
     {
-        phase.thermo().rho() += phase.thermo().psi()*dp;
+        volScalarField& rhoPh = phase.thermo().rho();
+        rhoPh += phase.thermo().psi()*dp;
+        // was 1e-4.. 1/rho feeds the p matrix coefficients and the extra
+        // decade of conditioning bought nothing, match the other floors
+        rhoPh = max(rhoPh, dimensionedScalar("rhoMinEOS", dimDensity, 1e-3));
     }
 }
 
@@ -896,7 +1149,8 @@ const volScalarField& Temperature
 
 Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
 (
-    volScalarField *massdotterm
+    volScalarField* massdotterm,
+    volScalarField* vDotPptr
 )
 {
     tmp<volScalarField> tPCR
@@ -924,37 +1178,26 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
     *massdotterm*=0.0;
 
 
-
-    const Time& runTime = mesh_.time();
-
     const dictionary& alphaControls = mesh_.solverDict("alpha");
-    label nAlphaSubCycles(alphaControls.get<label>("nAlphaSubCycles"));
-    // scalar cAlpha(alphaControls.get<scalar>("cAlpha"));
-
-    volScalarField& alpha = phases_.first();
+    const label nAlphaSubCycles
+    (
+        alphaControls.getOrDefault<label>("nAlphaSubCycles", 1)
+    );
 
     if (nAlphaSubCycles > 1)
     {
-        surfaceScalarField rhoPhiSum(0.0*rhoPhi_);
-        dimensionedScalar totalDeltaT = runTime.deltaT();
-
-        for
-        (
-            subCycle<volScalarField> alphaSubCycle(alpha, nAlphaSubCycles);
-            !(++alphaSubCycle).end();
-        )
-        {
-            PCR = solveAlphas(massdotterm);
-            rhoPhiSum += (runTime.deltaT()/totalDeltaT)*rhoPhi_;
-        }
-
-        rhoPhi_ = rhoPhiSum;
+        FatalErrorInFunction
+            << "nAlphaSubCycles = " << nAlphaSubCycles
+            << ", but this solver's conservative species scheme"
+            << " requires nAlphaSubCycles == 1 (sub -cycling breaks this"
+            << " )." << nl
+            << "Set nAlphaSubCycles 1 in fvSolution. We'll try and allow sub-stepping in the future but for now chill out and just set it to 1"
+            << exit(FatalError);
     }
-    else
-    {
-        PCR = solveAlphas(massdotterm);
-        // solveAlphas(cAlpha);
-    }
+
+    PCR = solveAlphas(massdotterm, vDotPptr);
+
+    writeOldTimeValues();
 
     return tPCR;
 }
@@ -1003,7 +1246,7 @@ Foam::tmp<Foam::surfaceScalarField> Foam::multiphaseMixtureThermo::nHatf
 // The dynamic contact angle is calculated from the component of the
 // velocity on the direction of the interface, parallel to the wall.
 
-void Foam::multiphaseMixtureThermo::correctContactAngle
+void Foam::multiphaseMixtureThermo::correctContactAngle//from olesr bersion
 (
     const phaseModel& alpha1,
     const phaseModel& alpha2,
@@ -1142,676 +1385,1860 @@ Foam::multiphaseMixtureThermo::nearInterface() const
 }
 
 
+//  multiphaseMixtureThermo::solveAlphas -- the heirarchical volume of fluid thing
+//  one sharp condensed field (MULES + compression keeps the interface crisp) and the
+//  actual conserved things are the per species PARTIAL MASSES
+//
+//        c_i = alpha_i * rho_i        [kg/m^3]
+//
+//  ALL mass changes happen to c_i thruogh flux form updates and the exactly paired
+//  phase change sources. 
+//
+
 Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 (
-    volScalarField *massdotterm
+    volScalarField* massdotterm,
+    volScalarField* vDotPptr
 )
 {
-    //static label nSolves(-1);
-    //++nSolves;
-
     const word alphaScheme("div(phi,alpha)");
     const word alpharScheme("div(phirb,alpha)");
 
-    // surfaceScalarField phic(mag(phi_/mesh_.magSf()));
-    // phic = min(cAlpha*phic, max(phic));
+    const Time& runTime   = mesh_.time();
+    const scalar dt       = runTime.deltaT().value();
+    const scalar rDeltaT  = 1.0/dt;
 
-
+    // ----- return field: phase-change volumetric rate (-> vDot) -------------
     tmp<volScalarField> tPCR
     (
         new volScalarField
         (
-            IOobject
-            (
-                "PhaseChangeRate",
-                mesh_.time().timeName(),
-                mesh_
-            ),
+            IOobject("PhaseChangeRate", runTime.timeName(), mesh_),
             mesh_,
-            dimensionedScalar
-            (
-                "PhaseChangeRate",
-                dimensionSet(0, 0, -1, 0, 0),
-                0.0
-            )
+            dimensionedScalar("PhaseChangeRate", dimensionSet(0, 0, -1, 0, 0), 0.0)
         )
     );
-
     volScalarField& PCR = tPCR.ref();
 
+    // wipe last steps latent heat sink and presure coupling, rebuilt fresh
     *massdotterm *= 0.0;
 
-    PtrList<volScalarField> Sps(phases_.size());
-    PtrList<volScalarField> Sus(phases_.size());
-
-    volScalarField condensate
-    (
-        IOobject
-        (
-            "condensate",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("condensate", dimensionSet(0, 0, 0, 0, 0), 1.0)
-    );
-
-    volScalarField alphasum
-    (
-        IOobject
-        (
-            "alphasum",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("alphasum", dimensionSet(0, 0, 0, 0, 0), 0.0)
-    );
+    if (vDotPptr)
+    {
+        *vDotPptr *= 0.0;
+    }
 
 
-
-
-
+    const dimensionedScalar Tmin("Tmin", dimTemperature, 300.0);// T floor for the rate maths only, stops sqrt/exp FPEs
+    const volScalarField Tsafe(max(T_, Tmin)); // safe tempreature for all teh kinetics below, doesnt touch the energy eqn
 
     IOdictionary phasedictionary
     (
         IOobject
         (
-        "thermophysicalProperties",
-        mesh_.time().constant(),
+            "thermophysicalProperties",
+            runTime.constant(),
+            mesh_,
+            IOobject::MUST_READ_IF_MODIFIED
+        )
+    );
+    const dimensionedScalar gasconstant
+        ("gasconstant", dimensionSet(1, 2, -2, -1, -1), scalar(8.314));
+    const dimensionedScalar P0
+        ("P0", dimensionSet(1, -1, -2, 0, 0), phasedictionary);
+    const dimensionedScalar int_thickness
+        ("interface_thickness", dimensionSet(0, 1, 0, 0, 0), phasedictionary);
+
+    // local interface thickness: delta follows the local cell size so the
+    // integrated flux is resolution independant. one global delta can only
+    // be right at ONE refinement level.. false/absent = old global behaviour
+    const bool localDelta
+    (
+        phasedictionary.getOrDefault<bool>("localInterfaceThickness", false)
+    );
+    const scalar deltaCellFac
+    (
+        phasedictionary.getOrDefault<scalar>("interfaceCellFactor", 2.5)
+    );
+
+    volScalarField deltaPC
+    (
+        IOobject("deltaPC", runTime.timeName(), mesh_),
         mesh_,
-        IOobject::MUST_READ_IF_MODIFIED
+        int_thickness
+    );
+    if (localDelta)
+    {
+        deltaPC.primitiveFieldRef() =
+            deltaCellFac*Foam::cbrt(mesh_.V().field());
+        deltaPC.correctBoundaryConditions();
+    }
+
+    // per step cap on how much volume phase change can make/remove 
+    const scalar etaVol
+    (
+        phasedictionary.getOrDefault<scalar>("phaseChangeVolLimit", 0.1)
+    );
+
+    // old symmetric Hertz-Knudsen accomodation coefficient, kept as the falback
+    // default so ancient dicts still run. dont use it symmetric though, see below
+
+    const scalar accommodationCoeff
+    (
+        phasedictionary.getOrDefault<scalar>("accommodationCoeff", 1.0)
+    );
+
+    // split accomodation
+    const scalar sigmaEvap
+    (
+        phasedictionary.getOrDefault<scalar>
+        (
+            "accommodationCoeffEvap",
+            accommodationCoeff
+        )
+    );
+    const scalar sigmaCond
+    (
+        phasedictionary.getOrDefault<scalar>
+        (
+            "accommodationCoeffCond",
+            accommodationCoeff
         )
     );
 
+    Info<< "Phase-change accommodation: sigmaEvap = " << sigmaEvap
+        << ", sigmaCond = " << sigmaCond << endl;
+
+    const label nPhases = phases_.size();
 
 
+    //  phase bookeeping: name to index map and a gas flag list so we arent
+    //  asking isGaseous() a millon times
 
-    //int fluiditer = 0;
-    for (phaseModel& alpha : phases_)
+    HashTable<label> name2idx(2*nPhases);
+    List<bool>  isGas(nPhases, false);
     {
-        
-        if (alpha.isGaseous())
+        label i = 0;
+        for (const phaseModel& ph : phases_)
         {
-            condensate -= alpha;
+            name2idx.insert(ph.name(), i);
+            isGas[i] = ph.isGaseous();
+            ++i;
         }
-
-        alphasum += alpha;
-        //fluiditer++;
     }
 
 
-
-
-
-
-
-
-    PtrList<surfaceScalarField> alphaPhiCorrs(phases_.size());
-
-    int phasei = 0;
-    for (phaseModel& alpha : phases_)
+    volScalarField condensate
+    (
+        IOobject("condensate", runTime.timeName(), mesh_),
+        mesh_,
+        dimensionedScalar("condensate", dimless, 1.0)
+    );
+    for (const phaseModel& ph : phases_)
     {
-        alphaPhiCorrs.set
-        (
-            phasei,
-            new surfaceScalarField
-            (
-                phi_.name() + alpha.name(),
-                fvc::flux
-                (
-                    phi_,
-                    alpha,
-                    alphaScheme
-                )
-            )
-        );
-
-
-
-
-
-                volScalarField coefffield
-    (
-        IOobject
-        (
-            "coefffield",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("coefffield", dimensionSet(0, 2, -1, 0, 0), 0)
-    );
-
-
-
-        volScalarField evaprate
-    (
-        IOobject
-        (
-            "evaprate",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("evaprate", dimensionSet(0, 0, -1, 0, 0), 0)
-    );
-
-    volScalarField condrate
-    (
-        IOobject
-        (
-            "condrate",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("condrate", dimensionSet(0, 0, -1, 0, 0), 0)
-    );
-
-
-
-
-
-            volScalarField alphagen
-    (
-        IOobject
-        (
-            "alphagen",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("alphagen", dimensionSet(0, 0, -1, 0, 0), 0)
-    );
-
-    volScalarField divU
-    (
-        IOobject
-        (
-            "divU",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("divU", dimensionSet(0, 0, -1, 0, 0), 0)
-    );
-
-
-    volScalarField rhogen
-    (
-        IOobject
-        (
-            "rhogen",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("rhogen", dimensionSet(1, -3, 0, 0, 0), 0)
-    );
-
-        volScalarField massgen
-    (
-        IOobject
-        (
-            "massgen",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        //dimensionedScalar("massgen", dimensionSet(1, -1, -3, 0, 0), 0)
-         dimensionedScalar("massgen", dimensionSet(1, -3, -1, 1, 0), 0)
-    );
-
-
-
-
-        surfaceScalarField& alphaPhiCorr = alphaPhiCorrs[phasei];
-
-        for (phaseModel& alpha2 : phases_)
-        {
-            if (&alpha2 == &alpha) continue;
-
-            // surfaceScalarField phir(phic*nHatf(alpha, alpha2));
-
-
-
-            surfaceScalarField phic
-                (
-                    (mag(phi_))/mesh_.magSf()
-                );
-
-                surfaceScalarField phir(0.0*phic*nHatf(condensate, (1.0-condensate)));//JUST TO INITIALISE TO ZERO - must be a neater way
-
-                surfaceScalarField phirD(0.0*mag(phi_/mesh_.magSf())*nHatf(condensate, (1.0-condensate)));//setto zero
-                phirD*=0.0;
-
-                scalarCoeffSymmCTable::const_iterator cAlpha
-            (
-                cAlphas_.find(interfacePair(alpha, alpha2))
-            );
-
-
-            if (cAlpha != cAlphas_.end())
-            {
-
-
-                surfaceScalarField phic2
-                (
-                    (mag(phi_) + mag(phir))/mesh_.magSf()
-                );
-
-
-
-                phir +=(min(cAlpha()*phic2, max(phic2))*(nHatf(alpha, alpha2)));
-
-
-            }
-
-            scalarCoeffSymmDTable::const_iterator dAlpha
-            (
-                dAlphas_.find(interfacePair(alpha, alpha2))
-            );
-
-            if (dAlpha != dAlphas_.end())
-            {
-            dimensionedScalar valdiff("valdiff",dimdiff_,dAlpha());
-
-            coefffield=(/*epsilon1*/valdiff);
-
-
-
-            phirD-= fvc::interpolate(coefffield)*mesh_.magSf()*((fvc::interpolate(alpha2)*fvc::snGrad(alpha))-(fvc::interpolate(alpha)*fvc::snGrad(alpha2)));;
-
-
-
-            }
-
-
-
-        dimensionedScalar maxrate( "maxrate", dimensionSet(0,0,-1,0,0,0,0), 0.5/mesh_.time().deltaT().value() );//something like rate
-        dimensionedScalar gasconstant("gasconstant",dimensionSet(1, 2, -2, -1, -1),scalar(8.314));//1 2 -2 -1 -1 proper units
-
-
-        dimensionedScalar P0("P0",dimensionSet(1, -1, -2, 0, 0),phasedictionary);//1 2 -2 -1 -1 proper units
-
-        // Info<<alpha.name()<<"\t mol weight \t"<<alpha.thermo().W();
-
-        boilTable::const_iterator boilT
-            (
-                boils_.find(interfacePair(alpha, alpha2))
-            );
-
-            if(boilT != boils_.end()){// return boiling temperature for pair
-
-            dimensionedScalar pair_boil_T("pair_boil_T",dimBoil_,boilT());
-
-
-            ////// iterator to look up latent heat gas of phase paire
-            LatentHeatGasTable::const_iterator LHG
-            (
-                LatentHeatGass_.find(interfacePair(alpha, alpha2))
-            );
-            dimensionedScalar pair_LHG("pair_LHG",dimLatentHeatGas_,LHG());
-
-            // Info<<"TEST_LHG"<<alpha.name()<<"\t"<<alpha2.name()<<"\t"<<pair_LHG<<endl;
-////// iterator to look up latent heat gas of phase paire
-
-
-
-    volScalarField Psat
-    (
-        IOobject
-        (
-            "Psat",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("Psat", dimensionSet(1, -1, -2, 0, 0), 0.0)
-    );
-
-    Psat = P0*Foam::exp((((alpha.thermo().W()/1000.0)*pair_LHG)/(pair_boil_T*gasconstant))*(1.0-(pair_boil_T/T_)));
-
-    // Info<<Psat<<endl;
-
-
-    volScalarField evapcoefffield
-    (
-        IOobject
-        (
-            "evapcoefffield",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar("evapcoefffield", dimensionSet(0, 0, 0, 0, 0), 0.0),
-            zeroGradientFvPatchScalarField::typeName
-    );
-
-
-
-// if(p_>Psat){
-// evapcoefffield=0.0;//condensation
-// }
-// else{
-// evapcoefffield=1.0;//evaporation
-// }
-
-
-   forAll( mesh_.C(), celli)
-{
-if(p_[celli]>Psat[celli]){
-evapcoefffield[celli]=0.0;
-}
-else{
-evapcoefffield[celli]=1.0;//(1.0/(alpha2[celli]));
-// Info<<evapcoefffield[celli]<<endl;
-}
-}
-
-// Info<<evapcoefffield<<endl;
-
-dimensionedScalar int_thickness("interface_thickness",dimensionSet(0, 1, 0, 0, 0),phasedictionary);
-
-
-if(alpha2.name()==(alpha.name()+"vapour")){//alpha2 is vapour , alpha1 is liquid
-volScalarField liqdensity(alpha.thermo().rho());
-volScalarField vapdensity(alpha2.thermo().rho());
-Info<<"Liquid-Vapour State Transition: (Liquid,Vapour): ("<<alpha.name()<<","<<alpha2.name()<<")  Boiling Temperature: "<<pair_boil_T<<"K"<<endl;
-
-                        // Info<<"HERE1"<<endl;
-                        //NEW Compressible cond and evap rates
-                        evaprate = 1.0*Foam::sqrt((alpha.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*liqdensity))*(Psat-p_);//*****************;
-                        condrate = -max(condensate,1e-6)*Foam::sqrt((alpha2.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*vapdensity))*(Psat-p_);//**********************;
-                        //NEW Compressible cond and evap rates
-                        // Info<<"HERE2"<<endl;
-                        // evaprate=ratedummy;//L_Lee*(alpha.thermo().rho()/alpha2.thermo().rho())*((T_-pair_boil_T)/pair_boil_T);//Lee
-
-                        // condrate=ratedummy;//L_Lee*(alpha2.thermo().rho()/alpha.thermo().rho())*((pair_boil_T-T_)/pair_boil_T);//Lee
-
-
-                    // alphagen=min(condrate,maxrate)*(1.0-evapcoefffield)*alpha2*(alpha2.thermo().rho()/alpha.thermo().rho());//0.1;//0.1;//*(alpha2.thermo().rho()/alpha.thermo().rho());
-                    alphagen=((min(condrate,maxrate)*(1.0-evapcoefffield)*alpha2*(alpha2.thermo().rho()/alpha.thermo().rho()))-(min(evaprate,maxrate)*evapcoefffield*alpha*(alpha2.thermo().rho()/alpha.thermo().rho())));
-                        // divU = -condrate*alpha2*10.0;
-                         massgen=pair_LHG*(((alpha.thermo().rho()/alpha.thermo().Cv())*min(condrate,maxrate)*(1.0-evapcoefffield)*alpha2*(alpha2.thermo().rho()/alpha.thermo().rho()))-((alpha2.thermo().rho()/alpha2.thermo().Cv())*min(evaprate,maxrate)*evapcoefffield*alpha*(alpha2.thermo().rho()/alpha.thermo().rho())));
-
-
-            }
-
-            else if(alpha.name()==(alpha2.name()+"vapour")){//alpha is vapour to phase2
-            volScalarField liqdensity(alpha2.thermo().rho());
-            volScalarField vapdensity(alpha.thermo().rho());
-
-                    //NEW Compressible cond and evap rates
-                    // Info<<"HERE3"<<endl;
-                        evaprate = 1.0*Foam::sqrt((alpha2.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*liqdensity))*(Psat-p_);//*****************;
-                        condrate = -max(condensate,1e-6)*Foam::sqrt((alpha.thermo().W()/1000.0)/(2.0*M_PI*gasconstant*T_))*(1.0/(int_thickness*vapdensity))*(Psat-p_);//**********************;
-                        //NEW Compressible cond and evap rates
-// Info<<"HERE4"<<endl;
-
-
-
-
-                        // evaprate=ratedummy;//L_Lee*(alpha2.thermo().rho()/alpha.thermo().rho())*((T_-pair_boil_T)/pair_boil_T);
-
-                        // condrate=ratedummy;//L_Lee*(alpha.thermo().rho()/alpha2.thermo().rho())*((pair_boil_T-T_)/pair_boil_T);
-
-
-                        // alphagen=((min(evaprate,maxrate)*evapcoefffield*alpha2)-(min(condrate,maxrate)*(1.0-evapcoefffield)*alpha));
-                        alphagen=((min(evaprate,maxrate)*evapcoefffield*alpha2)-(min(condrate,maxrate)*(1.0-evapcoefffield)*alpha));//
-                    //  divU = -condrate*alpha*1.0;//alphagen;
-                        // evapcondrho= -(fvc::interpolate(alpha)*100.0/*+fvc::interpolate(alpha2)*10.0*/)*rhoone;
-                        massgen=pair_LHG*(((alpha.thermo().rho()/alpha.thermo().Cv())*min(evaprate,maxrate)*evapcoefffield*alpha2)-((alpha2.thermo().rho()/alpha2.thermo().Cv())*min(condrate,maxrate)*(1.0-evapcoefffield)*alpha));
-
-
-
-            }
-            }
-
-
-// Info<<"HERE4"<<endl;
-
-
-
-
-            alphaPhiCorr += fvc::flux
-            (
-                -fvc::flux(-phir, alpha2, alpharScheme),
-                alpha,
-                alpharScheme
-            )
-            +phirD
-            ;
-        }
-
-
-// Info<<"HERE5"<<endl;
-
-    PCR+=alphagen;//alphagen;//divU;//
-
-    // PCR-=(1.0-(alphasum))*(10e-2/mesh_.time().deltaT());
-
-    *massdotterm+=massgen;
-
-
-
-        const volScalarField& rhoK = alpha.thermo().rho();
-        volScalarField densityCorr
-        (
-            -fvc::ddt(rhoK)
-          / Foam::max(rhoK, dimensionedScalar("rhoMin", dimDensity, 1e-6))
-        );
-
-        Sps.set(phasei, new volScalarField(divU + densityCorr));
-        volScalarField& Sp=Sps[phasei];
-        Sus.set(phasei,new volScalarField(alphagen));//
-        volScalarField& Su=Sus[phasei];
-
-// Info<<"HERE6"<<endl;
-
-
-        MULES::limit
-        (
-            1.0/mesh_.time().deltaT().value(),
-            geometricOneField(),
-            alpha,
-            phi_,
-            alphaPhiCorr,
-            Sp,//zeroField(),
-            Su,//alphalap, //zeroField()
-            oneField(),
-            zeroField(),
-            true//NEEDS TO BE TRUE
-        );
-
-        ++phasei;
+        if (ph.isGaseous()) condensate -= ph;
     }
+    // numerically pin to [0,1] (MULES re-bounds)
+    condensate = max(min(condensate, scalar(1)), scalar(0));
 
-    MULES::limitSum(alphaPhiCorrs);
-
-    rhoPhi_ = dimensionedScalar(dimensionSet(1, 0, -1, 0, 0), Zero);
-
-    volScalarField sumAlpha
-    (
-        IOobject
-        (
-            "sumAlpha",
-            mesh_.time().timeName(),
-            mesh_
-        ),
-        mesh_,
-        dimensionedScalar(dimless, Zero)
-    );
-
-
-    volScalarField divU(fvc::div(fvc::absolute(phi_, U_)));
-
-
-    phasei = 0;
-
-    for (phaseModel& alpha : phases_)
+    
+    //  melt state gate for the condensing branch  the interface check further down cant tell melt from solid, so vapour sat next to a cold solid wall condenses at the full kinetic rate and the wall  turns into a vaccum pump that inhales air down the crater
+    scalarField gCond(mesh_.nCells(), 1.0);
     {
-        surfaceScalarField& alphaPhi = alphaPhiCorrs[phasei];
-        alphaPhi += upwind<scalar>(mesh_, phi_).flux(alpha);
-
-        volScalarField::Internal Sp
-        (
-            IOobject
+        const scalar solidCondFactor =
+            phasedictionary.lookupOrDefault<scalar>
             (
-                "Sp",
-                mesh_.time().timeName(),
-                mesh_
-            ),
+                "solidCondensationFactor",
+                0.0
+            );
+
+        volScalarField TsolC
+        (
+            IOobject("TsolC", runTime.timeName(), mesh_),
             mesh_,
-            dimensionedScalar(alpha.dgdt().dimensions(), Zero)
+            dimensionedScalar("Ts0", dimTemperature, 0.0)
         );
-
-        volScalarField::Internal Su
+        volScalarField TliqC
         (
-            IOobject
-            (
-                "Su",
-                mesh_.time().timeName(),
-                mesh_
-            ),
-            // Divergence term is handled explicitly to be
-            // consistent with the explicit transport solution
-            divU*min(alpha, scalar(1))
-            +
-            Sus[phasei]
-            -PCR*(min(alpha, scalar(1)))//double counting divU - need to seperate out div(U) due to phase change
+            IOobject("TliqC", runTime.timeName(), mesh_),
+            mesh_,
+            dimensionedScalar("Tl0", dimTemperature, 0.0)
         );
 
-        // -----------------------------------------------------------
-        // Direct density correction (replaces dgdt loops).
-        //
-        // Sp = −(1/ρ_k)(∂ρ_k/∂t)
-        //
-        // When multiplied by α in MULES, this gives the exact
-        // correction needed for mass conservation.  Unlike the
-        // dgdt mechanism from pEqn.H, this uses the CURRENT
-        // thermodynamic state — not a one-timestep-lagged value.
-        //
-        // On the first PIMPLE iteration, ρ_k has not yet been
-        // updated, so ∂ρ_k/∂t reflects changes from the previous
-        // timestep.  On subsequent iterations, pEqn updates ρ_k,
-        // so the correction captures the latest density changes.
-        // -----------------------------------------------------------
+        for (const phaseModel& ph : phases_)
         {
-            const volScalarField& rhoK = alpha.thermo().rho();
-            const scalarField& rhoNew = rhoK.primitiveField();
-            const scalarField& rhoOld = rhoK.oldTime().primitiveField();
-            const scalar dt = mesh_.time().deltaTValue();
+            if (ph.isGaseous()) continue;
 
-            forAll(Sp, celli)
+            // same per-phase dicts update.H reads each step; scope-local
+            IOdictionary phdict
+            (
+                IOobject
+                (
+                    "thermophysicalProperties." + ph.name(),
+                    mesh_.time().constant(),
+                    mesh_,
+                    IOobject::MUST_READ_IF_MODIFIED
+                )
+            );
+
+            const dimensionedScalar Ts
+            (
+                "Ts",
+                dimTemperature,
+                readScalar(phdict.lookup("TSolidus"))
+            );
+            const dimensionedScalar Tl
+            (
+                "Tl",
+                dimTemperature,
+                readScalar(phdict.lookup("TLiquidus"))
+            );
+
+            TsolC += ph*Ts;
+            TliqC += ph*Tl;
+        }
+
+        const volScalarField betaN
+        (
+            max(condensate, dimensionedScalar("bSmall", dimless, 1e-6))
+        );
+        TsolC /= betaN;
+        TliqC /= betaN;
+
+        const scalarField& TI  = T_.primitiveField();
+        const scalarField& TsI = TsolC.primitiveField();
+        const scalarField& TlI = TliqC.primitiveField();
+
+        forAll(gCond, celli)
+        {
+            const scalar band =
+                Foam::max(TlI[celli] - TsI[celli], scalar(1));
+            const scalar g = Foam::min
+            (
+                Foam::max((TI[celli] - TsI[celli])/band, scalar(0)),
+                scalar(1)
+            );
+            gCond[celli] = Foam::max(g, solidCondFactor);
+        }
+    }
+
+
+    // r is an interface flux smeared over int_thickness so it should only fire
+    // where liquid and gas actualy coexist. ungated it misbehaves at both extremes
+    const scalar betaGate
+    (
+        phasedictionary.getOrDefault<scalar>("phaseChangeGate", 0.01)
+    );
+    volScalarField gInt
+    (
+        IOobject("phaseChangeGateField", runTime.timeName(), mesh_),
+        min
+        (
+            min(condensate, scalar(1) - condensate)/betaGate,
+            scalar(1)
+        )
+    );
+
+    // no phase change in cells touching the open patches listed in
+    // phaseChangeMaskPatches, eg (back). the domain is a truncated
+    // atmosphere.. vapour that would condense to fume metres downstream
+    // condenses AT the patch insted, freezes, and a solid crust grows
+    // across the exhaust (7064 gate cells in the crash log). masking gInt
+    // kills r AND kP together there so vapour just leaves as vapour, which
+    // is the physicaly correct truncation. same style as closureMaskPatches
+    {
+        wordList pcMaskNames
+        (
+            phasedictionary.lookupOrDefault<wordList>
+            (
+                "phaseChangeMaskPatches",
+                wordList()
+            )
+        );
+
+        label nPCMask = 0;
+        scalarField& gI = gInt.primitiveFieldRef();
+
+        for (const word& pn : pcMaskNames)
+        {
+            const label patchi = mesh_.boundaryMesh().findPatchID(pn);
+            if (patchi < 0)
             {
-                const scalar drhodt =
-                    (rhoNew[celli] - rhoOld[celli]) / dt;
-                const scalar rhoSafe =
-                    Foam::max(rhoNew[celli], scalar(1e-6));
-
-                Sp[celli] -= drhodt / rhoSafe;
+                WarningInFunction
+                    << "phaseChangeMaskPatches: patch " << pn
+                    << " not found, skipping" << endl;
+                continue;
+            }
+            const labelUList& fc = mesh_.boundary()[patchi].faceCells();
+            forAll(fc, bfacei)
+            {
+                if (gI[fc[bfacei]] > 0)
+                {
+                    gI[fc[bfacei]] = 0.0;
+                    ++nPCMask;
+                }
             }
         }
+        reduce(nPCMask, sumOp<label>());
+        if (nPCMask)
+        {
+            Info<< "phase change masked in " << nPCMask
+                << " boundary cell(s)" << endl;
+        }
+    }
+
+
+    // once per timestep snapshot. every outer corrector re-solves from the
+    // same start of step state (semi PIMPLE) so stash c and beta 
+    if (runTime.timeIndex() != curTimeIndex_)
+    {
+        curTimeIndex_ = runTime.timeIndex();
+        beta0_ == condensate;
+        forAll(c_, i)
+        {
+            c0_[i] == c_[i];
+        }
+    }
+    forAll(c_, i)
+    {
+        c_[i].oldTime() == c0_[i];
+    }
+
+
+    //  compressibility bookeeping for the beta transport
+    //    dgdtBar      = sum all phases of alpha*dgdt   (mixture dilattion)
+    //    dgdtBetaSum  = same but condensed phases only
+
+    volScalarField dgdtBar
+    (
+        IOobject("dgdtBar", runTime.timeName(), mesh_),
+        mesh_,
+        dimensionedScalar("dgdtBar", dimensionSet(0, 0, -1, 0, 0), 0.0)
+    );
+    volScalarField dgdtBetaSum
+    (
+        IOobject("dgdtBetaSum", runTime.timeName(), mesh_),
+        mesh_,
+        dimensionedScalar("dgdtBetaSum", dimensionSet(0, 0, -1, 0, 0), 0.0)
+    );
+    {
+        label i = 0;
+        for (phaseModel& ph : phases_)
+        {
+            dgdtBar += ph*ph.dgdt();
+            if (!isGas[i]) dgdtBetaSum += ph*ph.dgdt();
+            ++i;
+        }
+    }
+
+    //  RAOULT-DALTON multicomponent kinetics:
+            //   x_i = mole fraction of species i in the liquid (condensed group only)
+    //   y_i = mole fraction in the gas including air.. Dalton, the gas side
+        //         only feels its own partial presure y_i*p not the total
+
+
+   
+    const volScalarField rCvMix(this->rCv());   // mixture reciprocal Cv
+
+    const volScalarField rhoMixField(this->rho());
+
+
+    //
+    //  molar densities n_i = max(c_i,0)/W_i then mole fractions within each
+    //  group. built straight from teh mass-balance
+
+    PtrList<volScalarField> moleFrac(nPhases);
+    {
+        const dimensionedScalar nSmall
+            ("nSmall", dimMoles/dimVolume, VSMALL);
+        const dimensionedScalar cZeroML
+            ("cZeroML", dimDensity, 0.0);
+
+        volScalarField nCond
+        (
+            IOobject("nCond", runTime.timeName(), mesh_),
+            mesh_,
+            dimensionedScalar("0", dimMoles/dimVolume, 0.0)
+        );
+        volScalarField nGas
+        (
+            IOobject("nGas", runTime.timeName(), mesh_),
+            mesh_,
+            dimensionedScalar("0", dimMoles/dimVolume, 0.0)
+        );
+
+        PtrList<volScalarField> nMol(nPhases); //  NEW ADDED BY TOM July
+        {
+            label i = 0;
+            for (const phaseModel& ph : phases_)
+            {
+                nMol.set
+                (
+                    i,
+                    new volScalarField
+                    (
+                        "n." + ph.name(),
+                        max(c_[i], cZeroML)/ph.thermo().W()
+                    )
+                );
+                if (isGas[i]) nGas += nMol[i];
+                else          nCond += nMol[i];
+                ++i;
+            }
+        }
+
+        label i = 0;
+        for (const phaseModel& ph : phases_)
+        {
+            const volScalarField& nHost = isGas[i] ? nGas : nCond; //  NEW ADDED BY TOM July think this is pretty nice but to be checked
+
+            moleFrac.set
+            (
+                i,
+                new volScalarField
+                (
+                    (isGas[i] ? "y." : "x.") + ph.name(),
+                    min
+                    (
+                        max(nMol[i]/max(nHost, nSmall), scalar(0)),
+                        scalar(1)
+                    )
+                )
+            );
+            ++i;
+        }
+    }
+
+    PtrList<volScalarField> SuMass(nPhases);     // mass source per phase [kg/m^3/s] .... beter naming than old version
+    forAll(SuMass, i)
+    {
+        SuMass.set
+        (
+            i,
+            new volScalarField
+            (
+                IOobject("SuMass" + Foam::name(i), runTime.timeName(), mesh_),
+                mesh_,
+                dimensionedScalar("0", dimensionSet(1, -3, -1, 0, 0), 0.0)
+            )
+        );
+    }
+
+    Info<< "Phase-change pairs:" << endl;
+    {
+        label li = 0;
+        for (phaseModel& liq : phases_)
+        {
+            if (!isGas[li])     // liquid / condensed metal phase
+            {
+                const word vapName = liq.name() + "vapour";
+                if (name2idx.found(vapName))
+                {
+                    const label vi = name2idx[vapName];
+
+                    phaseModel& vap = phases_[vapName];
+
+                    // pair lookups (Tboil, latent heat) from the interface tables .... gone back to this 2 table way,,,, maybe update to that new class itried where this is in one object..
+                    boilTable::const_iterator boilT
+                        (boils_.find(interfacePair(liq, vap)));
+                    LatentHeatGasTable::const_iterator LHG
+                        (LatentHeatGass_.find(interfacePair(liq, vap)));
+
+                    if (boilT != boils_.end() && LHG != LatentHeatGass_.end())
+                    {
+                        const dimensionedScalar Tboil
+                            ("Tboil", dimBoil_, boilT());
+                        const dimensionedScalar Lvap
+                            ("Lvap", dimLatentHeatGas_, LHG());
+
+                        const volScalarField Wliq
+                        (
+                            IOobject("Wliq." + liq.name(), runTime.timeName(), mesh_),
+                            liq.thermo().W()
+                        );
+
+
+                        // dont let density go below this, dVspec = 1/rhoVap
+                        // feeds kP and PCR and a floored cell at 1e-3 handed
+                        // the presure eqn a coefficent 100x a healthy band
+                        // cell. 0.01 caps 1/rho at 100. dict phaseChangeRhoFloor
+                        const dimensionedScalar rhoFloorPC
+                        (
+                            "rhoFloorPC",
+                            dimDensity,
+                            phasedictionary.getOrDefault<scalar>
+                            (
+                                "phaseChangeRhoFloor", 0.01
+                            )
+                        );
+                        const volScalarField rhoLiq(max(liq.thermo().rho(), rhoFloorPC));
+                        const volScalarField rhoVap(max(vap.thermo().rho(), rhoFloorPC));
+
+                        // Raoult-Dalton composition of this pair (mass-balance-based)
+                        const volScalarField& xLiq = moleFrac[li];
+                        const volScalarField& yVap = moleFrac[vi];
+
+                        // Clausius-Clapeyron saturation presure
+                        const volScalarField Psat
+                        (
+                            IOobject("Psat." + liq.name(), runTime.timeName(), mesh_),
+                            P0*Foam::exp
+                            (
+                                (((Wliq/1000.0)*Lvap)/(Tboil*gasconstant))
+                               *(1.0 - (Tboil/Tsafe))
+                            )
+                        );
+
+                        // the one signed rate for this pair [kg/m3/s], positive
+                            // evapourates negative condenses. driving force is
+                             // x*Psat - y*p, liquid side equilibrium partial presure
+                         // vs whats actully sat in the gas
+                        volScalarField r
+                        (
+                            IOobject("r" + liq.name(), runTime.timeName(), mesh_),
+                            Foam::sqrt
+                            (
+                                (Wliq/1000.0)/(2.0*M_PI*gasconstant*Tsafe)
+                            )
+                           *(xLiq*Psat - yVap*p_)/deltaPC
+                        );
+
+                        // apply the split sigma by sign. 
+                        {
+                            scalarField& rSig = r.primitiveFieldRef();
+                            forAll(rSig, celli)
+                            {
+                                rSig[celli] *=
+                                    (rSig[celli] > 0 ? sigmaEvap : sigmaCond);
+                            }
+                        }
+
+                        
+                        // interface gate, see up top. still before the clamps
+                        r *= gInt;
+
+                        // solid wall condensation gate (built up top), evap
+                        // left alone
+                        {
+                            scalarField& rI0 = r.primitiveFieldRef();
+                            label nGate = 0;
+                            forAll(rI0, celli)
+                            {
+                                if (rI0[celli] < 0 && gCond[celli] < 1.0)
+                                {
+                                    rI0[celli] *= gCond[celli];
+                                    ++nGate;
+                                }
+                            }
+                            reduce(nGate, sumOp<label>());
+                            if (nGate)
+                            {
+                                Info<< "    solid-wall condensation gate ("
+                                    << liq.name() << "): " << nGate
+                                    << " cell(s)" << endl;
+                            }
+                        }
+
+                        
+                        //  composition consistent saturation tempreature, ie
+                                //  the T where x*Psat(T) = y*p and this pairs driving
+                            //  force is exactly zero. the energy clamp below then
+                                    //  brakes towards the SAME fixed point as the kinetics
+                            //  which is the whole point. just invert Psat:
+                            //      Tsat = Tboil/(1 - ln(y p/(x P0))/K)
+                        //  PAPER REF NEEDED
+                        
+                        const volScalarField Kfield //for above tect relation///
+                        (
+                            ((Wliq/1000.0)*Lvap)/(Tboil*gasconstant)
+                        );
+                        const volScalarField satArg
+                        (
+                            max
+                            (
+                                yVap
+                               *max
+                                (
+                                    p_,
+                                    dimensionedScalar
+                                    ("pSmallSat", P0.dimensions(), 1.0)
+                                )
+                               /(
+                                    max
+                                    (
+                                        xLiq,
+                                        dimensionedScalar
+                                        ("xSmall", dimless, 1e-12)
+                                    )*P0
+                                ),
+                                dimensionedScalar("argSmall", dimless, 1e-15)
+                            )
+                        );
+                        const volScalarField Tsat
+                        (
+                            IOobject("Tsat." + liq.name(), runTime.timeName(), mesh_),
+                            Tboil
+                          / max
+                            (
+                                1.0 - Foam::log(satArg)/Kfield,
+                                dimensionedScalar("d", dimless, 0.05)
+                            )
+                        );
+
+
+                        
+                        // which cells get to keep teh implicit presure coupling kP
+                        scalarField kPkeepI(r.primitiveField().size(), 1.0);
+                        label nClampE = 0, nClampM = 0, nClampV = 0;
+                        {
+                          
+
+                            scalarField& rI = r.primitiveFieldRef();
+                            const scalarField& TI      = Tsafe.primitiveField();
+                            const scalarField& TsatI   = Tsat.primitiveField();
+                            const scalarField& rhoMixI = rhoMixField.primitiveField();
+                            const scalarField& rCvMixI = rCvMix.primitiveField();
+                            const scalar       LvapV   = Lvap.value();
+                            const scalarField& cLiqI = c_[li].primitiveField();
+                            const scalarField& cVapI = c_[vi].primitiveField();
+                            const scalarField& rhoLiqI = rhoLiq.primitiveField();
+                            const scalarField& rhoVapI = rhoVap.primitiveField();
+                            const scalar cvSmall = 1e-30;
+                            forAll(rI, celli)//LIMITING SO CODE DOESNT BLOW UP
+                            {
+                                scalar& rc = rI[celli];
+                                const scalar rcKinetic = rc;
+
+                                //  energy limit: dont let latent heat drive
+                                //  T past Tsat this step
+                                const scalar eFac =
+                                    rhoMixI[celli]*rDeltaT
+                                  / (Foam::max(rCvMixI[celli], cvSmall)*LvapV);
+                                const scalar headUp =
+                                    Foam::max(TsatI[celli] - TI[celli], 0.0);
+                                const scalar headDn =
+                                    Foam::max(TI[celli] - TsatI[celli], 0.0);
+                                const scalar rMinE = -headUp*eFac;  // cond cap (<=0)
+                                const scalar rMaxE =  headDn*eFac;  // evap cap (>=0)
+                                // only count clamps that MATTER.. a trace
+                                // rate clamped to a smaller trace is not news
+                                // (the log read 14k "clamped" cells at 1e-51
+                                // kg/m3/s, pure census noise)
+                                if (rc > rMaxE) { rc = rMaxE; if (mag(rcKinetic) > 1e-3) ++nClampE; }
+                                if (rc < rMinE) { rc = rMinE; if (mag(rcKinetic) > 1e-3) ++nClampE; }
+
+                                //  mass limit: half of whats there per step,
+                                //  max. NB the positivity limiter budget below
+                                //  RELIES on this 0.5, dont raise it
+                                const scalar rmaxEvap =
+                                    0.5*Foam::max(cLiqI[celli], 0.0)*rDeltaT;
+                                const scalar rmaxCond =
+                                    0.5*Foam::max(cVapI[celli], 0.0)*rDeltaT;
+                                if (rc >  rmaxEvap) { rc =  rmaxEvap; ++nClampM; kPkeepI[celli] = 0.0; } // evap
+                                if (rc < -rmaxCond) { rc = -rmaxCond; ++nClampM; kPkeepI[celli] = 0.0; } // cond
+
+                                //  volume limit: etaVol of the cell per step.
+                                //  this one scales with 1/dt so it must stay
+                                //  under maxPhaseChangeFraction (see note at
+                                //  the etaVol read)
+                                const scalar dVspec =
+                                    Foam::max
+                                    (
+                                        1.0/rhoVapI[celli]
+                                      - 1.0/rhoLiqI[celli],
+                                        VSMALL
+                                    );
+                                const scalar rMaxV = etaVol*rDeltaT/dVspec;
+                                if (rc >  rMaxV) { rc =  rMaxV; ++nClampV; kPkeepI[celli] = 0.0; }
+                                if (rc < -rMaxV) { rc = -rMaxV; ++nClampV; kPkeepI[celli] = 0.0; }
+                            }
+                        }
+
+                        // exactly paired sources, the same one r feeds both
+                        // sides so pair mass is conserved to machine precission
+                        SuMass[li] -= r;     // liquid loses
+                        SuMass[vi] += r;     // vapour gains (paired)
+
+                        // volume made/removed goes to the presure eqn via vDot
+                        PCR += r*(1.0/rhoVap - 1.0/rhoLiq);
+
+                        // latent-heat of vap/cond goes to TEqn through -mass_dot ..... maybe i should change the sign, but this is right !!!
+                        *massdotterm += rCvMix*Lvap*r;
+
+                        
+                        //  implicit presure coupling. the explicit r above is
+                        //  frozen at start of step  which lags, 
+
+                        //  slope:
+                        //     kP = -d(vDot)/dp = sigma*A/delta*y*dVspec >= 0
+                            // and d/dp == d/dp_rgh).
+                                //  pEqn adds +fvm::Sp(vDotP,p_rgh) - vDotP*p_rgh.oldTime()
+                         //  making the source backward Euler in p, the diagonal
+                        //  is allways positive so unconditionaly stabilising same trick as interPhaseChangeFoam
+                        if (vDotPptr)
+                        {
+                            volScalarField kP
+                            (
+                                IOobject
+                                (
+                                    "kP." + liq.name(),
+                                    runTime.timeName(),
+                                    mesh_
+                                ),
+                                yVap
+                               *Foam::sqrt
+                                (
+                                    (Wliq/1000.0)
+                                   /(2.0*M_PI*gasconstant*Tsafe)
+                                )
+                               /deltaPC
+                               *max
+                                (
+                                    1.0/rhoVap - 1.0/rhoLiq,
+                                    dimensionedScalar
+                                    (
+                                        "zeroDV",
+                                        dimVolume/dimMass,
+                                        0.0
+                                    )
+                                )
+                            );
+                            
+                            kP *= gInt;
+
+                            
+                            {
+                                scalarField& kPI = kP.primitiveFieldRef();
+                                const scalarField& rIg = r.primitiveField();
+                                forAll(kPI, celli)
+                                {
+                                    if (rIg[celli] < 0)
+                                    {
+                                        kPI[celli] *= sigmaCond*gCond[celli];
+                                    }
+                                    else
+                                    {
+                                        kPI[celli] *= sigmaEvap;
+                                    }
+                                }
+                            }
+                            kP.primitiveFieldRef() *= kPkeepI;
+                            *vDotPptr += kP;
+                        }
+
+                        reduce(nClampE, sumOp<label>());
+                        reduce(nClampM, sumOp<label>());
+                        reduce(nClampV, sumOp<label>());
+
+                        
+                        const scalarField& rBud = r.primitiveField();
+                        const scalar evapKgPerS =
+                            gSum(pos(rBud)*rBud*mesh_.V().field());
+                        const scalar condKgPerS =
+                            gSum(neg(rBud)*rBud*mesh_.V().field());
+
+                        Info<< "    (" << liq.name() << "," << vap.name()
+                            << ")  Tboil=" << Tboil.value()
+                            << "  max rate magnitude=" << max(mag(r)).value()
+                            << " kg/m3/s"
+                            << "  clamped cells ENERGY/MASS/VOLUME to maintain boundedness..... probably decrease timestep or pray to the numerical gods: "
+                            << nClampE << "/" << nClampM << "/" << nClampV
+                            << endl;
+                        Info<< "        integrated evap = " << evapKgPerS
+                            << " kg/s, cond = " << condKgPerS
+                            << " kg/s (cond is <= 0)" << endl;
+                    }
+                }
+            }
+            ++li;
+        }
+    }
+
+
+    volScalarField beta // CONDENSED PHASE SUM, for flux limiting step to stay sharp (VOF SHARP)
+    (
+        IOobject
+        (
+            "alpha.beta",
+            runTime.timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        condensate                                   
+    );
+    beta.oldTime() == beta0_;                        
+
+
+    const scalar cAlphaBeta
+    (
+        mesh_.solverDict("alpha").getOrDefault<scalar>("cAlpha", 1.0)
+    );
+
+    // raw un-limited beta flux
+    surfaceScalarField betaPhiCorr
+    (
+        "betaPhiCorr",
+        fvc::flux(phi_, beta, alphaScheme)
+    );
+
+    // interFoam style compresion flux normal to the interface, keeps it sharp
+    {
+        surfaceScalarField phic(mag(phi_)/mesh_.magSf());
+        surfaceScalarField phir
+        (
+            min(cAlphaBeta*phic, max(phic))*nHatf(beta, scalar(1) - beta)
+        );
+        betaPhiCorr += fvc::flux
+        (
+            -fvc::flux(-phir, (scalar(1) - beta), alpharScheme),
+            beta,
+            alpharScheme
+        );
+    }
+
+
+    volScalarField SpBeta
+    (
+        IOobject("SpBeta", runTime.timeName(), mesh_),
+        mesh_,
+        dimensionedScalar("0", dimensionSet(0, 0, -1, 0, 0), 0.0)
+    );
+    volScalarField SuBeta
+    (
+        IOobject("SuBeta", runTime.timeName(), mesh_),
+        mesh_,
+        dimensionedScalar("0", dimensionSet(0, 0, -1, 0, 0), 0.0)
+    );
+    {
+        const scalarField& betaI       = beta.primitiveField();
+        const scalarField& dgdtBarI    = dgdtBar.primitiveField();
+        const scalarField& dgdtBetaI   = dgdtBetaSum.primitiveField();
+        scalarField& SpI = SpBeta.primitiveFieldRef();
+        scalarField& SuI = SuBeta.primitiveFieldRef();
+
+        forAll(betaI, celli)
+        {
+            const scalar b = betaI[celli];
+
+            // dilation bit: cancels the beta*div(U) hiding in the flux
+            SuI[celli] += (-dgdtBarI[celli])*Foam::min(b, scalar(1));
+
+            // relative compressibility between the two groups, pushed to
+            // whichever side keeps beta bounded... this is nice if i do say so myself
+            const scalar D = b*dgdtBarI[celli] - dgdtBetaI[celli];
+            if (D > 0)
+            {
+                const scalar w = Foam::max(scalar(1) - b, scalar(1e-4));
+                SpI[celli] -= D/w;
+                SuI[celli] += D/w;
+            }
+            else if (D < 0)
+            {
+                const scalar w = Foam::max(b, scalar(1e-4));
+                SpI[celli] += D/w;
+            }
+        }
+    }
+
+    {
+        label li = 0;
+        for (phaseModel& liq : phases_)
+        {
+            if (!isGas[li])
+            {
+                const word vapName = liq.name() + "vapour";
+                if (name2idx.found(vapName))
+                {
+                    // SuMass already holds -r for the liquid, just convert
+                    // mass to volume with rho_liq 
+                    const volScalarField rhoLiq
+                    (
+                        max
+                        (
+                            liq.thermo().rho(),
+                            dimensionedScalar("rhoFloorPC", dimDensity, 1e-3)
+                        )
+                    );
+                    SuBeta += SuMass[li]/rhoLiq;     // = -r_i/rho_liq_i
+                }
+            }
+            ++li;
+        }
+    }
+
+    MULES::limit
+    (
+        rDeltaT,
+        geometricOneField(),
+        beta,
+        phi_,
+        betaPhiCorr,
+        SpBeta,
+        SuBeta,
+        oneField(),
+        zeroField(),
+        true
+    );
+
+
+    surfaceScalarField betaPhi
+    (
+        "betaPhi",
+        betaPhiCorr + upwind<scalar>(mesh_, phi_).flux(beta)
+    );
+
+    {
+        volScalarField::Internal SpBetaI
+            (IOobject("SpBetaI", runTime.timeName(), mesh_), SpBeta);
+        volScalarField::Internal SuBetaI
+            (IOobject("SuBetaI", runTime.timeName(), mesh_), SuBeta);
 
         MULES::explicitSolve
         (
             geometricOneField(),
-            alpha,
-            alphaPhi,
-            Sp,
-            Su
+            beta,
+            betaPhi,
+            SpBetaI,
+            SuBetaI
         );
+    }
+    beta = max(min(beta, scalar(1)), scalar(0));   // safety 
 
-        rhoPhi_ += fvc::interpolate(alpha.thermo().rho())*alphaPhi;
 
-        Info<< alpha.name() << " volume fraction, min, max = "
-            << alpha.weightedAverage(mesh_.V()).value()
-            << ' ' << min(alpha).value()
-            << ' ' << max(alpha).value()
-            << endl;
+    surfaceScalarField gammaPhi("gammaPhi", phi_ - betaPhi);
 
-        sumAlpha += alpha;
+    const dimensionedScalar betaSmall("betaSmall", dimless, 1e-8);
 
-        ++phasei;
+    rhoPhi_ = dimensionedScalar(dimensionSet(1, 0, -1, 0, 0), Zero);
+
+
+    //  Y REFORMULATION of the species transport (attempt no.3, this one works)
+
+
+
+    const scalar cPackTol =
+        phasedictionary.getOrDefault<scalar>("cPackTol", 1.02);
+
+    // --- group totals, group sources, and the packing cap density ---------
+         //  cap = densest species of the group at local (p,T), tightened below to
+        //  the compositon weighted mixture density where theres actual content
+    volScalarField cCondTot
+    (
+        IOobject("cCondTot", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimDensity, 0.0)
+    );
+    volScalarField cGasTot
+    (
+        IOobject("cGasTot", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimDensity, 0.0)
+    );
+    volScalarField SuCondSum
+    (
+        IOobject("SuCondSum", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimensionSet(1, -3, -1, 0, 0), 0.0)
+    );
+    volScalarField SuGasSum
+    (
+        IOobject("SuGasSum", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimensionSet(1, -3, -1, 0, 0), 0.0)
+    );
+    volScalarField rhoCondCap
+    (
+        IOobject("rhoCondCap", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimDensity, 0.0)
+    );
+    volScalarField rhoGasCap
+    (
+        IOobject("rhoGasCap", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimDensity, 0.0)
+    );
+
+    volScalarField vCondImp
+    (
+        IOobject("vCondImp", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimless, 0.0)
+    );
+    volScalarField vGasImp
+    (
+        IOobject("vGasImp", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("z", dimless, 0.0)
+    );
+
+    {
+        const dimensionedScalar rhoFloorY("rhoFloorY", dimDensity, 1e-3);
+        label i = 0;
+        for (phaseModel& ph : phases_)
+        {
+            const volScalarField cPos(max(c_[i], dimensionedScalar("z", dimDensity, 0.0)));
+            if (isGas[i])
+            {
+                cGasTot   += cPos;
+                vGasImp   += cPos/max(ph.thermo().rho(), rhoFloorY);
+                SuGasSum  += SuMass[i];
+                rhoGasCap  = max(rhoGasCap, ph.thermo().rho());
+            }
+            else
+            {
+                cCondTot  += cPos;
+                vCondImp  += cPos/max(ph.thermo().rho(), rhoFloorY);
+                SuCondSum += SuMass[i];
+                rhoCondCap = max(rhoCondCap, ph.thermo().rho());
+            }
+            ++i;
+        }
     }
 
-    Info<< "Phase-sum volume fraction, min, max = "
-        << sumAlpha.weightedAverage(mesh_.V()).value()
-        << ' ' << min(sumAlpha).value()
-        << ' ' << max(sumAlpha).value()
-        << endl;
-
-
-
-
-
-
-
-
-
-
-    // Calculate and print total mass
-    Info << "Phase pair (liquid + vapor) masses in domain:" << endl;
-    
-    HashTable<bool> processedPhases;
-    
-    for (const phaseModel& phase : phases_)
+    // tighten the packing caaps 
     {
-        if (processedPhases.found(phase.name())) continue;
-        
-        word vaporName = phase.name() + "vapour";
-        bool hasVaporPair = false;
-        scalar liquidMass = 0.0;
-        scalar vaporMass = 0.0;
-        
-        const volScalarField phaseMassLiq(phase*phase.thermo().rho());
-        liquidMass = gSum(phaseMassLiq.primitiveField()*mesh_.V().field());
-        
-        for (const phaseModel& phase2 : phases_)
+        const scalar vTinyCap = 1e-12;
+
+        scalarField& capCI = rhoCondCap.primitiveFieldRef();
+        scalarField& capGI = rhoGasCap.primitiveFieldRef();
+        const scalarField& cTC = cCondTot.primitiveField();
+        const scalarField& cTG = cGasTot.primitiveField();
+        const scalarField& vIC = vCondImp.primitiveField();
+        const scalarField& vIG = vGasImp.primitiveField();
+
+        forAll(capCI, celli)
         {
-            if (phase2.name() == vaporName)
+            if (vIC[celli] > vTinyCap)
             {
-                hasVaporPair = true;
-                const volScalarField phaseMassVap(phase2*phase2.thermo().rho());
-                vaporMass = gSum(phaseMassVap.primitiveField()*mesh_.V().field());
-                processedPhases.insert(phase2.name(), true);
-                break;
+                capCI[celli] =
+                    Foam::min(capCI[celli], cTC[celli]/vIC[celli]);
+            }
+            if (vIG[celli] > vTinyCap)
+            {
+                capGI[celli] =
+                    Foam::min(capGI[celli], cTG[celli]/vIG[celli]);
             }
         }
-        
-        if (hasVaporPair)
+
+        rhoCondCap.correctBoundaryConditions();
+        rhoGasCap.correctBoundaryConditions();
+    }
+
+ 
+    const volScalarField psiCond
+    (
+        "psiCond",
+        min
+        (
+            max
+            (
+                cCondTot/max(condensate, betaSmall),
+                dimensionedScalar("zeroRho", dimDensity, 0.0)
+            ),
+            rhoCondCap
+        )
+    );
+    const volScalarField psiGas
+    (
+        "psiGas",
+        min
+        (
+            max
+            (
+                cGasTot/max(scalar(1) - condensate, betaSmall),
+                dimensionedScalar("zeroRho", dimDensity, 0.0)
+            ),
+            rhoGasCap
+        )
+    );
+
+    surfaceScalarField FCond("FCond", upwind<scalar>(mesh_, betaPhi).flux(psiCond));
+    surfaceScalarField FGas ("FGas",  upwind<scalar>(mesh_, gammaPhi).flux(psiGas));
+
+   
+    volScalarField lamOutCond
+    (
+        IOobject("lamOutCond", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("one", dimless, 1.0)
+    );
+    volScalarField lamInCond
+    (
+        IOobject("lamInCond", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("one", dimless, 1.0)
+    );
+    volScalarField lamOutGas
+    (
+        IOobject("lamOutGas", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("one", dimless, 1.0)
+    );
+    volScalarField lamInGas
+    (
+        IOobject("lamInGas", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("one", dimless, 1.0)
+    );
+
+    for (int grp = 0; grp < 2; ++grp)
+    {
+        surfaceScalarField& Fg   = (grp == 0) ? FCond      : FGas;
+        volScalarField& lamO     = (grp == 0) ? lamOutCond : lamOutGas;
+        volScalarField& lamN     = (grp == 0) ? lamInCond  : lamInGas;
+        const scalarField& cTotI = ((grp == 0) ? cCondTot  : cGasTot).primitiveField();
+        const scalarField& SuI   = ((grp == 0) ? SuCondSum : SuGasSum).primitiveField();
+        const scalarField& capI  = ((grp == 0) ? rhoCondCap : rhoGasCap).primitiveField();
+
+        const scalarField& V = mesh_.V().field();
+        const labelUList& own = mesh_.owner();
+        const labelUList& nei = mesh_.neighbour();
+
+        scalarField outflow(mesh_.nCells(), 0.0);
+        scalarField inflow(mesh_.nCells(), 0.0);
+
         {
-            scalar totalPairMass = liquidMass + vaporMass;
-            Info << "    " << phase.name() << " + " << vaporName << ": " 
-                 << totalPairMass << " kg (liquid: " << liquidMass 
-                 << " kg, vapor: " << vaporMass << " kg)" << endl;
-            processedPhases.insert(phase.name(), true);
+            const scalarField& FgI = Fg.primitiveField();
+            forAll(FgI, facei)
+            {
+                if (FgI[facei] > 0)
+                {
+                    outflow[own[facei]] += FgI[facei];
+                    inflow[nei[facei]]  += FgI[facei];
+                }
+                else
+                {
+                    outflow[nei[facei]] -= FgI[facei];
+                    inflow[own[facei]]  -= FgI[facei];
+                }
+            }
         }
-        else if (phase.name() != "air" && phase.name().find("vapour") == string::npos)
+
+        forAll(Fg.boundaryField(), patchi)
         {
-            Info << "    " << phase.name() << " (no vapor): " << liquidMass << " kg" << endl;
-            processedPhases.insert(phase.name(), true);
+            const fvsPatchScalarField& pF = Fg.boundaryField()[patchi];
+            const labelUList& fc = pF.patch().faceCells();
+            forAll(pF, bfacei)
+            {
+                if (pF[bfacei] > 0)
+                {
+                    outflow[fc[bfacei]] += pF[bfacei];
+                }
+                else
+                {
+                    inflow[fc[bfacei]] -= pF[bfacei];
+                }
+            }
         }
-        else if (phase.name() == "air")
+
+        scalarField& lamOI = lamO.primitiveFieldRef();
+        forAll(lamOI, celli)
         {
-            Info << "    " << phase.name() << ": " << liquidMass << " kg" << endl;
-            processedPhases.insert(phase.name(), true);
+            if (outflow[celli] > VSMALL)
+            {
+                const scalar budget =
+                    Foam::max(cTotI[celli], scalar(0))*V[celli]*rDeltaT
+                  + Foam::min(SuI[celli], scalar(0))*V[celli];
+
+                lamOI[celli] = Foam::min
+                (
+                    scalar(1),
+                    Foam::max(budget, scalar(0))/outflow[celli]
+                );
+            }
+        }
+
+        scalarField& lamNI = lamN.primitiveFieldRef();
+        forAll(lamNI, celli)
+        {
+            if (inflow[celli] > VSMALL)
+            {
+                const scalar headroom =
+                    (
+                        cPackTol*capI[celli]
+                      - Foam::max(cTotI[celli], scalar(0))
+                    )*V[celli]*rDeltaT
+                  - Foam::max(SuI[celli], scalar(0))*V[celli]
+                  + lamOI[celli]*outflow[celli];
+
+                lamNI[celli] = Foam::min
+                (
+                    scalar(1),
+                    Foam::max(headroom, scalar(0))/inflow[celli]
+                );
+            }
+        }
+
+        lamO.correctBoundaryConditions();
+        lamN.correctBoundaryConditions();
+
+        const scalarField& loI = lamO.primitiveField();
+        const scalarField& liI = lamN.primitiveField();
+
+        {
+            scalarField& FgI = Fg.primitiveFieldRef();
+            forAll(FgI, facei)
+            {
+                FgI[facei] *=
+                    (FgI[facei] > 0)
+                  ? Foam::min(loI[own[facei]], liI[nei[facei]])
+                  : Foam::min(loI[nei[facei]], liI[own[facei]]);
+            }
+        }
+
+        auto& FgBf = Fg.boundaryFieldRef();
+        forAll(FgBf, patchi)
+        {
+            fvsPatchScalarField& pF = FgBf[patchi];
+            const labelUList& fc = pF.patch().faceCells();
+
+            if (pF.patch().coupled())
+            {
+                const scalarField loNei
+                (
+                    lamO.boundaryField()[patchi].patchNeighbourField()
+                );
+                const scalarField liNei
+                (
+                    lamN.boundaryField()[patchi].patchNeighbourField()
+                );
+                forAll(pF, bfacei)
+                {
+                    pF[bfacei] *=
+                        (pF[bfacei] > 0)
+                      ? Foam::min(loI[fc[bfacei]], liNei[bfacei])
+                      : Foam::min(loNei[bfacei], liI[fc[bfacei]]);
+                }
+            }
+            else
+            {
+                // physical patch: exports keep the positivity factor, INFLOW
+                // is never throttled.. BCs outrank the limiter, throttling
+                // BC inflow = volume without mass = the boundary air jet
+                forAll(pF, bfacei)
+                {
+                    if (pF[bfacei] > 0)
+                    {
+                        pF[bfacei] *= loI[fc[bfacei]];
+                    }
+                }
+            }
+        }
+    }
+
+    // engagement counts for the log
+    {
+        label nOutC = 0, nInC = 0, nOutG = 0, nInG = 0;
+        scalar mOutC = 1, mInC = 1, mOutG = 1, mInG = 1;
+        const scalarField& oc = lamOutCond.primitiveField();
+        const scalarField& ic = lamInCond.primitiveField();
+        const scalarField& og = lamOutGas.primitiveField();
+        const scalarField& ig = lamInGas.primitiveField();
+        forAll(oc, celli)
+        {
+            if (oc[celli] < 1.0) { ++nOutC; mOutC = Foam::min(mOutC, oc[celli]); }
+            if (ic[celli] < 1.0) { ++nInC;  mInC  = Foam::min(mInC,  ic[celli]); }
+            if (og[celli] < 1.0) { ++nOutG; mOutG = Foam::min(mOutG, og[celli]); }
+            if (ig[celli] < 1.0) { ++nInG;  mInG  = Foam::min(mInG,  ig[celli]); }
+        }
+        reduce(nOutC, sumOp<label>()); reduce(mOutC, minOp<scalar>());
+        reduce(nInC,  sumOp<label>()); reduce(mInC,  minOp<scalar>());
+        reduce(nOutG, sumOp<label>()); reduce(mOutG, minOp<scalar>());
+        reduce(nInG,  sumOp<label>()); reduce(mInG,  minOp<scalar>());
+        if (nOutC || nInC || nOutG || nInG)
+        {
+            Info<< "group flux limiter: condensed out " << nOutC
+                << " (min " << mOutC << ") / in " << nInC
+                << " (min " << mInC << "); gas out " << nOutG
+                << " (min " << mOutG << ") / in " << nInG
+                << " (min " << mInG << ")" << endl;
+        }
+    }
+
+    // --- mass fractions  
+
+    const dimensionedScalar cTinyY("cTinyY", dimDensity, 1e-16);
+
+    // --- per species share of the limited group flux + fickian, then the
+        //     conservative update. nothing else is alowed to touch c_i
+    {
+        label i = 0;
+        for (phaseModel& ph : phases_)
+        {
+            const surfaceScalarField& FgrpL = isGas[i] ? FGas : FCond;
+            const volScalarField& cTot     = isGas[i] ? cGasTot : cCondTot;
+
+            const volScalarField Yi
+            (
+                "Y." + ph.name(),
+                max(c_[i], dimensionedScalar("z", dimDensity, 0.0))
+               /max(cTot, cTinyY)
+            );
+
+            // the share: Y upwinded by the group flux sign, times it.
+            // summed over the group this returns FgrpL exactly
+            surfaceScalarField Fi
+            (
+                "F" + ph.name(),
+                upwind<scalar>(mesh_, FgrpL).flux(Yi)
+            );
+
+            //  fickian diffusion within each group, listed pairs only..
+            
+            {
+                const volScalarField& ai = ph;
+                const surfaceScalarField rhoif
+                (
+                    fvc::interpolate(ph.thermo().rho())
+                );
+
+                for (phaseModel& ph2 : phases_)
+                {
+                    if (&ph2 == &ph) continue;                 // skip self
+
+                    const label j = name2idx[ph2.name()];
+                    if (isGas[j] != isGas[i]) continue;        // same group only
+
+                    scalarCoeffSymmDTable::const_iterator dAlpha
+                    (
+                        dAlphas_.find(interfacePair(ph, ph2))
+                    );
+                    if (dAlpha == dAlphas_.end()) continue;    // listed pairs only
+
+                    const volScalarField& aj = ph2;
+                    const dimensionedScalar Dij("Dij", dimdiff_, dAlpha());
+
+
+                    Fi +=
+                        rhoif
+                       *(
+                          - Dij*mesh_.magSf()
+                           *(
+                                fvc::interpolate(aj)*fvc::snGrad(ai)
+                              - fvc::interpolate(ai)*fvc::snGrad(aj)
+                            )
+                        );
+                }
+            }
+
+            // THE conservative update of c_i, flux plus the paired sources
+            // and nothing else ever
+            volScalarField::Internal Su
+            (
+                IOobject("Su_c" + ph.name(), runTime.timeName(), mesh_),
+                SuMass[i]
+            );
+
+            MULES::explicitSolve
+            (
+                geometricOneField(),
+                c_[i],
+                Fi,
+                zeroField(),
+                Su
+            );
+
+            rhoPhi_ += Fi;                          // accumulate mixture mass flux
+            ++i;
         }
     }
 
 
+    //  now recover alphas from the mass-balance. c_i can carry a tiny negative
+    //  from roundoff hence the max(..,0) everywhere
+
+ 
+
+    // purge
+    {
+        const scalar cPurgeTol =
+            phasedictionary.getOrDefault<scalar>("cPurgeTol", 1e-10);
+
+        if (cPurgeTol > 0)
+        {
+            label nPurge = 0;
+            scalar purgedMass = 0.0;
+            const scalarField& V = mesh_.V().field();
+
+            forAll(c_, i)
+            {
+                scalarField& cI = c_[i].primitiveFieldRef();
+                forAll(cI, celli)
+                {
+                    const scalar cv = cI[celli];
+                    if (cv != 0 && mag(cv) < cPurgeTol)
+                    {
+                        purgedMass += mag(cv)*V[celli];
+                        cI[celli] = 0.0;
+                        ++nPurge;
+                    }
+                }
+            }
+
+            reduce(nPurge, sumOp<label>());
+            reduce(purgedMass, sumOp<scalar>());
+            if (nPurge)
+            {
+                Info<< "mass-balance purge (|c| < " << cPurgeTol << " kg/m3): "
+                    << nPurge << " entries, " << purgedMass
+                    << " kg absolute" << endl;
+            }
+        }
+    }
+
+    const dimensionedScalar cZero("cZero", dimensionSet(1, -3, 0, 0, 0), 0.0);
 
 
+    //  hierarchical recovery of alpha's  (global rescale was shit))
+            //  alpha = c/rho only sums to 1 if the transported masses match the EOS
+        //  densities at the current p and T, and they never quite do (species move
+        //  once per step with last steps fluxes while p moves by bars at the spot)
+            //  so a defect builds every step.....
+
+    const dimensionedScalar rhoMinRec("rhoMinRec", dimDensity, 1e-3);
+
+    // closure trust
+    //   closureGasFracMin: the gas mass-balance must explain at least this
+    //     fraction of the volume its asked to fill before we trust it ...... i originaly used VSMALL here,....dont do this as t/tiny is massive
+    //   closureCondNearFull: above this much condensed fill the leftover is
+    //     splitting defect not a real void, condensed just absorbs it
+    const scalar gasFracMin =
+        phasedictionary.getOrDefault<scalar>("closureGasFracMin", 0.1);
+    const scalar condNearFull =
+        phasedictionary.getOrDefault<scalar>("closureCondNearFull", 0.95);
+
+    // below this much condense phase a cell counts as a void 
+    const scalar condVoidFloor = 1e-3;
+
+    volScalarField vCond
+    (
+        IOobject("vCondImplied", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("0", dimless, 0.0)
+    );
+    volScalarField vGas
+    (
+        IOobject("vGasImplied", runTime.timeName(), mesh_),
+        mesh_, dimensionedScalar("0", dimless, 0.0)
+    );
+
+    PtrList<volScalarField> vImp(nPhases);
+    {
+        label i = 0;
+        for (const phaseModel& ph : phases_)
+        {
+            const volScalarField rhoPh(max(ph.thermo().rho(), rhoMinRec));
+
+            vImp.set
+            (
+                i,
+                new volScalarField
+                (
+                    "vImp." + ph.name(),
+                    max(c_[i], cZero)/rhoPh
+                )
+            );
+
+            if (isGas[i]) vGas += vImp[i];
+            else          vCond += vImp[i];
+            ++i;
+        }
+    }
+
+    const volScalarField sumImplied(vCond + vGas);
+
+    // mass-balance implied volume vs actual cell volume, internal field only
+    Info<< "volume closure defect (mass-balance vs EOS): min = "
+        << gMin(sumImplied.primitiveField())
+        << ", max = " << gMax(sumImplied.primitiveField())
+        << ", max|dev| = "
+        << gMax(mag(sumImplied.primitiveField() - 1.0)()) << endl;
+
+    {
+        // previous gas fractions.... composition-memory for fallback
+        label nGasPh = 0;
+        forAll(isGas, i)
+        {
+            if (isGas[i]) ++nGasPh;
+        }
+
+        PtrList<scalarField> oldGas(nPhases);
+        scalarField oldGasSum(mesh_.nCells(), 0.0);
+        {
+            label i = 0;
+            for (const phaseModel& ph : phases_)
+            {
+                if (isGas[i])
+                {
+                    oldGas.set(i, new scalarField(ph.primitiveField()));
+                    oldGasSum += oldGas[i];
+                }
+                ++i;
+            }
+        }
+
+        const scalarField& vCondI = vCond.primitiveField();
+        const scalarField& vGasI  = vGas.primitiveField();
+
+        // condensed group: mass-balance volumes
+        {
+            label i = 0;
+            for (phaseModel& ph : phases_)
+            {
+                if (!isGas[i])
+                {
+                    scalarField& aI = ph.primitiveFieldRef();
+                    const scalarField& vI = vImp[i].primitiveField();
+                    forAll(aI, celli)
+                    {
+                        const scalar vc = vCondI[celli];
+                        const scalar Vg = 1.0 - Foam::min(vc, scalar(1));
+                        const scalar vg = vGasI[celli];
+
+                        scalar s = 1.0;
+                        if (vc > 1.0)
+                        {
+                            s = 1.0/vc;
+                        }
+                        else if
+                        (
+                            Vg > 0
+                         && vg < gasFracMin*Vg
+                         && (vc >= condNearFull || vc >= Foam::max(vg, condVoidFloor))
+                        )
+                        {
+                            // absorb the splitting defect; the gas keeps
+                            // its contribution vg, so the cell
+                            // still closes exactly: s*vc + vg = 1
+                            s = (1.0 - vg)/vc;
+                        }
+
+                        aI[celli] = s*vI[celli];
+                    }
+                }
+                ++i;
+            }
+        }
+
+        // gas group: fills the remaining volume in mass-balance proportion 
+        label nVoidFill = 0;
+        {
+            label i = 0;
+            for (phaseModel& ph : phases_)
+            {
+                if (isGas[i])
+                {
+                    scalarField& aI = ph.primitiveFieldRef();
+                    const scalarField& vI = vImp[i].primitiveField();
+                    const scalarField& gI = oldGas[i];
+
+                    forAll(aI, celli)
+                    {
+                        const scalar vc = vCondI[celli];
+                        const scalar Vg = 1.0 - Foam::min(vc, scalar(1));
+                        const scalar vg = vGasI[celli];
+
+                        if (Vg <= 0)
+                        {
+                            aI[celli] = 0.0;
+                        }
+                        else if (vg >= gasFracMin*Vg)
+                        {
+                            // trusted mass-balance composition
+                            aI[celli] = Vg*vI[celli]/vg;
+                        }
+                        else if (vc >= condNearFull || vc >= Foam::max(vg, condVoidFloor))
+                        {
+                            // condensed absorbed the defect above 
+                            aI[celli] = vI[celli];
+                        }
+                        else if (oldGasSum[celli] > VSMALL)
+                        {
+                            aI[celli] = Vg*gI[celli]/oldGasSum[celli];
+                            if (Vg > SMALL) ++nVoidFill;
+                        }
+                        else
+                        {
+                            aI[celli] = Vg/nGasPh;
+                            if (Vg > SMALL) ++nVoidFill;
+                        }
+                    }
+                }
+                ++i;
+            }
+        }
+
+        label nOverfullCond = 0;
+        label nAbsorb = 0;
+        forAll(vCondI, celli)
+        {
+            const scalar vc = vCondI[celli];
+            if (vc > 1.0)
+            {
+                ++nOverfullCond;
+            }
+            else
+            {
+                const scalar Vg = 1.0 - vc;
+                // only count absorbs that mean something
+                if
+                (
+                    Vg > 1e-6
+                 && vGasI[celli] < gasFracMin*Vg
+                 && (vc >= condNearFull || vc >= Foam::max(vGasI[celli], condVoidFloor))
+                )
+                {
+                    ++nAbsorb;
+                }
+            }
+        }
+
+        for (phaseModel& ph : phases_)
+        {
+            ph.correctBoundaryConditions();
+        }
+
+        reduce(nOverfullCond, sumOp<label>());
+        reduce(nAbsorb, sumOp<label>());
+        reduce(nVoidFill, sumOp<label>());
+        if (nOverfullCond || nAbsorb || nVoidFill)
+        {
+            Info<< "hierarchical recovery: condensed-overfull cells = "
+                << nOverfullCond << ", defect-absorbed cells = " << nAbsorb
+                << ", gas-void fallback cells = "
+                << nVoidFill/max(nGasPh, label(1)) << endl;
+        }
+    }
+
+    // refresh the mass-balance patch values, c_b = alpha_b*rho_b on physical
+    // patches 
 
 
+    {
+        label i = 0;
+        for (phaseModel& ph : phases_)
+        {
+            const volScalarField::Boundary& aBf = ph.boundaryField();
+            const volScalarField& rhoPh = ph.thermo().rho();
+            const volScalarField::Boundary& rBf = rhoPh.boundaryField();
+
+            volScalarField::Boundary& cBf = c_[i].boundaryFieldRef();
+
+            forAll(cBf, patchi)
+            {
+                if (cBf[patchi].coupled())
+                {
+                    // halo, gets the proper swap below
+                    continue;
+                }
+                cBf[patchi] == aBf[patchi]*rBf[patchi];
+            }
+
+            // true halo exchange on the processor/cyclic patches
+            c_[i].correctBoundaryConditions();
+            ++i;
+        }
+    }
+
+    // ceiling on the PAIR implicit coupling only
+    if (vDotPptr)
+    {
+        const scalar implicitVolLimit =
+            phasedictionary.getOrDefault<scalar>("implicitVolLimit", 0.2);
+
+        scalarField& vpI = vDotPptr->primitiveFieldRef();
+        const scalarField& pI = p_.primitiveField();
+
+        label nCapKP = 0;
+        forAll(vpI, celli)
+        {
+            const scalar kPmax =
+                implicitVolLimit*rDeltaT/Foam::max(pI[celli], scalar(1e4));
+            if (vpI[celli] > kPmax)
+            {
+                vpI[celli] = kPmax;
+                ++nCapKP;
+            }
+        }
+        reduce(nCapKP, sumOp<label>());
+        if (nCapKP)
+        {
+            Info<< "implicit coupling ceiling: " << nCapKP
+                << " cell(s) capped" << endl;
+        }
+    }
+
+    // dump the closure diff into the pressuqre equation term.
+    {
+        const scalar closureRelax =
+            phasedictionary.getOrDefault<scalar>("closureRelax", 0.5);
+        const scalar closureVolLimit =
+            phasedictionary.getOrDefault<scalar>("closureVolLimit", 0.02);
+
+        // dont run the closure source in cells touching the open patches in
+                // closureMaskPatches, eg (back). the patch is the volume source/sink there
+       
+        List<bool> closureMask(mesh_.nCells(), false);
+        label nMasked = 0;
+        {
+            wordList maskPatchNames
+            (
+                phasedictionary.lookupOrDefault<wordList>
+                (
+                    "closureMaskPatches",
+                    wordList()
+                )
+            );
+
+            for (const word& pn : maskPatchNames)
+            {
+                const label patchi = mesh_.boundaryMesh().findPatchID(pn);
+                if (patchi < 0)
+                {
+                    WarningInFunction
+                        << "closureMaskPatches: patch " << pn
+                        << " not found, skipping" << endl;
+                    continue;
+                }
+
+                const labelUList& fc = mesh_.boundary()[patchi].faceCells();
+                forAll(fc, bfacei)
+                {
+                    if (!closureMask[fc[bfacei]])
+                    {
+                        closureMask[fc[bfacei]] = true;
+                        ++nMasked;
+                    }
+                }
+            }
+        }
+
+        if (closureRelax > 0)
+        {
+            const scalarField& sI = sumImplied.primitiveField();
+            const scalar srcMax = closureVolLimit*rDeltaT;
+
+            scalarField src(mesh_.nCells(), 0.0);
+            scalarField unclampedC(mesh_.nCells(), 1.0);
+            label nClampC = 0;
+
+            forAll(src, celli)
+            {
+                if (closureMask[celli])
+                {
+                    // patch adjacent: leave the healing to the BC
+                    unclampedC[celli] = 0;
+                    continue;
+                }
+                scalar s = closureRelax*(sI[celli] - 1.0)*rDeltaT;
+                if (s >  srcMax) { s =  srcMax; unclampedC[celli] = 0; ++nClampC; }
+                if (s < -srcMax) { s = -srcMax; unclampedC[celli] = 0; ++nClampC; }
+                src[celli] = s;
+            }
+
+            PCR.primitiveFieldRef() += src;
+
+            if (vDotPptr)
+            {
+                scalarField kPc(mesh_.nCells(), 0.0);
+                label i = 0;
+                for (const phaseModel& ph : phases_)
+                {
+                    const volScalarField rhoPh
+                    (
+                        max(ph.thermo().rho(), rhoMinRec)
+                    );
+                    const scalarField& rI   = rhoPh.primitiveField();
+                    const scalarField& psiI =
+                        ph.thermo().psi().primitiveField();
+                    const scalarField& cI   = c_[i].primitiveField();
+
+                    forAll(kPc, celli)
+                    {
+                        kPc[celli] +=
+                            Foam::max(cI[celli], scalar(0))*psiI[celli]
+                           /Foam::sqr(rI[celli]);
+                    }
+                    ++i;
+                }
+
+                vDotPptr->primitiveFieldRef() +=
+                    closureRelax*rDeltaT*kPc*unclampedC;
+            }
+
+            reduce(nClampC, sumOp<label>());
+            reduce(nMasked, sumOp<label>());
+            Info<< "closure feedback: relax = " << closureRelax
+                << ", capped cells = " << nClampC
+                << ", boundary-masked cells = " << nMasked << endl;
+        }
+    }
 
 
+    //  DIAGNOSTIC STUFFF
+    
 
 
+    // {
+    //     Info<< "mass-balance negativity (min c_i, integrated debt):" << endl;
+    //     label i = 0;
+    //     for (const phaseModel& ph : phases_)
+    //     {
+    //         const scalarField& cI = c_[i].primitiveField();
+    //         const scalar cMin = gMin(cI);
+    //         const scalar debt =
+    //             gSum(Foam::min(cI, scalar(0))*mesh_.V().field());
+    //         Info<< "    " << ph.name() << ": min = " << cMin
+    //             << " kg/m3, debt = " << debt << " kg" << endl;
+    //         ++i;
+    //     }
+    // }
+
+    Info<< "Conserved partial-mass(c_i = alpha_i*rho_i):" << endl;
+    {
+        HashTable<bool> done;
+        for (const phaseModel& ph : phases_)
+        {
+            if (done.found(ph.name())) continue;
+            const label i = name2idx[ph.name()];
+            const word vapName = ph.name() + "vapour";
+            const scalar mLiq =
+                gSum(c_[i].primitiveField()*mesh_.V().field());
+            if (name2idx.found(vapName))
+            {
+                const label vi = name2idx[vapName];
+                const scalar mVap =
+                    gSum(c_[vi].primitiveField()*mesh_.V().field());
+                Info<< "    " << ph.name() << "+" << vapName
+                    << " = " << mLiq + mVap << " kg (liq " << mLiq
+                    << ", vap " << mVap << ")" << endl;
+                done.insert(vapName, true);
+                done.insert(ph.name(), true);
+            }
+            else
+            {
+                Info<< "    " << ph.name() << " = " << mLiq << " kg" << endl;
+                done.insert(ph.name(), true);
+            }
+        }
+    }
+
+
+    {
+        scalarField sumChk(mesh_.nCells(), 0.0);
+        for (const phaseModel& ph : phases_)
+        {
+            sumChk += ph.primitiveField();
+        }
+        // should be machine zero by construction, anything else means the
+        // closure maths is broke
+        Info<< "sum(alpha) after hierarchical recovery: max|dev| = "
+            << gMax(mag(sumChk - 1.0)()) << endl;
+    }
+
+    {
+        label i = 0;
+        for (const phaseModel& ph : phases_)
+        {
+            Info<< ph.name() << " alpha min/max/avg = "
+                << gMin(ph.primitiveField()) << ' '
+                << gMax(ph.primitiveField()) << ' '
+                << ph.weightedAverage(mesh_.V()).value() << endl;
+            ++i;
+        }
+    }
+
+    // rebuild the stacked alphas indicator for paraview
     calcAlphas();
-
     return tPCR;
 }
 

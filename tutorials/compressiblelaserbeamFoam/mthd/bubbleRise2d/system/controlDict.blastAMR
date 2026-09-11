@@ -20,46 +20,51 @@ libs
     libamrDynamicFvMesh.so
     libamrIndicators.so
     libamrCPULoad.so
+    // libROUNDSchemes.so // ROUNDEDschemes from:
+    // https://github.com/ROUNDschemes/libROUNDSchemes/
 );
 
-application     compressibleMultiphaseInterFoam;
+application         compressibleMultiphaseInterFoam;
 
-startFrom       latestTime;
+startFrom           latestTime;
 
-startTime       0;
+startTime           0;
 
-stopAt          endTime; // nextWrite
+stopAt              endTime; // nextWrite
 
-endTime         0.09;
+endTime             0.18;
 
-deltaT          1e-9;
+deltaT              1e-12;
 
 // Reduce timestep for Alltest
 // For actual tutorial: run with `adjustableRunTime` and `writeInterval 0.01;`
-writeControl    adjustableRunTime; // timeStep;
+writeControl        adjustableRunTime; // timeStep;
 
-writeInterval   0.005; // 10
+writeInterval       0.005; // 10
 
-purgeWrite      0;
+purgeWrite          0;
 
-writeFormat     ascii;
+writeFormat         ascii;
 
-writePrecision  10;
+writePrecision      10;
 
-writeCompression off;
+writeCompression    off;
 
-timeFormat      general;
+timeFormat          general;
 
-timePrecision   10;
+timePrecision       10;
 
-runTimeModifiable yes;
+runTimeModifiable   yes;
 
-adjustTimeStep  yes;
+adjustTimeStep      yes;
 
-maxCo           0.1;
-maxAlphaCo      0.1;
+maxCo               0.1;
+maxAlphaCo          0.1;
 
-maxDeltaT       0.5;
+maxDeltaT           0.5;
 
+// Optional flag for solver - enables writing of debug fields useful for solver
+// restart debugging:
+debugCompressibleLaserbeamFoam false;
 
 // ************************************************************************* //

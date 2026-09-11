@@ -39,6 +39,7 @@ SourceFiles
 
 #include "phaseModel.H"
 #include "PtrDictionary.H"
+#include "PtrList.H"
 #include "volFields.H"
 #include "surfaceFields.H"
 #include "rhoThermo.H"
@@ -152,14 +153,7 @@ private:
         dimensionSet dimLatentHeatGas_;
 
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
-        scalarCoeffSymmCTable;  
-
-        scalarCoeffSymmCTable cAlphas_;    
-
-
-
-        typedef HashTable<scalar, interfacePair, interfacePair::hash>
-            scalarCoeffSymmDTable;    
+            scalarCoeffSymmDTable;
 
         scalarCoeffSymmDTable dAlphas_;
         dimensionSet dimdiff_;
@@ -168,11 +162,32 @@ private:
         const dimensionedScalar deltaN_;
 
 
+        //  Per-species mass-conservation 
+
+        //- Conserved per-species partial masses  c_i = alpha_i * rho_i
+        
+        PtrList<volScalarField> c_;
+
+        
+        PtrList<volScalarField> c0_;
+
+        
+        volScalarField beta0_;
+
+        
+        label curTimeIndex_;
+
+
     // Private Member Functions
 
         void calcAlphas();
 
-        tmp<volScalarField> solveAlphas(volScalarField *massdotterm/*,PtrList<surfaceScalarField> *alpharhophis*/);
+
+        tmp<volScalarField> solveAlphas
+        (
+            volScalarField* massdotterm,
+            volScalarField* vDotPptr = nullptr
+        );
 
         tmp<surfaceVectorField> nHatfv
         (
@@ -199,7 +214,6 @@ private:
             const phaseModel& alpha2
         ) const;
 
-
 public:
 
     //- Runtime type information
@@ -221,6 +235,12 @@ public:
 
 
     // Member Functions
+
+        //- Restore fields required for consistent restart time derivatives
+        void restoreOldTimeValues();
+
+        //- Write fields required for consistent restart time derivatives
+        void writeOldTimeValues();
 
         //- Return the phases
         const PtrDictionary<phaseModel>& phases() const
@@ -486,8 +506,13 @@ public:
         //  Field values are 1 near and 0 away for the interface.
         tmp<volScalarField> nearInterface() const;
 
-        //- Solve for the mixture phase-fractions
-        tmp<volScalarField> solve(volScalarField *massdotterm/*,PtrList<surfaceScalarField> *alpharhophis*/);
+        //- Solve for the mixture phase-fractions.
+        //  vDotPptr (optional): see solveAlphas.
+        tmp<volScalarField> solve
+        (
+            volScalarField* massdotterm,
+            volScalarField* vDotPptr = nullptr
+        );
 };
 
 

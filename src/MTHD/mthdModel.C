@@ -129,54 +129,6 @@ mthdModel::mthdModel(fvMesh& mesh, const word& propertiesDictName)
 :
     mesh_(mesh),
     bpiso_(mesh_, "BPISO"),
-    phiH_
-    (
-        IOobject
-        (
-            "phiH",
-            mesh_.time().timeName(),
-            mesh_,
-            IOobject::NO_READ
-        ).typeHeaderOk<surfaceScalarField>(true)
-      ? surfaceScalarField
-        (
-            IOobject
-            (
-                "phiH",
-                mesh_.time().timeName(),
-                mesh_,
-                IOobject::MUST_READ,
-                IOobject::AUTO_WRITE
-            ),
-            mesh_
-        )
-      : surfaceScalarField
-        (
-            IOobject
-            (
-                "phiH",
-                mesh_.time().timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::AUTO_WRITE
-            ),
-            fvc::flux
-            (
-                volVectorField
-                (
-                    IOobject
-                    (
-                        "H",
-                        mesh_.time().timeName(),
-                        mesh_,
-                        IOobject::MUST_READ,
-                        IOobject::AUTO_WRITE
-                    ),
-                    mesh_
-                )
-            )
-        )
-    ),
     H_
     (
         IOobject
@@ -188,6 +140,18 @@ mthdModel::mthdModel(fvMesh& mesh, const word& propertiesDictName)
             IOobject::AUTO_WRITE
         ),
         mesh_
+    ),
+    phiH_
+    (
+        IOobject
+        (
+            "phiH",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        fvc::flux(H_)
     ),
     pH_
     (
@@ -312,16 +276,7 @@ mthdModel::mthdModel(fvMesh& mesh, const word& propertiesDictName)
 {
     (void)propertiesDictName;
 
-    if
-    (
-        IOobject
-        (
-            "phiH",
-            mesh_.time().timeName(),
-            mesh_,
-            IOobject::NO_READ
-        ).typeHeaderOk<surfaceScalarField>(true)
-    )
+    if (phiH_.headerOk())
     {
         Info<< "Reading face flux ";
     }

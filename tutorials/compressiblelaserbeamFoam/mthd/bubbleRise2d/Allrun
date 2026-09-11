@@ -2,22 +2,58 @@
 ## Call as: `./Allrun` to run standard.
 ## Call as: `./Allrun -p` to run in parallel and use blastAMR if available.
 
-# Handle flag
+# Handle flags ----------------------------------------------------------------
 bParallel=false
+bAMR=false
+bRichterMode=false # This changes to a 2.5D setup!
 
 print_usage() {
-  printf "Usage: \n\tCall as: \`./Allrun\` to run standard.\
-\n\tCall as: \`./Allrun -p\` to run in parallel and use blastAMR if available.\
+  printf "
+
+Notes for Richter et al. setup:
+- Is a 2.5D style case.
+- Magnetic field is applied in the z direction.
+- z-direction is only 1 cell wide.
+- z-normal walls are set to \`zeroGradient\`
+- AMR will refine in z direction also, but this should relatively negligble.
+- Flow is (should be) predominantly 2D.
+
+Usage: \n\tCall as: \`./Allrun\` to run standard.\
+\n\tCall as: \`./Allrun -pa\` to run in parallel and use blastAMR if available.\
+\n\tCall as: \`./Allrun -a\` to use blastAMR if available, in serial.\
+\n\tCall as: \`./Allrun -p\` for parallel mode only (no AMR).\
+\n\Flags   : \`-r\` to enable \'Richter et al.\' setup (2.5D, page normal \
+magnetic field).
 \n"
 }
 
-while getopts 'p' flag; do
+while getopts 'par' flag; do
   case "${flag}" in
+    a) bAMR=true ;;
     p) bParallel=true ;;
+    r) bRichterMode=true ;;
     *) print_usage
        exit 1 ;;
   esac
 done
+# End of Handle flags ---------------------------------------------------------
+
+
+# Handle 2D vs 2.5D casess
+if [ ! -d "initial" ]; then
+    mkdir initial
+fi
+
+if ${bRichterMode}; then
+    echo "Enabled richter mode (2.5D, page normal magnetic field B_z); copying:"
+    cp -r --verbose ./initialRichter/* initial
+    cp --verbose system/blockMeshDict.richter system/blockMeshDict
+else
+    echo "Standard mode (2D, horizontal magnetic field B_x); copying:"
+    cp -r --verbose ./initial2d/* initial
+    cp --verbose system/blockMeshDict.2d system/blockMeshDict
+fi
+
 
 # Source tutorial run functions
 . $WM_PROJECT_DIR/bin/tools/RunFunctions
@@ -34,7 +70,7 @@ runApplication blockMesh
 
 
 # If blastAMR in installed, run with AMR
-if (command -v updateMesh > /dev/null) && ${bParallel}; then
+if (command -v updateMesh > /dev/null) && ${bAMR}; then
     echo "blastAMR is available: Note:"
     echo "this uses a hacky workaround to perform initialisation as \
     \`alphaContactAngle\` keyword is unknown to blastAMR's updateMesh."
@@ -47,7 +83,7 @@ if (command -v updateMesh > /dev/null) && ${bParallel}; then
 
     # HACK ---- (1/2)
     #> remove the other phase; then let it update the mesh
-    rm 0/alpha.fictum 0/alpha.fictum.orig
+    rm 0/alpha.GaInSn 0/alpha.GaInSn.orig
     # ---------
 
     # Below is a copy from blastAMR's dambreak2D
@@ -71,7 +107,7 @@ if (command -v updateMesh > /dev/null) && ${bParallel}; then
 
     # HACK ---- (2/2)
     #> Restore the other phase
-    cp initial/alpha.fictum.orig 0/alpha.fictum
+    cp initial/alpha.GaInSn.orig 0/alpha.GaInSn
     setFields 2>&1 | tee log.setFields_post
     #> for some reason, runApplication setFields does not
     #  fields update properly.
@@ -86,20 +122,28 @@ else
 fi
 
 
-# runApplication setSolidFraction -compressible -alpha.phase1 "alpha.metal1" -alpha.phase2 "alpha.air" -subDivisions 6
 runApplication setFields
-# runApplication transformPoints -rotate '((0 1 0) (0 0 1))'
-# runApplication compressibleLaserbeamFoam
+
 
 if ${bParallel}; then
     decomposePar 2>&1 | tee log.decomposePar
     nCores=$(\
         foamDictionary -entry numberOfSubdomains \
                        -value system/decomposeParDict)
-    mpirun -np $nCores \
+    mpirun -np ${nCores} \
         compressibleLaserbeamFoam \
-        -parallel \
-        2>&1 | tee log.compressibleLaserbeamFoam
+            -parallel \
+            2>&1 | tee log.compressibleLaserbeamFoam
+
+    if (command -v updateMesh > /dev/null) && ${bParallel} && ${bAMR}; then
+        # This is the fix to reconstruct blastAMR cases
+        mpirun -np ${nCores} \
+            redistributePar \
+                -reconstruct \
+                -parallel \
+                2>&1 | tee log.redistributePar
+    fi
 else
     runApplication compressibleLaserbeamFoam
+    # compressibleLaserbeamFoam 2>&1 | tee log.compressibleLaserbeamFoam
 fi

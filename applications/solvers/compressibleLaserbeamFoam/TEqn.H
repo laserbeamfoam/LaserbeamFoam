@@ -20,7 +20,30 @@
 
     TRHS*=0.0;//=TRHSzero;
 
+    // no spurious mushy drag in gas
+    const dimensionedScalar cMinMelt   ("cMinMelt",    dimless, 1e-4); // div guard
+    const dimensionedScalar cThreshMelt("cThreshMelt", dimless, 1e-2); // mask ramp
 
+    const volScalarField rCond(1.0/max(condensate, cMinMelt));
+    const volScalarField LatentHeatCond(LatentHeat*rCond);  // -> metal L_f
+    const volScalarField TSolidusCond  (TSolidus*rCond);    // -> metal T_sol
+    const volScalarField TLiquidusCond (TLiquidus*rCond);   // -> metal T_liq
+
+    // Apparent-heat-capacity coefficient
+    // LatentHeat is now condensed-only (see update.H), so its  0 in
+    // pure-gas cells where it used to be the gas dummy (~1).  
+    const volScalarField meltCoeff
+    (
+        epsilonRel*mixture.Cv()
+       /max(LatentHeatCond, dimensionedScalar("LHfloor", LatentHeatCond.dimensions(), 1.0))
+    );
+
+    // 1 where metal present, ramps to 0 in the gas
+    const volScalarField meltMask
+    (
+        min(max(condensate/cThreshMelt, scalar(0)), scalar(1))
+    );
+    // ------------------------------------------------------------------------
 
     do{
 iter++;
@@ -28,12 +51,10 @@ epsilon1.storePrevIter();
 
 
 
-TRHS=          LatentHeat*((
-                fvc::ddt(rho,epsilon1)
-              + fvc::div(mixture.rhoPhi(), epsilon1)
-              )
-
-
+TRHS = meltMask*LatentHeat*
+(
+    fvc::ddt(rho, epsilon1)
+  + fvc::div(mixture.rhoPhi(), epsilon1)
 );
 
 TRHS.correctBoundaryConditions();
@@ -48,6 +69,7 @@ TRHS.correctBoundaryConditions();
     (
         fvm::ddt(rho, T)
       + fvm::div(mixture.rhoPhi(), T)
+      - fvm::Sp(fvc::ddt(rho) + fvc::div(mixture.rhoPhi()), T)
       - fvm::laplacian(mixture.alphaEff(turbulence->mut()), T)
       + (
             fvc::div(fvc::absolute(phi, U), p)
@@ -65,11 +87,69 @@ TRHS.correctBoundaryConditions();
     TEqn.solve();
 
 
-Tcorr=(TLiquidus-TSolidus)*epsilon1+TSolidus;
+
+ {
+        const dimensionedScalar Tfloor("Tfloor", dimTemperature, 250.0);
+        // ceiling to match the floor, kinetic heating spikes have no other
+        // bound. default 1e6 = off, set TMax in PIMPLE dict to arm it
+        const scalar Tceil = pimple.dict().getOrDefault<scalar>("TMax", 1e6);
+        scalarField& TI = T.primitiveFieldRef();
+        label nClip = 0, nClipHi = 0;
+        forAll(TI, celli)
+        {
+            if (TI[celli] < Tfloor.value()) { TI[celli] = Tfloor.value(); ++nClip; }
+            if (TI[celli] > Tceil) { TI[celli] = Tceil; ++nClipHi; }
+        }
+        reduce(nClip, sumOp<label>());
+        reduce(nClipHi, sumOp<label>());
+        if (nClip) Info<< "TEqn: floored " << nClip << " cell(s)" << endl;
+        if (nClipHi) Info<< "TEqn: ceilinged " << nClipHi << " cell(s)" << endl;
+        T.correctBoundaryConditions();
+    }
+
+
+Tcorr = (TLiquidusCond - TSolidusCond)*epsilon1 + TSolidusCond;
 Tcorr.correctBoundaryConditions();
 
+// Masked, normalised melt-fraction update. In metal (meltMask=1) this is
+// identical to the original; in (near-)gas (meltMask->0) epsilon1 -> 1.
+epsilon1 =
+    meltMask*max(min(epsilon1 + meltCoeff*(T - Tcorr), scalar(1)), scalar(0))
+  + (scalar(1) - meltMask);
 
-epsilon1=max(min(epsilon1+(epsilonRel*mixture.Cv()/LatentHeat)*(T-Tcorr),scalar(1)),scalar(0));
+
+{
+    const wordList e1MaskNames
+    (
+        mesh.lookupObject<IOdictionary>("thermophysicalProperties")
+            .lookupOrDefault<wordList>("phaseChangeMaskPatches", wordList())
+    );
+
+    label nE1Mask = 0;
+    scalarField& e1I = epsilon1.primitiveFieldRef();
+
+    for (const word& pn : e1MaskNames)
+    {
+        const label patchi = mesh.boundaryMesh().findPatchID(pn);
+        if (patchi < 0) continue;   // typo already warned about in solveAlphas
+
+        const labelUList& fc = mesh.boundary()[patchi].faceCells();
+        forAll(fc, bfacei)
+        {
+            if (e1I[fc[bfacei]] < 1.0)
+            {
+                e1I[fc[bfacei]] = 1.0;
+                ++nE1Mask;
+            }
+        }
+    }
+    reduce(nE1Mask, sumOp<label>());
+    if (nE1Mask)
+    {
+        Info<< "solidification masked in " << nE1Mask
+            << " boundary cell(s)" << endl;
+    }
+}
 epsilon1.correctBoundaryConditions();
 
 
@@ -83,7 +163,6 @@ meanResidual = gSum(mag(epsilon1.primitiveField()-epsilon1.prevIter().primitiveF
 
 
 }while((iter < minTCorr || (residual > epsilonTol)) && iter <= maxTCorr );
-
 
 
 

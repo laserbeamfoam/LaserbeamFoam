@@ -50,7 +50,7 @@ dsigmadT
 
 interfaceCompression
 (
-    (air GaInSn)        1.0
+    (air GaInSn)        0.5 // 1.1 // 1.0
 );
 
 interfaceDiffusion

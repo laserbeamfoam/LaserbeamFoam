@@ -34,14 +34,14 @@ regions
 
 	boxToCell
     {
-        box (-0.5 2e-3 -0.5) (0.5 1 0.5);
+        box (-10 0.0025 -10) (10 0.008 10);
         fieldValues
         (
-            volScalarFieldValue alpha.air		0
-            volScalarFieldValue alpha.metal1 	0.15
-            volScalarFieldValue alpha.metal2 	0.1
-            volScalarFieldValue alpha.metal3 	0.25
-            volScalarFieldValue alpha.metal4 	0.5
+        	volScalarFieldValue alpha.air 0
+            volScalarFieldValue alpha.metal1  0.6838   // Fe
+            volScalarFieldValue alpha.metal2  0.1896   // Cr
+            volScalarFieldValue alpha.metal3  0.1078   // Ni
+            volScalarFieldValue alpha.metal4  0.0188   // Mo
         );
     }
     

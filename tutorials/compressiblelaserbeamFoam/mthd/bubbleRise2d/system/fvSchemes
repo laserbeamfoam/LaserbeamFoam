@@ -21,25 +21,23 @@ ddtSchemes
 
 gradSchemes
 {
-    default         leastSquares; //Gauss linear;
-
-    // ----- MHD Properties ------ //
-    // grad(H) cellLimited leastSquares 1.0; // cellLimited leastSquares 1;
+    default         leastSquares;
 }
 
 divSchemes
 {
     div(rhoPhi,U)                               Gauss upwind;
-    div(phi,alpha)                              Gauss vanLeer;
-    div(phirb,alpha)                            Gauss linear;
+    div(phi,alpha)                              Gauss vanLeer; // ROUNDAplus
+    div(phirb,alpha)                            Gauss vanLeer; // ROUNDAplus
+
     "div\(phi,.*rho.*\)"                        Gauss upwind;
     div(rhoPhi,T)                               Gauss upwind;
     div(rhoPhi,K)                               Gauss upwind;
     div(phi,p)                                  Gauss upwind;
     div(((thermo:rho*nuEff)*dev2(T(grad(U)))))  Gauss linear;
-    
+
     div(((rho*nuEff)*dev2(T(grad(U)))))         Gauss linear;
-    
+
     // compLaserBeam
     div(rhoPhi,epsilon1)	                    Gauss linear;
 
@@ -67,11 +65,10 @@ snGradSchemes
 
 fluxRequired
 {
-    // compLaserBeam
-    rhogen;
-
-    // ----- MHD Properties ------ //
-    pH; // <- check if needed
+    default         no;
+    p_rgh;
+    pH;             // required
+    "alphaRho.*";
 }
 
 

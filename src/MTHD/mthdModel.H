@@ -39,8 +39,8 @@ class mthdModel
 
         fvMesh& mesh_;
         pimpleControl bpiso_;
-        surfaceScalarField phiH_;
         volVectorField H_;
+        surfaceScalarField phiH_;
         volScalarField pH_;
         volVectorField B_;
         volVectorField J_;

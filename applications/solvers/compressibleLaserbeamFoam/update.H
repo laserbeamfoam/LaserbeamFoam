@@ -16,6 +16,23 @@
         mthd->resetTransportProperties();
     }
 
+
+
+     volScalarField vapourSum
+    (
+        IOobject
+        (
+            "vapourSum",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("vapourSum", dimless, 0.0)
+    );
+
+
     forAllConstIter(PtrDictionary<phaseModel>, mixture.phases(), iter)
     {
         const phaseModel& phase1 = iter();
@@ -68,9 +85,13 @@
         );
 
 
-        TSolidus += alpha1*phaseTSolidus;
-        TLiquidus += alpha1*phaseTLiquidus;
-        LatentHeat += alpha1*phaseLH;
+        // Melt properties are a condensed-phase quantity. 
+        if (phase1.isCondensed())
+        {
+            TSolidus   += alpha1*phaseTSolidus;
+            TLiquidus  += alpha1*phaseTLiquidus;
+            LatentHeat += alpha1*phaseLH;
+        }
 
         if (mthd.valid())
         {
@@ -97,6 +118,14 @@
         if (phase1.isGaseous())
         {
             condensate -= alpha1;
+
+                       if (phase1.name().find("vapour") != string::npos)
+            {
+                vapourSum += alpha1;
+            }
+
+
+
         }
 
         if (phase1.isCondensed())
@@ -163,6 +192,45 @@
     metalaverage = fvc::average(condensate);
     condensateFiltered = max(min(condensate, scalar(1)), scalar(0));
     condensateFiltered.correctBoundaryConditions();
+
+
+
+        {
+        const dimensionedScalar betaBand("betaBand", dimless, 0.001);
+        const dimensionedScalar vapRefineThresh
+        (
+            "vapRefineThresh", dimless, 0.001
+        );
+
+        const volScalarField vapourAverage(fvc::average(vapourSum));
+
+
+        const dimensionedScalar coarsenGuard("coarsenGuard", dimless, 0.02);
+        const volScalarField minorityFrac
+        (
+            min(condensateFiltered, scalar(1) - condensateFiltered)
+        );
+
+        refineIndicator =
+            max
+            (
+                max
+                (
+                    min
+                    (
+                        min(metalaverage, scalar(1) - metalaverage)/betaBand,
+                        scalar(1)
+                    ),
+                    min(vapourAverage/vapRefineThresh, scalar(1))
+                ),
+                min(minorityFrac/coarsenGuard, scalar(0.45))
+            );
+        refineIndicator.correctBoundaryConditions();
+    }
+
+
+
+
 
     // laser.refineFlag() *= 0.0;
     // laser.refineFlag() += metalaverage;

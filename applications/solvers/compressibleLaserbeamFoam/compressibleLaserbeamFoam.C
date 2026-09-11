@@ -24,19 +24,18 @@ License
     along with OpenFOAM.  If not, see <http://www.gnu.org/licenses/>.
 
 Application
-    compressibleMultiphaseInterFoam
+    compressibleLaserbeamFoam
 
 Group
     grpMultiphaseSolvers
 
 Description
-    Solver for N compressible, non-isothermal immiscible fluids using a VOF
-    (volume of fluid) phase-fraction based interface capturing approach.
+    cheeky bad solver for wicked simulation of laser-substrate interactions. A true naughty piece of work
 
-    The momentum and other fluid properties are of the "mixture" and a single
-    momentum equation is solved.
-
-    Turbulence modelling is generic, i.e.  laminar, RAS or LES may be selected.
+Authors
+    Tom Flint UoM
+    Roman Bialek UoM
+    Philip Cardiff UcD
 
 \*---------------------------------------------------------------------------*/
 
@@ -75,6 +74,7 @@ int main(int argc, char *argv[])
     #include "initContinuityErrs.H"//new
     #include "createDyMControls.H"//new
 
+    // bool bRestartFirstLoop = false; <- declared within createFields.H
     #include "createFields.H"
 
     #include "initCorrectPhi.H"
@@ -132,8 +132,11 @@ int main(int argc, char *argv[])
 
                     MRF.update();
 
-                    if (correctPhi)
+                    if (correctPhi && !bRestartFirstLoop)
                     {
+                        // Prevent corrections on the first loop of a restarted
+                        // solver.
+
                         // Calculate absolute flux
                         // from the mapped surface velocity
                         phi = mesh.Sf() & Uf();
@@ -142,9 +145,10 @@ int main(int argc, char *argv[])
 
                         // Make the flux relative to the mesh motion
                         fvc::makeRelative(phi, U);
-
-                        mixture.correct();
                     }
+
+                    
+                    mixture.correct();
 
                     if (checkMeshCourantNo)
                     {
@@ -153,22 +157,40 @@ int main(int argc, char *argv[])
                 }
             }
 
+            // Disable flag: this permits correctPhi on subsequent loops.
+            bRestartFirstLoop = false;
 
-            vDot = mixture.solve(&mass_dot);
-            vDot.correctBoundaryConditions();
+            // Semi-PIMPLE Implementation - Roman Bialek
+            if (pimple.firstIter())
+            {
+                rho.oldTime() = rho;   // set once per time step
 
-            mass_dot.correctBoundaryConditions();
+                vDot = mixture.solve(&mass_dot, &vDotP);
+                vDot.correctBoundaryConditions();
+                mass_dot.correctBoundaryConditions();
+                vDotP.correctBoundaryConditions();
 
-            rho=mixture.rho();
 
-            #include "update.H"
+                #include "update.H"
 
-            // Update the laser deposition field
-            laser.updateDeposition
-            (
-                condensateFiltered, n_filtered, electrical_resistivity
-            );
 
+            }
+
+            
+            rho = mixture.rho();
+
+            
+
+            // Ray-trace expensive: evaluate once per time step.
+            if (pimple.firstIter())
+            {
+                laser.updateDeposition
+                (
+                    condensateFiltered, n_filtered, electrical_resistivity
+                );
+            }
+
+            // PIMPLE Section ((U-p)-H-T coupling)
 
             #include "UEqn.H"
             if (mthd.valid())
@@ -188,6 +210,9 @@ int main(int argc, char *argv[])
                 turbulence->correct();
             }
         }
+
+        mixture.writeOldTimeValues();
+        #include "writeOldTimeStorage.H"
 
         runTime.write();
 
