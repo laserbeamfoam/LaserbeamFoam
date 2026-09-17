@@ -156,6 +156,7 @@ int main(int argc, char *argv[])
             }
 
             #include "updateProps.H"
+			#include "updateElectricalResistivity" //added
 
             // Update the laser deposition field
             laser.updateDeposition
@@ -170,11 +171,16 @@ int main(int argc, char *argv[])
                 continue;
             }
 
+			#include "updateNu.H" //added
+			
             #include "UEqn.H"
+            
+            
             if (mthd.valid())
             {
                 mthd->solve(phi, U);
             }
+            
             #include "TEqn.H"
 
             // --- Pressure corrector loop

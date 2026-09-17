@@ -1,0 +1,81 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  10
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      PhaseFieldProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// type of laser beam discretization, 'yes/no' as input
+// if 'no', then Castesian beam discretization is used
+// if 'yes', the Polar coordinates are used, specify parameters
+radialPolarHeatSource yes;
+
+lasers
+(
+    laser0
+    {
+        timeVsLaserPosition
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPosition1";
+            outOfBounds clamp;
+        }
+
+        timeVsLaserPower
+        {
+            file    "$FOAM_CASE/constant/timeVsLaserPower1";
+            outOfBounds clamp;
+        }
+
+        // Laser angle (normalised in the code)
+        V_incident (0 1 0);
+        
+		N_sub_divisions   2; // more rays = slower
+		
+        // Laser radius
+        laserRadius 0.000305; // 0.5 mm diameter
+
+        // Laser physical properties
+        wavelength      1.064e-6;
+        e_num_density   5.83e29;
+
+		// Polar coordinates of the laser
+		nRadial		10;
+		nAngular	20;
+
+		// Parameters for beam wobbling
+		//For linear path set oscAmpX=oscAmpz=0
+		//For sine path set oscAmpz=0
+		//For circular path set amplitude and frequency in both X and Z
+		HS_oscAmpX 		0;
+		HS_oscAmpZ 		0;
+		HS_oscFreqX		0;
+		HS_oscFreqZ		0;
+
+        // Laser profile type (defaults to 2)
+        Radius_Flavour 2.0;
+        
+    }
+
+
+	// additional lasers
+	/*
+    laser1
+    {
+      
+    }
+    */
+   
+);
+
+
+// ------------------------------------------------------------ //

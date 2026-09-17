@@ -1,4 +1,5 @@
 #include "createRDeltaT.H"
+#include "Function1.H" // added Function1 header file
 
 const dimensionedScalar deltaN = 1e-8/pow(average(mesh.V()), 1.0/3.0);
 
@@ -245,11 +246,30 @@ const dimensionedScalar SB
 [[maybe_unused]]const scalar emS(readScalar(transportProperties.lookup("emS")));
 const dimensionedScalar TRef ("TRef",transportProperties);
 
+// Deactivated polynomials
+/*
 const Polynomial<8> polykappa_m(transportPropertiesMetal.lookup("poly_kappa"));
 const Polynomial<8> polykappa_g(transportPropertiesGas.lookup("poly_kappa"));
 
 const Polynomial<8> polycp_m(transportPropertiesMetal.lookup("poly_cp"));
 const Polynomial<8> polycp_g(transportPropertiesGas.lookup("poly_cp"));
+*/
+
+// added piecewise linear interpolated tabulated data based on Function1
+
+autoPtr<Function1<scalar>> kappa_m = 
+	Function1<scalar>::New("kappaTable", transportPropertiesMetal);
+
+autoPtr<Function1<scalar>> kappa_g = 
+	Function1<scalar>::New("kappaTable", transportPropertiesGas);
+
+autoPtr<Function1<scalar>> cp_m = 
+	Function1<scalar>::New("cpTable", transportPropertiesMetal);
+
+autoPtr<Function1<scalar>> cp_g = 
+	Function1<scalar>::New("cpTable", transportPropertiesGas);
+
+
 
 volScalarField cp
 (
@@ -634,6 +654,8 @@ volScalarField e1temp
 );
 e1temp = fvc::average(epsilon1);
 
+
+
 volScalarField rhoCp
 (
     IOobject
@@ -671,14 +693,6 @@ rhophicp = fvc::interpolate(cp)*rhoPhi;
 
 
 
-
-
-
-
-
-
-
-
 const dimensionedScalar DarcyConstantlarge
 (
     "DarcyConstantlarge", dimensionSet(1,-3,-1,0,0), 1.0e6
@@ -688,7 +702,6 @@ const dimensionedScalar DarcyConstantsmall
 (
     "DarcyConstantsmall", dimless, 1.0e-12
 );
-
 
 
 // volVectorField gradAlpha(fvc::grad(alpha1));
@@ -764,6 +777,49 @@ autoPtr<transportModelType> turbulence
 
 
 
+// ***** 
+// Electrical resistivity modifications, to be temperature dependent
+// *****
+autoPtr<Function1<scalar>> electricalResistivity_m =
+	Function1<scalar>::New
+	(
+		"electricalResistivityTable",
+		transportPropertiesMetal
+	);
+	
+/*
+dimensionedScalar elec_resistivity_metal
+(
+    "elec_resistivity",
+    dimensionSet(1, 3, -3, 0, 0),
+    transportPropertiesMetal
+    //.lookup("elec_resistivity")
+);
+*/
+
+// Creating the field electrical_resistivity
+volScalarField electrical_resistivity
+(
+    IOobject
+    (
+        "electrical_resistivity",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    //elec_resistivity_metal
+	dimensionedScalar
+	(
+		"electricalResistivity",
+		dimensionSet(1, 3, -3, 0, 0, -2, 0),
+		scalar(0)
+	) 
+);
+// end of modifications
+
+
 
 autoPtr<mthdModel> mthd(nullptr);
 
@@ -774,6 +830,7 @@ if (mthdModel::electromagneticsEnabled(mesh, "transportProperties"))
 
 const dimensionedScalar eleccond1 =
     mthdModel::readElectricalConductivity(transportPropertiesMetal);
+
 
 volScalarField electrical_resistivity
 (
@@ -789,6 +846,39 @@ volScalarField electrical_resistivity
     1.0/eleccond1
 );
 
+
+
+// Temperature dependent viscosity implementation
+
+autoPtr<Function1<scalar>> nu_m = 
+	Function1<scalar>::New("nuTable", transportPropertiesMetal);
+
+autoPtr<Function1<scalar>> nu_g = 
+	Function1<scalar>::New("nuTable", transportPropertiesGas);
+	
+dimensionedScalar nuTable0
+(
+	"nuTable0",
+	dimViscosity,
+	0.0
+);
+
+
+volScalarField nuTableField
+(
+    IOobject
+    (
+        "nuTableField",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    nuTable0
+);	
+
+// end of modification of nu
 
 
 

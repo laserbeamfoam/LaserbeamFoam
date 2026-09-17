@@ -1,0 +1,157 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Interface tracking method: isoAdvector or MULES
+//interfaceTrackingScheme isoAdvector;
+interfaceTrackingScheme MULES;
+
+
+phases          (metal gas);
+
+metal
+{
+    transportModel  Newtonian;
+    
+    // Dynamic viscosity
+	nu		4.8e-7; //requires constant input
+
+	rho		7950;
+
+	// Enter tabulated dynamic viscosity values
+	
+	/* Use of tabulated data:
+	
+	[variable] table
+	(
+		(temperature1	value1)
+		(temperature2	value2)
+		(temperature3	value3)
+	);
+	
+	// Based on Function1 with a piecewise linear interpolation of data
+		
+	*/
+		
+	nuTable table
+	(
+
+		(300	4.8e-7)
+		(1950	3.8e-7)
+		(2200	3.2e-7)
+		
+	);
+	
+
+	Tsolidus 	1750;
+	Tliquidus 	1790;
+	
+    LatentHeat 	245e3;
+    
+    beta    	4.95e-5;
+
+    //poly_kappa   (30 0.020 0 0 0 0 0 0);
+    //poly_cp   	 (720 0.080 0 0 0 0 0 0);
+    
+    kappaTable table
+	(
+		(300 	42)
+		(800 	32)
+		(1100 	25)
+		(1750 	32)
+	);
+    
+    cpTable table
+	(
+		(300 	450)
+		(500 	580)
+		(1000 	820)
+		(1200 	590)
+		(1500 	650)
+	
+	);
+   
+            
+    //elec_resistivity	1.6e-6; // value of 2.1e-6 provides too high absorptivity
+    
+	Elec_conductivity  1;
+	
+	// electricalResistivity parameter control Fresnel absorptivity
+    electricalResistivityTable table
+    (
+    	(300    1.3e-6)
+    	(1750	1.4e-6)
+    );
+
+
+}
+
+gas
+{
+    transportModel  Newtonian;
+
+	nu		2.09e-05;
+	
+	rho		1.78;
+    
+    
+	nuTable table
+	(
+		(300	2.09e-5)
+		(600	2.09e-5)
+	);    
+
+    Tsolidus    1.0;
+    Tliquidus   10.0;
+    LatentHeat  1;
+    beta    	1.2e-4;
+    
+    //poly_kappa   (0.02 0 0 0 0 0 0 0);
+    //poly_cp   	(540 0 0 0 0 0 0 0); // was 540    
+
+    kappaTable table
+	(
+		(300 	0.02)
+		(500 	0.05)
+	);
+    
+    cpTable table
+	(
+		(300 	540)
+		(500 	570)
+
+	);
+
+}
+
+
+sigma	1.70; // surface tension
+
+Marangoni_Constant	-4.5e-4; //dsigmadT		-4.5e-4;
+
+p0				101000;
+Tvap			3068;
+Mm				5.58e-2;
+LatentHeatVap 	7.45e6;
+
+
+emS			0.2;
+emL			0.2;
+TRef		TRef [0 0 0 1 0 0 0]   300;
+
+
+
+
+// ************************************************************************* //
