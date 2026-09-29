@@ -55,6 +55,11 @@ heterogeneous nucleation model. This enables two-way coupling between
 thermal-fluid behaviour and microstructure development, including
 latent heat feedback during solidification.
 
+Detailed solver documentation is available in:
+
+`applications/solvers/microstructureFoam/README.md`
+
+
 Target applications for the solvers included in this repository include:
 
 * Laser Welding
