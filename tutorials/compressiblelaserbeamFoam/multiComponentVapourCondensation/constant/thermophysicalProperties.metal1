@@ -11,7 +11,7 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties.mercury;
+    object      thermophysicalProperties.metal1;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -23,39 +23,40 @@ thermoType
     mixture         pureMixture;
     transport       const;
     thermo          hConst;
-    equationOfState adiabaticPerfectFluid;//rhoConst;//perfectFluid;
+    equationOfState adiabaticPerfectFluid;
     specie          specie;
     energy          sensibleInternalEnergy;
 }
 
-TSolidus	1800.0;
-TLiquidus	1825.0;
-LatentHeat	2.7e5;
-elec_conductivity	1.0e6;
+// Sn: melting point 505.1 K, boiling point 2875 K
+TSolidus	500;
+TLiquidus	510;
+LatentHeat	5.92e+04;        // latent heat of FUSION [J/kg]
+elec_conductivity	2.1e6;
 magnetic_permeability	1.256e-6;
 
 mixture
 {
     specie
     {
-        molWeight   50.0;
+        molWeight   118.71;
     }
     equationOfState
     {
         p0	1e5;
-        rho0         5000;
+        rho0         6980;
         gamma	1.2;
-        B	1e7;
+        B	1e7;          // soft liquid (c ~ 35-45 m/s) for tutorial timestep
     }
     thermodynamics
     {
-        Cp          800;
+        Cp          244;
         Hf          0;
     }
     transport
     {
-        mu          5.0e-4;
-        Pr          0.005;
+        mu          0.00185;
+        Pr          0.015;        // Pr = mu*Cp/k, k = 30 W/m/K
     }
 }
 

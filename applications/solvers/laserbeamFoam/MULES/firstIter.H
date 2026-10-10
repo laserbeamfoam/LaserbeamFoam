@@ -4,6 +4,8 @@ if (pimple.firstIter() || moveMeshOuterCorrectors)
 
     if (mesh.changing())
     {
+        #include "updateYDim.H"
+
         // Do not apply previous time-step mesh compression flux
         // if the mesh topology changed
         if (mesh.topoChanging())

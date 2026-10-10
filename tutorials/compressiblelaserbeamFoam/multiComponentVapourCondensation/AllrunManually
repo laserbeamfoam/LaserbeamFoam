@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Handle flags ----------------------------------------------------------------
+bParallel=false
+
+print_usage() {
+  printf "Usage: \n\tCall as: \`./Allrun\` to run standard.\
+\n\tCall as: \`./Allrun -p\` for parallel mode with vanilla AMR.
+\n"
+}
+
+while getopts 'p' flag; do
+  case "${flag}" in
+    p) bParallel=true ;;
+    *) print_usage
+       exit 1 ;;
+  esac
+done
+# -----------------------------------------------------------------------------
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+# remove `.orig` extensions where applicable
+find 0 -name "*.orig" -exec bash -c 'cp "$0" "${0%.orig}"' {} \;
+
+runApplication blockMesh
+setFields 2>&1 | tee log.setFields
+
+if ${bParallel}; then
+    decomposePar 2>&1 | tee log.decomposePar
+    nCores=$(\
+        foamDictionary -entry numberOfSubdomains \
+                       -value system/decomposeParDict)
+    mpirun -np $nCores \
+        compressibleLaserbeamFoam \
+        -parallel \
+        2>&1 | tee log.compressibleLaserbeamFoam
+
+    reconstructParMesh 2>&1 | tee log.reconstructParMesh
+    reconstructPar 2>&1 | tee log.reconstructPar
+else
+    compressibleLaserbeamFoam \
+        2>&1 | tee log.compressibleLaserbeamFoam
+fi
+
+touch multiComponentVapourCondensation.foam

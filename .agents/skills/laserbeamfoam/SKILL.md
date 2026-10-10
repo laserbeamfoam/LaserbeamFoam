@@ -38,7 +38,7 @@ laser-material interaction problems, including:
   - transport models
   - turbulence models
 
-The build entry point is the root [`Allwmake`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/Allwmake),
+The build entry point is the root [`Allwmake`](./Allwmake),
 which currently checks for OpenFOAM versions `v2412`, `v2506`, and `v2512`.
 
 ## 3) Coding Style Rules
@@ -80,11 +80,11 @@ which currently checks for OpenFOAM versions `v2412`, `v2506`, and `v2512`.
 Examples of runtime-selectable code in this repository include:
 
 - viscosity models in
-  [`src/transportModels/incompressible/viscosityModels`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/transportModels/incompressible/viscosityModels)
+  [`src/transportModels/incompressible/viscosityModels`](./src/transportModels/incompressible/viscosityModels)
 - transport model factories in
-  [`src/transportModels/incompressible`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/transportModels/incompressible)
+  [`src/transportModels/incompressible`](./src/transportModels/incompressible)
 - turbulence model factories in
-  [`src/turbulenceModel`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/turbulenceModel)
+  [`src/turbulenceModel`](./src/turbulenceModel)
 
 Rules when adding a new runtime-selectable class:
 
@@ -137,14 +137,14 @@ Preferred workflow:
 
 Typical build entry points:
 
-- root build: [`Allwmake`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/Allwmake)
-- library build: [`src/Allwmake`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/Allwmake)
-- application build: [`applications/Allwmake`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/applications/Allwmake)
+- root build: [`Allwmake`](./Allwmake)
+- library build: [`src/Allwmake`](./src/Allwmake)
+- application build: [`applications/Allwmake`](./applications/Allwmake)
 - compressible solver-specific build:
-  [`applications/solvers/compressibleLaserbeamFoam/Allwmake`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/applications/solvers/compressibleLaserbeamFoam/Allwmake)
+  [`applications/solvers/compressibleLaserbeamFoam/Allwmake`](./applications/solvers/compressibleLaserbeamFoam/Allwmake)
 
 Relevant regression surfaces usually include tutorial cases under
-[`tutorials`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/tutorials),
+[`tutorials`](./tutorials),
 especially:
 
 - `tutorials/laserbeamFoam/...`
@@ -178,20 +178,20 @@ Before finalizing, verify:
 ## 9) Reference Files
 
 - Main incompressible solver:
-  [`applications/solvers/laserbeamFoam/laserbeamFoam.C`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/applications/solvers/laserbeamFoam/laserbeamFoam.C)
+  [`applications/solvers/laserbeamFoam/laserbeamFoam.C`](./applications/solvers/laserbeamFoam/laserbeamFoam.C)
 - Main compressible solver:
-  [`applications/solvers/compressibleLaserbeamFoam/compressibleLaserbeamFoam.C`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/applications/solvers/compressibleLaserbeamFoam/compressibleLaserbeamFoam.C)
+  [`applications/solvers/compressibleLaserbeamFoam/compressibleLaserbeamFoam.C`](./applications/solvers/compressibleLaserbeamFoam/compressibleLaserbeamFoam.C)
 - Laser heat source library:
-  [`src/laserHeatSource/laserHeatSource.H`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/laserHeatSource/laserHeatSource.H)
-  [`src/laserHeatSource/laserHeatSource.C`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/laserHeatSource/laserHeatSource.C)
+  [`src/laserHeatSource/laserHeatSource.H`](./src/laserHeatSource/laserHeatSource.H)
+  [`src/laserHeatSource/laserHeatSource.C`](./src/laserHeatSource/laserHeatSource.C)
 - Ray particle implementation:
-  [`src/laserHeatSource/laserRayParticle.H`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/laserHeatSource/laserRayParticle.H)
-  [`src/laserHeatSource/laserRayParticle.C`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/laserHeatSource/laserRayParticle.C)
+  [`src/laserHeatSource/laserRayParticle.H`](./src/laserHeatSource/laserRayParticle.H)
+  [`src/laserHeatSource/laserRayParticle.C`](./src/laserHeatSource/laserRayParticle.C)
 - Geometric VOF core:
-  [`src/geometricVoF/Make/files`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/geometricVoF/Make/files)
-  [`src/geometricVoF/reconstructionSchemes/reconstructionSchemes.H`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/geometricVoF/reconstructionSchemes/reconstructionSchemes.H)
+  [`src/geometricVoF/Make/files`](./src/geometricVoF/Make/files)
+  [`src/geometricVoF/reconstructionSchemes/reconstructionSchemes.H`](./src/geometricVoF/reconstructionSchemes/reconstructionSchemes.H)
 - Incompressible transport models:
-  [`src/transportModels/incompressible/Make/files`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/transportModels/incompressible/Make/files)
+  [`src/transportModels/incompressible/Make/files`](./src/transportModels/incompressible/Make/files)
 - Turbulence model entry points:
-  [`src/turbulenceModel/turbulenceModelNew.H`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/turbulenceModel/turbulenceModelNew.H)
-  [`src/turbulenceModel/turbulenceModelNew.C`](/Users/philipc/code/laserbeamfoamProjects/LaserbeamFoam/src/turbulenceModel/turbulenceModelNew.C)
+  [`src/turbulenceModel/turbulenceModelNew.H`](./src/turbulenceModel/turbulenceModelNew.H)
+  [`src/turbulenceModel/turbulenceModelNew.C`](./src/turbulenceModel/turbulenceModelNew.C)

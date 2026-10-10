@@ -1,0 +1,35 @@
+#!/bin/bash
+# A basic Allrun script.
+# - Name is changed to prevent running in `./Alltests`
+
+# Create a entry point for Paraview
+touch open.foam
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+# Setup case
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+runApplication blockMesh
+runApplication setFields
+
+# Run solver in serial
+compressibleLaserbeamFoam 2>&1 | tee log.compressibleLaserbeamFoam
+
+# # See script below for parallel mode:
+# decomposePar 2>&1 | tee log.decomposePar
+#
+# # - Automate getting correct number of processors
+# nCores=$(\
+#     foamDictionary -entry numberOfSubdomains \
+#                     -value system/decomposeParDict)
+#
+# mpirun -np ${nCores} \
+#     compressibleLaserbeamFoam \
+#         -parallel \
+#         2>&1 | tee log.compressibleLaserbeamFoam
+#
+# reconstructParMesh 2>&1 | tee log.reconstructParMesh
+# reconstructPar 2>&1 | tee log.reconstructPar

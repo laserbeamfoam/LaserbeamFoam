@@ -1,0 +1,24 @@
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      propertiesReference;
+}
+/*
+    Reference file for sharing key parameters
+*/
+
+argon
+{
+    mu 1.26e-6;
+}
+
+magnetic_permeability_argon_ 1.2565931211958608e-06;
+elec_conductivity_argon_     10;
+
+magnetic_permeability_ga_    1.25663706127e-06;
+elec_conductivity_ga_        32900e+2;
+
+magnetic_permeability_wall_  1.2565931211958608e-06;
+elec_conductivity_wall_      10;

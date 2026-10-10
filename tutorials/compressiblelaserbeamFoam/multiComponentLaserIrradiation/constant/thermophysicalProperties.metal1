@@ -11,9 +11,11 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties.mercury;
+    object      thermophysicalProperties.metal1;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// metal1 = IRON (Fe) - majority constituent of 316L
 
 phaseState      condensed;  // or: gaseous, solid
 
@@ -28,34 +30,40 @@ thermoType
     energy          sensibleInternalEnergy;
 }
 
-TSolidus	1800.0;
-TLiquidus	1825.0;
-LatentHeat	2.7e5;
-elec_conductivity	1.0e6;
-magnetic_permeability	1.256e-6;
+// Melting: 316L alloy range (shared by all four metal phases, since the
+// alloy melts as one). ~1385-1450 degC.
+TSolidus    1658.0;
+TLiquidus   1723.0;
+LatentHeat  2.7e5;          // fusion latent heat of 316L
+elec_conductivity   1.0e6;
+magnetic_permeability   1.256e-6;   // mu0; molten steel is paramagnetic
 
 mixture
 {
     specie
     {
-        molWeight   50.0;
+        molWeight   55.85;          // Fe
     }
     equationOfState
     {
-        p0	1e5;
-        rho0         5000;
-        gamma	1.2;
-        B	1e7;
+        p0      1e5;
+        rho0    7030;               // liquid Fe density near melting [kg/m3]
+        gamma   1.2;
+        B       1e7;                // SOFTENED for acoustic CFL (c ~ 40 m/s).
+                                    // Physical liquid-metal value ~1.6e11
+                                    // (c ~ 5000 m/s); raise once the rest of
+                                    // the case is stable if you want real
+                                    // acoustics.
     }
     thermodynamics
     {
-        Cp          800;
+        Cp          800;            // 316L liquid
         Hf          0;
     }
     transport
     {
-        mu          5.0e-4;
-        Pr          0.005;
+        mu          6.0e-3;         // liquid steel ~5-6 mPa.s
+        Pr          0.16;           // implies k ~ mu*Cp/Pr ~ 30 W/m/K
     }
 }
 

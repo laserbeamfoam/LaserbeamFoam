@@ -59,11 +59,14 @@
 
     while (pimple.correctNonOrthogonal())
     {
+        // Phase change, backward-Euler in pressure.
         fvScalarMatrix p_rghEqnIncomp
         (
             fvc::div(phiHbyA)
           - fvm::laplacian(rAUf, p_rgh)
           - vDot
+          + fvm::Sp(vDotP, p_rgh)
+          - vDotP*p_rgh.oldTime()
         );
 
         tmp<fvScalarMatrix> p_rghEqnComp;
@@ -128,9 +131,14 @@
 
     K = 0.5*magSqr(U);
 
+    fvc::correctUf(Uf, U, phi);
+
     Info<< "max(U) " << max(mag(U)).value() << endl;
-    Info<< "min(p_rgh) " << min(p_rgh).value() << endl;
+    Info<< "min,max(p_rgh) " << min(p_rgh).value()
+        << " " << max(p_rgh).value() << endl;
     Info<< "min(T) " << min(T).value() << endl;
+    Info<< "max|vDot|*dt " << max(mag(vDot)).value()*mesh.time().deltaTValue()
+        << endl;
 
     if (!correctPhi)
     {

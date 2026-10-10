@@ -1,0 +1,71 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+#include "propertiesReference"
+/*
+    To modify magnetic permittivity or electrical conductivity, please edit the
+    `propertiesReference` file within `constant`.
+*/
+
+
+// Interface tracking method: isoAdvector or MULES
+interfaceTrackingScheme isoAdvector;
+
+electromagnetics true;
+
+phases           (metal gas);
+
+metal
+{
+    // Unused Phase
+    transportModel      Newtonian;
+    nu                  1;
+    rho                 1;
+	Tsolidus            1;
+	Tliquidus           10;
+    LatentHeat          1;
+    beta                1;
+    poly_kappa          (1 0.0 0 0 0 0 0 0);
+    poly_cp             (1 0.0 0 0 0 0 0 0);
+    // elec_resistivity	1; // deprecated - reading in conductivity
+    Elec_conductivity	1;
+    Mag_permitivity	    1;
+}
+
+gas
+{
+    transportModel      Newtonian;
+    nu                  1;
+    rho                 1;
+    Tsolidus            1.0;
+    Tliquidus           10.0;
+    LatentHeat          1;
+    beta                0;
+    poly_kappa          (100   0.0 0 0 0 0 0 0);
+    poly_cp             (500 0.0 0 0 0 0 0 0);
+    Elec_conductivity	$elec_conductivity_air_;
+    Mag_permitivity	    $magnetic_permeability_air_;
+}
+
+sigma                   1;
+Marangoni_Constant      0;
+p0	                    1e5;
+Tvap	                3500;
+Mm	                    0.05;
+LatentHeatVap	        6e5;
+emS                     0.4;
+emL                     0.1;
+TRef                    TRef [0 0 0 1 0 0 0]   293;
+// ************************************************************************* //

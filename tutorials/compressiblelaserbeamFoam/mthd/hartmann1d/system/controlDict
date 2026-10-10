@@ -1,0 +1,57 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========
+  \\      /  F ield           OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration       Website:  www.openfoam.com
+    \\  /    A nd             Version:  v2506
+     \\/     M anipulation
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     compressibleMultiphaseInterFoam;
+
+startFrom       latestTime;
+
+startTime       0;
+
+// Note: simulation takes ~25 seconds for endTime 50
+//       change stopAt to `endTime` for actual use.
+stopAt          endTime;
+
+endTime         50;
+
+deltaT          1;
+
+writeControl    adjustableRunTime;
+
+writeInterval   1;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  10;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   10;
+
+runTimeModifiable yes;
+
+adjustTimeStep  no;
+
+maxCo           0.98;
+maxAlphaCo      0.98;
+
+maxDeltaT       0.1;
+
+
+// ************************************************************************* //

@@ -19,7 +19,7 @@ solvers
 {
     "alpha.*"
     {
-        nAlphaSubCycles 1;
+        nAlphaSubCycles 1;//has to be 1
         cAlpha	1;
     }
 
@@ -86,7 +86,7 @@ solvers
 MELTING
 {
     minTempCorrector 1;
-    maxTempCorrector 20;
+    maxTempCorrector 15;
     epsilonTolerance 1e-6;
     epsilonRelaxation 0.9;
     
@@ -95,17 +95,28 @@ MELTING
 
 PIMPLE
 {
-    nOuterCorrectors 1;
-    nCorrectors     3;
-    nNonOrthogonalCorrectors 0;
+
+correctPhi no;//VERY FUCKING IMPORTANT ON AMR RUNS!!!!!!!!!!
+    momentumPredictor        yes;     
+    nOuterCorrectors         5;       
+    nCorrectors              2;
+    nNonOrthogonalCorrectors 2;
+
+    residualControl
+{
+    p_rgh { tolerance 1e-4; relTol 0; }
+    U     { tolerance 1e-4; relTol 0; }
+    T     { tolerance 1e-5; relTol 0; }
+}
 }
 
 relaxationFactors
-{
-    equations
-    {
-        "U.*"           1;
-    }
-}
+   {
+       fields    
+       { p_rgh  0.5; }
+       equations 
+       { U  0.6;  
+       "(T|epsilon1)"  0.7; }
+   }
 
 // ************************************************************************* //

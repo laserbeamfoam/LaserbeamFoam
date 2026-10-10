@@ -17,6 +17,8 @@ FoamFile
 // Interface tracking method: isoAdvector or MULES
 interfaceTrackingScheme isoAdvector;
 
+electromagnetics true;
+
 phases          (metal gas);
 
 metal
@@ -30,7 +32,9 @@ metal
     beta                5.0e-6;
     poly_kappa          (25 0.0 0 0 0 0 0 0);
     poly_cp             (700 0.0 0 0 0 0 0 0);
-    elec_resistivity	1.0e-6;
+    // elec_resistivity	1.0e-6; //deprecated - reading in conductivity
+    Elec_conductivity	1.0e6;
+    Mag_permitivity	1.256e-6;
 }
 
 gas
@@ -44,6 +48,8 @@ gas
     beta                4.0e-5;
     poly_kappa          (0.4 0.0 0 0 0 0 0 0);
     poly_cp             (520 0.0 0 0 0 0 0 0);
+    Elec_conductivity	1.0;
+    Mag_permitivity	1.256e-6;
 }
 
 sigma                   1.2;

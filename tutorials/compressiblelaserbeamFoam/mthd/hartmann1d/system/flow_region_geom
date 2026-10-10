@@ -1,0 +1,16 @@
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      flow_region_geom;
+}
+/*
+    Geometry parameters which are shared across
+    multiple dictionaries.
+*/
+xmin_value                  0;
+xmax_value                  1; // keep as unity for easier dp/dx calc
+
+ymin_value                  -0.5;
+ymax_value                  0.5;

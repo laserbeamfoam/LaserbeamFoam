@@ -35,8 +35,12 @@ divSchemes
     div(rhoPhi,K)  Gauss upwind;
     div(phi,p)      Gauss upwind;
     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
-    
+
     div(rhoPhi,epsilon1)	Gauss linear;//Gauss vanLeer01;
+
+    div(phi,alphaRho)   Gauss vanLeer;   // Gauss limitedLinear 1
+    div(phiR,alphaRho)  Gauss vanLeer;
+
 }
 
 laplacianSchemes
@@ -52,6 +56,13 @@ interpolationSchemes
 snGradSchemes
 {
     default         corrected;
+}
+
+fluxRequired
+{
+    default         no;
+    p_rgh;
+    "alphaRho.*";
 }
 
 

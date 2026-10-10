@@ -1,0 +1,29 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  3.0.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      nucleationDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+Tu_mean		Tu_mean [0 0 0 1 0 0 0] 1.0;
+Tu_stdev	Tu_stdev [0 0 0 1 0 0 0] 0.5;
+
+// n_max		n_max [0 -3 0 0 0 0 0] 1e18;
+// n_max       n_max [0 -3 0 0 0 0 0] 0;
+// n_max       n_max [0 -3 0 0 0 0 0] 1e20;
+n_max       n_max [0 -3 0 0 0 0 0] 1.0e18;
+
+maxItersNucSet 1e9;
+nucDistFactor   2;
+stopToCheckNucSites     false;
+// ************************************************************************* //

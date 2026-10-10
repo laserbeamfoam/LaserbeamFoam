@@ -20,7 +20,7 @@ dynamicFvMesh   dynamicRefineFvMesh;
 refineInterval  1;
 
 // Field to be refinement on
-field           condensate;
+field           metalaverage;
 
 // Refine field inbetween lower..upper
 lowerRefineLevel 0.01;
@@ -30,7 +30,7 @@ upperRefineLevel 0.99;
 unrefineLevel   0.01;
 
 // Have slower than 2:1 refinement
-nBufferLayers   1;
+nBufferLayers   4;
 
 // Refine cells only up to maxRefinement levels
 maxRefinement   2;
@@ -43,14 +43,15 @@ maxCells        20000000;
 // on surfaceScalarFields that do not need to be reinterpolated.
 correctFluxes
 (
-    (phi none)
+    (phi U)
     (nHatf none)
     (rhoPhi none)
     (alphaPhi0.metal none)
     (ghf none)
     (alphaPhiUn none)
     (rhophicp none)
-    (phi_0 none)
+    (phi_0 U)
+    (rhoPhi_0 none)
 );
 
 // Write the refinement level as a volScalarField

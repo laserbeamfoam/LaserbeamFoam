@@ -1,0 +1,41 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========
+  \\      /  F ield           OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration       Website:  www.openfoam.com
+    \\  /    A nd             Version:  v2506
+     \\/     M anipulation
+
+Description:
+    This is a dictionary made as a work-around to pyFoam ParsedParameter
+    failing when a `$variable` is used.
+
+    Instead, relevant dictionary variables are listed here; then imported
+    using the `#include` directive
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "initial";
+    object      initialValues;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// User's Initial Value Defintions:
+p_internal  1e5;
+T_internal  293;
+U_initial_vector_values (0 0 0);
+B_target    1;
+
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
+// Automated calculations for initial H vector values.
+#include "../constant/propertiesReference"
+
+// Compute H for constant B initial conditions
+// > `B = mu * H`, or $\vec{B} = \mu \, \vec{H}$.
+H_air_target  #eval "$B_target / $magnetic_permeability_air_";
+
+// Note: `z` axis on 2D will result in solution singularity.
+H_air (0 $H_air_target 0);
+
+// ************************************************************************* //

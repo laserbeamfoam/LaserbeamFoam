@@ -1,0 +1,51 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+interfaceTrackingScheme isoAdvector;
+
+phases (metal gas);
+
+metal
+{
+    transportModel  Newtonian;
+    nu              5e-07;
+    rho             8000;
+	Tsolidus        1658;
+	Tliquidus       1723;
+    LatentHeat      2.7e5;
+    beta            5.0e-6;
+    poly_kappa      (25 0.0 0 0 0 0 0 0);
+    poly_cp         (700 0.0 0 0 0 0 0 0);
+    elec_resistivity	1.0e-6; 
+}
+
+gas
+{
+    transportModel  Newtonian;
+    nu              0.5e-05;
+    rho             1.78;
+    Tsolidus        1.0;
+    Tliquidus       10.0;
+    LatentHeat      1;
+    beta            4.0e-5;
+    poly_kappa      (0.4 0.0 0 0 0 0 0 0);
+    poly_cp         (520 0.0 0 0 0 0 0 0);
+}
+
+sigma               2;
+Marangoni_Constant  -0.05e-4;
+p0                  100000.0;
+Tvap                3500;
+Mm	                0.05;
+LatentHeatVap	    6e5;
+emS                 0.4;
+emL                 0.1;
+TRef                TRef [0 0 0 1 0 0 0] 300;
+
+// ************************************************************************* //

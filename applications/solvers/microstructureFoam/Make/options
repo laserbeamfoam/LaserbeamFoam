@@ -1,0 +1,41 @@
+EXE_INC = \
+    -I../../../src/laserHeatSource/lnInclude \
+    -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/incompressibleInterPhaseTransportModel/lnInclude \
+    -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/VoFphaseIncompressibleTurbulenceModels/lnInclude \
+    -I$(LIB_SRC)/finiteVolume/lnInclude \
+    -I$(LIB_SRC)/surfMesh/lnInclude \
+    -I$(LIB_SRC)/meshTools/lnInclude \
+    -I$(LIB_SRC)/sampling/lnInclude \
+    -I$(LIB_SRC)/dynamicFvMesh/lnInclude \
+    -I$(LIB_SRC)/dynamicMesh/lnInclude \
+    -I$(LIB_SRC)/transportModels \
+    -I$(LIB_SRC)/transportModels/incompressible/lnInclude \
+    -I$(LIB_SRC)/transportModels/interfaceProperties/lnInclude \
+    -I$(LIB_SRC)/transportModels/twoPhaseMixture/lnInclude \
+    -I$(LIB_SRC)/transportModels/geometricVoF/lnInclude \
+    -I$(LIB_SRC)/TurbulenceModels/turbulenceModels/lnInclude \
+    -I$(LIB_SRC)/TurbulenceModels/incompressible/lnInclude \
+    -I$(LIB_SRC)/TurbulenceModels/phaseIncompressible/lnInclude \
+    -I$(LIB_SRC)/transportModels/immiscibleIncompressibleTwoPhaseMixture/lnInclude \
+    -I$(LIB_SRC)/lagrangian/basic/lnInclude
+
+EXE_LIBS = \
+    -lfiniteVolume \
+    -L$(FOAM_USER_LIBBIN) \
+    -llaserHeatSource \
+    -lfvOptions \
+    -lsurfMesh \
+    -lmeshTools \
+    -lsampling \
+    -ldynamicFvMesh \
+    -lincompressibleTransportModels \
+    -linterfaceProperties \
+    -lgeometricVoF \
+    -limmiscibleIncompressibleTwoPhaseMixture \
+    -ltwoPhaseProperties \
+    -lturbulenceModels \
+    -lincompressibleTurbulenceModels \
+    -lwaveModels \
+    -lVoFphaseTurbulentTransportModels \
+    -lincompressibleInterPhaseTransportModels \
+    -llagrangian

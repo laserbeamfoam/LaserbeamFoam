@@ -65,6 +65,7 @@ Authors
 
 #include "Polynomial.H"
 #include "laserHeatSource.H"
+#include "mthdModel.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -170,6 +171,10 @@ int main(int argc, char *argv[])
             }
 
             #include "UEqn.H"
+            if (mthd.valid())
+            {
+                mthd->solve(phi, U);
+            }
             #include "TEqn.H"
 
             // --- Pressure corrector loop
@@ -184,11 +189,10 @@ int main(int argc, char *argv[])
             }
         }
 
-        // Update the melt history
+        // Update instantaneous liquid metal indicator
         const volScalarField& alphaMetal =
             mesh.lookupObject<volScalarField>("alpha.metal");
-        condition = pos(alphaMetal - 0.5) * pos(epsilon1 - 0.5);
-        meltHistory += condition;
+        liquidMetalCells = pos(alphaMetal - 0.5)*pos(epsilon1 - 0.5);
 
         runTime.write();
 

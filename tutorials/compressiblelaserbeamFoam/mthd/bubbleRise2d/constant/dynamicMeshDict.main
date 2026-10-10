@@ -1,0 +1,97 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+FoamFile
+{
+    version         2;
+    format          ascii;
+    class           dictionary;
+    object          dynamicMeshDict;
+}
+/*
+    dynamicMeshDict for use with blastAMR which supports 2D Adpative Mesh Refi-
+    nement AMR.
+
+    Copied from
+    https://github.com/STFS-TUDa/blastAMR/blob/v2212/tutorials/damBreak2D/constant/dynamicMeshDict
+    and modified.
+
+
+    # compressibleLaserbeamFoam/bubbleRise2d specifics:
+    For MTHD a larger buffer region around the bubble is required. This setup
+    relies on
+    - Core refinement region for `alpha.air > 0.9`.
+      (upper refinement is essentially ignored)
+    - high `nBufferLayers` -> builds refinement region around core.
+
+    For performance
+    - If `nBufferLayers` are sufficiently high, you may be able to increase the
+      [un/]refineInterval intervals.
+    - The balance interval may be kept higher.
+*/
+
+
+dynamicFvMesh   adaptiveFvMesh;
+
+refiner         polyRefiner;
+
+// Left over comments from reference: (indicated with `-`)
+//-!IMPORTANT! FOAM_CODE_TEMPLATES needs to point to etc/codeTemplates/dynamicCode
+//-from this repository
+//-so the run time can find templates to generate the error estimator class
+errorEstimator  fieldValue;   // coded;
+name            basicRefiner; // emulateDelta;
+fieldName       "alpha.air";
+
+
+balance                     yes;
+
+expireSampledSurfacesOnLB   yes;
+
+loadPolicy                  cellCount;
+
+refineInterval              1;
+
+unrefineInterval            1;
+
+balanceInterval             50;
+
+maxRefinement               2;
+
+nBufferLayers               25;
+
+// // For more user control:
+// nRefinementBufferLayers     5;
+// nUnrefinementBufferLayers   5;
+
+lowerRefineLevel            0.9;
+
+upperRefineLevel            1e3;
+
+unrefineLevel               0.9;
+
+upperUnrefineLevel          1e3;
+
+dumpLevel                   yes;
+
+refineProbes                no;
+
+// (RB: unsure if `correctFluxes` impact solution greatly?)
+correctFluxes
+(
+    (phi none)
+    (phirb none)
+    (rhoPhi none)
+    (phiH none)
+
+    // Below was copied from: <commit a27f2c535ad0e0fdf1ff8c81f30a766b71610ac2>
+    // tutorials/compressiblelaserbeamFoam/multiComponentLaserIrradiation/
+    (nHatf none)
+    (ghf none)
+);
+// ************************************************************************* //

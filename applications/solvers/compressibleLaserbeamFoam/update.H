@@ -10,8 +10,28 @@
 
     // electrical resistivity of condensed mixture/
     electrical_resistivity *= 0.0;
-    eleccond *= 0.0;
-    magperm *= 0.0;
+
+    if (mthd.valid())
+    {
+        mthd->resetTransportProperties();
+    }
+
+
+
+     volScalarField vapourSum
+    (
+        IOobject
+        (
+            "vapourSum",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("vapourSum", dimless, 0.0)
+    );
+
 
     forAllConstIter(PtrDictionary<phaseModel>, mixture.phases(), iter)
     {
@@ -65,12 +85,23 @@
         );
 
 
-        TSolidus += alpha1*phaseTSolidus;
-        TLiquidus += alpha1*phaseTLiquidus;
-        LatentHeat += alpha1*phaseLH;
-        eleccond += alpha1*phaseconductivity;
-        magperm += alpha1*phasepermeability;
+        // Melt properties are a condensed-phase quantity. 
+        if (phase1.isCondensed())
+        {
+            TSolidus   += alpha1*phaseTSolidus;
+            TLiquidus  += alpha1*phaseTLiquidus;
+            LatentHeat += alpha1*phaseLH;
+        }
 
+        if (mthd.valid())
+        {
+            mthd->accumulateTransportProperties
+            (
+                alpha1,
+                phaseconductivity,
+                phasepermeability
+            );
+        }
 
         // std::string str2("vapour");
 
@@ -87,6 +118,14 @@
         if (phase1.isGaseous())
         {
             condensate -= alpha1;
+
+                       if (phase1.name().find("vapour") != string::npos)
+            {
+                vapourSum += alpha1;
+            }
+
+
+
         }
 
         if (phase1.isCondensed())
@@ -106,8 +145,12 @@
 
 
     electrical_resistivity.correctBoundaryConditions();
-    magperm.correctBoundaryConditions();
-    eleccond.correctBoundaryConditions();
+
+    if (mthd.valid())
+    {
+        mthd->finaliseTransportProperties();
+    }
+
     LatentHeat.correctBoundaryConditions();
     TLiquidus.correctBoundaryConditions();
     TSolidus.correctBoundaryConditions();
@@ -149,6 +192,45 @@
     metalaverage = fvc::average(condensate);
     condensateFiltered = max(min(condensate, scalar(1)), scalar(0));
     condensateFiltered.correctBoundaryConditions();
+
+
+
+        {
+        const dimensionedScalar betaBand("betaBand", dimless, 0.001);
+        const dimensionedScalar vapRefineThresh
+        (
+            "vapRefineThresh", dimless, 0.001
+        );
+
+        const volScalarField vapourAverage(fvc::average(vapourSum));
+
+
+        const dimensionedScalar coarsenGuard("coarsenGuard", dimless, 0.02);
+        const volScalarField minorityFrac
+        (
+            min(condensateFiltered, scalar(1) - condensateFiltered)
+        );
+
+        refineIndicator =
+            max
+            (
+                max
+                (
+                    min
+                    (
+                        min(metalaverage, scalar(1) - metalaverage)/betaBand,
+                        scalar(1)
+                    ),
+                    min(vapourAverage/vapRefineThresh, scalar(1))
+                ),
+                min(minorityFrac/coarsenGuard, scalar(0.45))
+            );
+        refineIndicator.correctBoundaryConditions();
+    }
+
+
+
+
 
     // laser.refineFlag() *= 0.0;
     // laser.refineFlag() += metalaverage;

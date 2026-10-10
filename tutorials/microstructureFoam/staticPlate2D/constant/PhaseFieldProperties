@@ -1,0 +1,40 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      PhaseFieldProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+grainNumThreshold   1e-4;
+
+Aniso_strength      0.3;
+
+gamma_pf    1.5;
+
+sigma_P     0.2;
+sigma_G     1.0;
+lp          2.0e-5;
+lg          2.0e-5;
+deltaf_g    0.125;
+deltaf_p    0.25;
+D0          10.0;
+Qg          25000;
+
+// Initial grain seeds for TesselateFoam (optional pre-processor)
+N_Seeds     150;
+
+// Voronoi bounding box covers the substrate region
+Xmin  -0.05e-5;
+Xmax   0.05e-5;
+Ymin   15e-5;
+Ymax   40e-5;
+Zmin   -12e-5;
+Zmax   12e-5;
+
+write_ni_all    false;
+write_ni_active true;
+
+// ************************************************************************* //

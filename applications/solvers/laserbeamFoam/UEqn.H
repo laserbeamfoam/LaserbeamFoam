@@ -49,39 +49,50 @@ pVap = 0.54*p0*Foam::exp(LatentHeatVap*Mm*((T - Tvap)/(R*T*Tvap)));
 pVap.correctBoundaryConditions();  // ADDED
 
 
-    fvVectorMatrix UEqn
+if (mthd.valid())
+{
+    mthd->updateLorentzForce();
+}
+
+const volVectorField& JcrossB =
+    mthd.valid()
+  ? mthd->JcrossB()
+  : zeroJcrossB;
+
+fvVectorMatrix UEqn
+(
+    fvm::ddt(rho, U) + fvm::div(rhoPhi, U)
+  + MRF.DDt(rho, U)
+  + turbulence->divDevRhoReff(rho, U)
+  + fvm::Sp(DC, U)
+  - Marangoni*damper
+  - JcrossB*damper
+ ==
+    fvOptions(rho, U)
+);
+
+UEqn.relax();
+
+fvOptions.constrain(UEqn);
+
+if (pimple.momentumPredictor())
+{
+    solve
     (
-        fvm::ddt(rho, U) + fvm::div(rhoPhi, U)
-      + MRF.DDt(rho, U)
-      + turbulence->divDevRhoReff(rho, U)
-      + fvm::Sp(DC, U)
-      - Marangoni*damper
+        UEqn
      ==
-        fvOptions(rho, U)
+        fvc::reconstruct
+        (
+            (
+                mixture.surfaceTensionForce()*fvc::interpolate(damper)
+                + (fvc::interpolate(pVap)
+                    *fvc::snGrad(alpha1)
+                    *fvc::interpolate(damper))
+              - ghf*fvc::snGrad(rho*rhok)
+              - fvc::snGrad(p_rgh)
+            ) * mesh.magSf()
+        )
     );
 
-    UEqn.relax();
-
-    fvOptions.constrain(UEqn);
-
-    if (pimple.momentumPredictor())
-    {
-        solve
-        (
-            UEqn
-         ==
-            fvc::reconstruct
-            (
-                (
-                    mixture.surfaceTensionForce()*fvc::interpolate(damper)
-                    + (fvc::interpolate(pVap)
-                        *fvc::snGrad(alpha1)
-                        *fvc::interpolate(damper))
-                  - ghf*fvc::snGrad(rho*rhok)
-                  - fvc::snGrad(p_rgh)
-                ) * mesh.magSf()
-            )
-        );
-
-        fvOptions.correct(U);
-    }
+    fvOptions.correct(U);
+}

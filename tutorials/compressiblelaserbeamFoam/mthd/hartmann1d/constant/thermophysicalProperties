@@ -1,0 +1,70 @@
+/*--------------------------------*- V++ -*----------------------------------*\
+  =========
+  \\      /  F ield           OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration       Website:  www.openfoam.com
+    \\  /    A nd             Version:  v2506
+     \\/     M anipulation
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      phaseProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+#include "../initial/initialValues"
+
+phases (air);
+
+// For Compressible code * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+pMin                    -10000.0;
+P0                      $p_internal;
+
+interface_thickness     1e-4;
+electromagnetics        true;
+
+boils
+(
+    (air fictum)        1e-9
+    (air wall)          1e-9
+    (fictum wall)       1e-9
+);
+
+LatentHeatGas // Caution - do not use zero for pairs (div zero error)
+(
+    (air fictum)        1e-9
+    (air wall)          1e-9
+    (fictum wall)       1e-9
+);
+
+
+// Common to incomp and comp: * * * * * * * * * * * * * * * * * * * * * * * *
+
+sigmas
+(
+    (air fictum)        585e-3
+    (air wall)          0.0
+    (wall fictum)       0.0
+);
+
+dsigmadT
+(
+    (air fictum)        0.0
+    (air wall)          0.0
+    (wall fictum)       0.0
+);
+
+interfaceCompression
+(
+    (air fictum)        1.0
+);
+
+interfaceDiffusion
+(
+    (air fictum)        0.0
+);
+
+
+// ************************************************************************* //

@@ -1,0 +1,6 @@
+#!/bin/sh
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+rm -rf 0 [0-9]* [0-9]*.* log.* processor*
+rm -rf VTKs
+rm -rf *.foam

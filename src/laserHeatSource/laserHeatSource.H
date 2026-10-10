@@ -217,6 +217,9 @@ public:
             const Switch useLocalSearch,
             const label maxLocalSearch,
             const scalar rayPowerRelTol,
+            const label maxRayBounces,
+            const word& maxRayBounceAction,
+            const scalar nearZeroAbsorptivityTol,
             const boundBox& globalBB
         );
 

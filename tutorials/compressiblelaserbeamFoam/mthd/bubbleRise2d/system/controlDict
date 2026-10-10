@@ -1,0 +1,57 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     compressibleMultiphaseInterFoam;
+
+startFrom       latestTime;
+
+startTime       0;
+
+stopAt          nextWrite; // endTime;
+
+endTime         0.09;
+
+deltaT          1e-9;
+
+// Reduce timestep for Alltest
+// For actual tutorial: run with `adjustableRunTime` and `writeInterval 0.01;`
+writeControl    timeStep; // adjustableRunTime;
+
+writeInterval   10; // 0.005;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  10;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   10;
+
+runTimeModifiable yes;
+
+adjustTimeStep  yes;
+
+maxCo           0.1;
+maxAlphaCo      0.1;
+
+maxDeltaT       0.5;
+
+
+// ************************************************************************* //

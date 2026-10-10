@@ -79,6 +79,38 @@ solvers
     {
         $T;
     }
+            H
+    {
+
+        solver          PBiCG;
+        preconditioner  DILU;
+        tolerance       1e-8;
+        minIter         1;
+        maxIter         500;//2
+
+    }
+    HFinal
+    {
+        $H;
+        tolerance       1e-8;
+        relTol          0;
+    }
+
+    pH
+    {
+
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-8;
+        relTol          0.0;
+
+    }
+
+    pHFinal
+    {
+        $pH;
+        relTol          0;
+    }   
 }
 
 MELTING
@@ -97,6 +129,15 @@ PIMPLE
     nOuterCorrectors    1;
     nCorrectors         3;
     nNonOrthogonalCorrectors 0;
+}
+
+BPISO
+{
+    nOuterCorrectors 1;//always 1 I think
+    nCorrectors     3;
+    nNonOrthogonalCorrectors 1;
+    pRefCell        0;
+    pRefValue       0.0;
 }
 
 relaxationFactors

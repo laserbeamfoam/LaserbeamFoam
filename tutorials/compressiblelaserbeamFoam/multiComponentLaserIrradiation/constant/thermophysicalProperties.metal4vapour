@@ -11,9 +11,11 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties.mercury;
+    object      thermophysicalProperties.metal4vapour;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// metal4vapour = MOLYBDENUM VAPOUR (perfectGas, R derived from molWeight)
 
 phaseState      gaseous;  // or: gaseous, solid
 
@@ -23,39 +25,40 @@ thermoType
     mixture         pureMixture;
     transport       const;
     thermo          eConst;
-    equationOfState perfectFluid;
+    equationOfState perfectFluid;//perfectGas;//
     specie          specie;
     energy          sensibleInternalEnergy;
 }
 
+TSolidus    5.0;
+TLiquidus   10.0;
+LatentHeat  1.0;
 
-TSolidus	5.0;
-TLiquidus	10.0;
-LatentHeat	1.0;
-
-elec_conductivity	1.0;
-magnetic_permeability	1.256e-6;
+elec_conductivity   1.0;
+magnetic_permeability   1.256e-6;
 
 mixture
 {
+
+	equationOfState
+{
+    R           87;
+    rho0        0.0;
+}
+
     specie
     {
-        molWeight   50.0;
-    }
-    equationOfState
-    {
-        rho0         5.0;
-        R	8.314;
+        molWeight   95.95;          // Mo -> R = 8314/95.95 ~ 87 J/kg/K
     }
     thermodynamics
     {
-        Cv          1039;
+        Cv          130;            // monatomic vapour, 1.5*R
         Hf          0;
     }
     transport
     {
         mu          1.0e-5;
-        Pr          1.0;
+        Pr          0.67;
     }
 }
 

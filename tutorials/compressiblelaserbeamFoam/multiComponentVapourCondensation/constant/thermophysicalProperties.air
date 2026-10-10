@@ -22,16 +22,17 @@ thermoType
     type            heRhoThermo;
     mixture         pureMixture;
     transport       const;
-    thermo          hConst;
-    equationOfState perfectGas;
+    thermo          eConst;
+    equationOfState perfectFluid;
     specie          specie;
     energy          sensibleInternalEnergy;
 }
 
-
+// Air (diatomic vapour (): R = 287 J/kg/K, Cv = 718 J/kg/K
 TSolidus	5.0;
 TLiquidus	10.0;
 LatentHeat	1.0;
+
 elec_conductivity	1.0;
 magnetic_permeability	1.256e-6;
 
@@ -39,17 +40,22 @@ mixture
 {
     specie
     {
-        molWeight   28.9;
+        molWeight   28.96;
+    }
+    equationOfState
+    {
+        rho0         0.0;        // ideal gas: rho = p/(R T)
+        R	287.0;
     }
     thermodynamics
     {
-        Cp          1007;
+        Cv          718;
         Hf          0;
     }
     transport
     {
-        mu          1.84e-05;
-        Pr          0.7;
+        mu          1.0e-5;
+        Pr          1.0;
     }
 }
 

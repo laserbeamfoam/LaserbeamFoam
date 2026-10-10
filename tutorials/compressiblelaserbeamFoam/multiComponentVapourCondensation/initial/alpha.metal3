@@ -20,39 +20,12 @@ internalField   uniform 0;
 
 boundaryField
 {
-    top
-    {
-    
-    type            zeroGradient;
-    
-
-    }
-    
-    bottom
-    {
-       type            zeroGradient;
-    }
-    
-    right
-    {
-       type            zeroGradient;
-    }
-
-    left
-    {
-       type            zeroGradient;
-    }
-    
-    front
-    {
-       type            zeroGradient;
-    }
-    
-    back
-    {
-type            zeroGradient;
-    }
-   
+    top    { type zeroGradient; }
+    bottom { type zeroGradient; }
+    right  { type zeroGradient; }
+    left   { type zeroGradient; }
+    front  { type zeroGradient; }
+    back   { type fixedValue; value uniform 0; }
 }
 
 // ************************************************************************* //

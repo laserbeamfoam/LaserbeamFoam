@@ -11,7 +11,7 @@ FoamFile
     format      ascii;
     class       dictionary;
     location    "constant";
-    object      thermophysicalProperties.mercury;
+    object      thermophysicalProperties.metal3vapour;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -28,7 +28,7 @@ thermoType
     energy          sensibleInternalEnergy;
 }
 
-
+// Zn vapour (monatomic): R = Ru/W = 127.17 J/kg/K, Cv = 3/2 R
 TSolidus	5.0;
 TLiquidus	10.0;
 LatentHeat	1.0;
@@ -40,16 +40,16 @@ mixture
 {
     specie
     {
-        molWeight   50.0;
+        molWeight   65.38;
     }
     equationOfState
     {
-        rho0         3.0;
-        R	8.314;
+        rho0         0.0;        // ideal gas: rho = p/(R T)
+        R	127.17;
     }
     thermodynamics
     {
-        Cv          1039;
+        Cv          190.8;
         Hf          0;
     }
     transport

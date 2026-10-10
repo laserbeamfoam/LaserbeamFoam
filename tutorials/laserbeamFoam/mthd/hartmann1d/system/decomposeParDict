@@ -1,0 +1,39 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========
+  \\      /  F ield           OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration       Website:  www.openfoam.com
+    \\  /    A nd             Version:  v2506
+     \\/     M anipulation
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      decomposeParDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+numberOfSubdomains  2;
+
+method              hierarchical; // scotch;
+
+distributor         simple; // simple;
+
+hierarchicalCoeffs
+{
+    n               (1 2 1);
+    order           xyz;
+}
+
+constraints
+{
+   refinementHistory
+   {
+       //- Decompose cells such that all cell originating from single cell
+       //  end up on same processor
+       type    refinementHistory;
+   }
+}
+
+// ************************************************************************* //

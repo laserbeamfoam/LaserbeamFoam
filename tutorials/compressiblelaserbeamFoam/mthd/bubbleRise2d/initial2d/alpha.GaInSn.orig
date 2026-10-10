@@ -1,0 +1,76 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  www.openfoam.com
+    \\  /    A nd           | Version:  v2506
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       volScalarField;
+    location    "0";
+    object      alpha.GaInSn;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    leftWall
+    {
+        type            alphaContactAngle;
+        thetaProperties
+        (
+            ( GaInSn air ) 90 0 0 0
+        );
+        value           uniform 0;
+
+
+        // type zeroGradient;
+
+        // type            inletOutlet; // <------ USE THIS but coded
+        // inletValue      uniform 1;
+        // value           uniform 0;
+    }
+    rightWall
+    {
+        type            alphaContactAngle;
+        thetaProperties
+        (
+            ( GaInSn air ) 90 0 0 0
+        );
+        value           uniform 0;
+    }
+
+    lowerWall
+    {
+        type            alphaContactAngle;
+        thetaProperties
+        (
+            ( GaInSn air ) 90 0 0 0
+        );
+        value           uniform 0;
+    }
+
+    atmosphere
+    {
+        type            inletOutlet;
+        // inletValue      uniform 0;
+        // value           uniform 0;
+
+        inletValue      uniform 1;
+        value           uniform 1;
+    }
+
+    defaultFaces
+    {
+        type            empty;
+    }
+}
+
+
+// ************************************************************************* //
