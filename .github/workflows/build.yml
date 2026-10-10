@@ -1,5 +1,5 @@
-# Check the laserbeamFoam solvers compile correctly
-name: Build
+# Check the repository compiles correctly and Alltest-regression passes
+name: Build and test
 
 on:
   push:
@@ -37,14 +37,23 @@ jobs:
           cd tutorials
           ./Alltest
 
+      - name: Alltest-regression
+        shell: bash -l {0}
+        run: |
+          source ${{ matrix.container-image.source }}
+          cd tutorials
+          ./Alltest-regression
+
       - name: Upload test logs
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-logs.${{ matrix.container-image.name }}
-          path: tutorialsTest/logs
+          path: |
+            tutorialsTest/logs
+            tutorialsTest-regression
           retention-days: 10
 
       - name: Set job status
         if: ${{ failure() }}
-        run: echo "::error::Alltest failed, marking job as failed"
+        run: echo "::error::Alltest or Alltest-regression failed, marking job as failed"
