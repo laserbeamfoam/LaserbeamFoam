@@ -84,8 +84,13 @@ void laserHeatSource::seedRayCloud
     vector t = d ^ a;
     t /= (mag(t) + VSMALL);
 
-    // Minimum length scale
-    const scalar lCell = cbrt(gMin(mesh.V()));
+    // Minimum length scale: only recalculated when the mesh changes, which
+    // is a decision taken on all processors together
+    if (minCellLengthScale_ < 0 || mesh.changing())
+    {
+        minCellLengthScale_ = cbrt(gMin(mesh.V()));
+    }
+    const scalar lCell = minCellLengthScale_;
     const scalar eps = sqrt(SMALL)*lCell;
 
     // Safe perturbation in the ray direction and transverse ray direction
@@ -471,7 +476,8 @@ laserHeatSource::laserHeatSource
     timeVsLaserPower_(0),
     rayPaths_(0),
     vtkTimes_(),
-    globalBB_(mesh.bounds())
+    globalBB_(mesh.bounds()),
+    minCellLengthScale_(-1)
 {
     Info<< "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
 
