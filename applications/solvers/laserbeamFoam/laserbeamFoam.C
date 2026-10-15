@@ -163,7 +163,17 @@ int main(int argc, char *argv[])
                 alpha_filtered, n_filtered, electrical_resistivity
             );
 
-            mixture.correct();
+            // With isoAdvector the mixture is already corrected at the end of
+            // the alpha transport, and on the first outer corrector nothing it
+            // depends on (alpha, U) has changed since then
+            if
+            (
+                interfaceTrackingScheme != "isoAdvector"
+             || !pimple.firstIter()
+            )
+            {
+                mixture.correct();
+            }
 
             if (pimple.frozenFlow())
             {
