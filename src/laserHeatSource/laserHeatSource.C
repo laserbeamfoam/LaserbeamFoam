@@ -649,6 +649,19 @@ void laserHeatSource::updateDeposition
             << "    mean position = " << currentLaserPosition << nl
             << "    power = " << currentLaserPower << endl;
 
+        // A laser with zero power deposits no energy, so there is no need to
+        // seed and track its rays. The power comes from the same time table
+        // on every processor, so all processors skip the laser together.
+        if (currentLaserPower == 0)
+        {
+            if (Pstream::master())
+            {
+                rayPaths_[laserI].clear();
+            }
+
+            continue;
+        }
+
             // Dict for current laser
         const dictionary& dict = laserDicts_[laserI];
 
