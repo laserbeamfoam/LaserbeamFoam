@@ -310,8 +310,21 @@ void laserHeatSource::seedRayCloud
 
     label seedCellI = -1;
 
+    // A seed outside the bounding box of this processor's points cannot lie
+    // in one of its cells, so the search below would fail for it. Skipping
+    // such seeds does not change the result: seedCellI is only updated after
+    // a successful search. The box is grown slightly to allow for the
+    // geometric tolerances of the point-in-cell tests.
+    boundBox localBb(mesh.points(), false);
+    localBb.inflate(1e-6);
+
     forAll(rayCoords, i)
     {
+        if (!localBb.contains(rayCoords[i]))
+        {
+            continue;
+        }
+
         const label cellI = findLocalCell
             (
                 rayCoords[i],
