@@ -474,20 +474,6 @@ volScalarField rhok
     dimensionedScalar("rhok", dimless, 0.0)
 );
 
-volScalarField Num_divU
-(
-    IOobject
-    (
-        "Num_divU",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("Num_divU", dimensionSet(0,0,-1,0,0), 0.0)
-);
-
 volVectorField Marangoni
 (
     IOobject
