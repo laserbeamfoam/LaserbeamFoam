@@ -138,7 +138,7 @@ bool Foam::laserRayParticle::move
     // Istream), path_ is empty — record the transfer position.
     if (path_.empty())
     {
-        path_.append(position());
+        recordPathPoint(td);
     }
 
     const scalar maxTrackLength = mesh.bounds().mag();
@@ -170,9 +170,8 @@ bool Foam::laserRayParticle::move
         // Check if power is exhausted relative to this ray's initial power
         if (power_ < td.rayPowerRelTol_*initialPower_ || power_ < SMALL)
         {
-            path_.append(position());
-            td.finishedRayIDs_.append(globalRayIndex_);
-            td.finishedRayPaths_.append(path_);
+            recordPathPoint(td);
+            storePath(td);
             active_ = false;
             td.keepParticle = false;
             break;
@@ -206,15 +205,14 @@ bool Foam::laserRayParticle::move
                     direction_ = direction_ - 2.0*(direction_ & n)*n;
                     direction_ /= mag(direction_) + VSMALL;
                     ++escapeRedirects;
-                    path_.append(position());
+                    recordPathPoint(td);
                 }
                 else
                 {
                     td.deposition_[cellI] += power_ / VI[cellI];
                     power_ = 0.0;
-                    path_.append(position());
-                    td.finishedRayIDs_.append(globalRayIndex_);
-                    td.finishedRayPaths_.append(path_);
+                    recordPathPoint(td);
+                    storePath(td);
                     active_ = false;
                     td.keepParticle = false;
                     break;
@@ -225,9 +223,8 @@ bool Foam::laserRayParticle::move
                 // Stuck skimming the band: absorb the remainder and die.
                 td.deposition_[cellI] += power_ / VI[cellI];
                 power_ = 0.0;
-                path_.append(position());
-                td.finishedRayIDs_.append(globalRayIndex_);
-                td.finishedRayPaths_.append(path_);
+                recordPathPoint(td);
+                storePath(td);
                 active_ = false;
                 td.keepParticle = false;
                 break;
@@ -286,7 +283,7 @@ bool Foam::laserRayParticle::move
             bounceCount_++;
             td.maxObservedBounces_ =
                 max(td.maxObservedBounces_, bounceCount_);
-            path_.append(position());
+            recordPathPoint(td);
 
             // Suppress further events until the ray exits this band
             escapingInterface = true;
@@ -349,8 +346,7 @@ bool Foam::laserRayParticle::move
                     << nearZeroAbsorptivityCount_
                     << endl;
 
-                td.finishedRayIDs_.append(globalRayIndex_);
-                td.finishedRayPaths_.append(path_);
+                storePath(td);
                 active_ = false;
                 td.keepParticle = false;
                 break;
@@ -359,8 +355,7 @@ bool Foam::laserRayParticle::move
             // If power is now below tolerance, kill the ray
             if (power_ < td.rayPowerRelTol_*initialPower_)
             {
-                td.finishedRayIDs_.append(globalRayIndex_);
-                td.finishedRayPaths_.append(path_);
+                storePath(td);
                 active_ = false;
                 td.keepParticle = false;
                 break;
@@ -374,9 +369,8 @@ bool Foam::laserRayParticle::move
 
             td.deposition_[cellI] += power_ / VI[cellI];
             power_ = 0.0;
-            path_.append(position());
-            td.finishedRayIDs_.append(globalRayIndex_);
-            td.finishedRayPaths_.append(path_);
+            recordPathPoint(td);
+            storePath(td);
             active_ = false;
             td.keepParticle = false;
             break;
@@ -422,9 +416,8 @@ void Foam::laserRayParticle::hitProcessorPatch
     // Store the path segment accumulated so far BEFORE the particle
     // is serialized and transferred (path_ is not serialized, so it
     // would be lost). Append current position as the end of this segment.
-    path_.append(position());
-    td.finishedRayIDs_.append(globalRayIndex_);
-    td.finishedRayPaths_.append(path_);
+    recordPathPoint(td);
+    storePath(td);
 
     // The Cloud infrastructure will automatically transfer this
     // particle to the neighbouring processor. We just need to flag
@@ -450,11 +443,29 @@ void Foam::laserRayParticle::hitWallPatch
         power_ = 0.0;
     }
 
-    path_.append(position());
-    td.finishedRayIDs_.append(globalRayIndex_);
-    td.finishedRayPaths_.append(path_);
+    recordPathPoint(td);
+    storePath(td);
     active_ = false;
     td.keepParticle = false;
+}
+
+
+void Foam::laserRayParticle::recordPathPoint(const trackingData& td)
+{
+    if (td.recordPaths_)
+    {
+        path_.append(position());
+    }
+}
+
+
+void Foam::laserRayParticle::storePath(trackingData& td) const
+{
+    if (td.recordPaths_)
+    {
+        td.finishedRayIDs_.append(globalRayIndex_);
+        td.finishedRayPaths_.append(path_);
+    }
 }
 
 
