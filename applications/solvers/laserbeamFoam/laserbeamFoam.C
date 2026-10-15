@@ -177,6 +177,14 @@ int main(int argc, char *argv[])
             }
             #include "TEqn.H"
 
+            // The surface tension force depends on the interface, damper and
+            // temperature, none of which change in the pressure corrector
+            // loop: calculate it once here rather than in every corrector
+            const surfaceScalarField surfaceTensionForce
+            (
+                mixture.surfaceTensionForce()*fvc::interpolate(damper)
+            );
+
             // --- Pressure corrector loop
             while (pimple.correct())
             {
