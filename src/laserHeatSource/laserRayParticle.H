@@ -176,6 +176,10 @@ public:
             DynamicList<label>& finishedRayIDs_;
             DynamicList<DynamicList<point>>& finishedRayPaths_;
 
+            //- Record the ray paths during this update
+            //  (paths are only needed when they are written)
+            const bool recordPaths_;
+
 
         // Constructor
         trackingData
@@ -200,7 +204,8 @@ public:
             label& nearZeroAbsorptivityCount,
             label& maxObservedBounces,
             DynamicList<label>& finishedRayIDs,
-            DynamicList<DynamicList<point>>& finishedRayPaths
+            DynamicList<DynamicList<point>>& finishedRayPaths,
+            const bool recordPaths
         )
         :
             particle::trackingData(cloud),
@@ -223,7 +228,8 @@ public:
             nearZeroAbsorptivityCount_(nearZeroAbsorptivityCount),
             maxObservedBounces_(maxObservedBounces),
             finishedRayIDs_(finishedRayIDs),
-            finishedRayPaths_(finishedRayPaths)
+            finishedRayPaths_(finishedRayPaths),
+            recordPaths_(recordPaths)
         {}
     };
 
@@ -315,6 +321,14 @@ public:
             Cloud<laserRayParticle>& cloud,
             trackingData& td
         );
+
+        //- Append the current position to the ray path, if paths are
+        //  being recorded
+        void recordPathPoint(const trackingData& td);
+
+        //- Store the ray path for collection on the master, if paths are
+        //  being recorded
+        void storePath(trackingData& td) const;
 
         //- Compute Fresnel absorptivity at an interface
         static scalar computeFresnelAbsorptivity

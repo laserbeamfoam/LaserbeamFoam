@@ -884,6 +884,10 @@ void laserHeatSource::updateDeposition
 
     DynamicList<label> finishedRayIDs;
     DynamicList<DynamicList<point>> finishedRayPaths;
+
+    // The ray paths are only used for the VTK output, which is written at
+    // write times; the same decision is taken on every processor
+    const bool recordPaths = mesh.time().writeTime();
     label maxBounceTerminations = 0;
     scalar maxBounceResidualPower = 0.0;
     scalar minAbsorptivity = GREAT;
@@ -912,7 +916,8 @@ void laserHeatSource::updateDeposition
         nearZeroAbsorptivityCount,
         maxObservedBounces,
         finishedRayIDs,
-        finishedRayPaths
+        finishedRayPaths,
+        recordPaths
     );
 
     // Move all ray particles through the mesh.
@@ -940,9 +945,14 @@ void laserHeatSource::updateDeposition
     if (Pstream::master())
     {
         rayPaths_[laserID].clear();
-        rayPaths_[laserID].setSize(nTotalRays);
+
+        if (recordPaths)
+        {
+            rayPaths_[laserID].setSize(nTotalRays);
+        }
     }
 
+    if (recordPaths)
     {
         // Gather to master
         List<labelList> allIDs(Pstream::nProcs());
