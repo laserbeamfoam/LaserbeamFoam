@@ -1,15 +1,6 @@
-IOdictionary solutionDict
-(
-    IOobject
-    (
-        "fvSolution",
-        runTime.system(),
-        runTime,
-        IOobject::MUST_READ
-    )
-);
-
-dictionary& meltingDict = solutionDict.subDict("MELTING");
+// Use the fvSolution dictionary held by the mesh, which is re-read when the
+// file is modified, rather than reading the file at every time step
+const dictionary& meltingDict = mesh.solution().subDict("MELTING");
 
 const label minTCorr(readLabel(meltingDict.lookup("minTempCorrector")));
 
