@@ -761,15 +761,19 @@ void laserHeatSource::updateDeposition
 
         // A laser with zero power deposits no energy, so there is no need to
         // seed and track its rays. Its dictionary is still read above, so that
-        // a misconfigured laser is reported even while it is off. The power
-        // comes from the same time table on every processor, so all
-        // processors skip the laser together.
+        // a misconfigured laser is reported even while it is off, and the
+        // total deposition is still reported, as it would be after tracking
+        // its rays. The power comes from the same time table on every
+        // processor, so all processors skip the laser together.
         if (currentLaserPower == 0)
         {
             if (Pstream::master())
             {
                 rayPaths_[laserI].clear();
             }
+
+            Info<< "    Total Q deposited: "
+                << fvc::domainIntegrate(deposition_).value() << endl;
 
             continue;
         }
