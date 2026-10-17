@@ -310,11 +310,14 @@ void laserHeatSource::seedRayCloud
 
     label seedCellI = -1;
 
-    // A seed outside the bounding box of this processor's points cannot lie
-    // in one of its cells, so the search below would fail for it. Skipping
-    // such seeds does not change the result: seedCellI is only updated after
-    // a successful search. The box is grown slightly to allow for the
-    // geometric tolerances of the point-in-cell tests.
+    // For a mesh of convex cells, a seed outside the bounding box of this
+    // processor's points cannot lie in one of its cells, so the search below
+    // would fail for it. Skipping such seeds does not change the result:
+    // seedCellI is only updated after a successful search. The box is grown
+    // slightly, relative to its size, to allow for the geometric tolerances
+    // of the point-in-cell tests. With strongly warped or non-convex cells, a
+    // seed accepted by a cell slightly outside this box could in principle
+    // be skipped.
     boundBox localBb(mesh.points(), false);
     localBb.inflate(1e-6);
 

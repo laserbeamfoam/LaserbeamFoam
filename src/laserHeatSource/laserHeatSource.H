@@ -236,7 +236,9 @@ public:
             const fileName& filename
         );
 
-        //- Write rayPath_ to a VTK file with the given name
+        //- Write rayPath_ to a VTK file with the given name. The ray paths
+        //  are only recorded at write times, so this is only meaningful
+        //  when called at a write time.
         void writeRayPathsToVTK();
 
         //- Write a "vtk.series" file
