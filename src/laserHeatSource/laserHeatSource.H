@@ -113,10 +113,6 @@ class laserHeatSource
         //- Global bounding box of the mesh
         boundBox globalBB_;
 
-        //- Smallest cell length scale, used to perturb the ray seeds
-        //  (cached as it only changes with the mesh; negative if unset)
-        mutable scalar minCellLengthScale_;
-
 
     // Private Member Functions
 
