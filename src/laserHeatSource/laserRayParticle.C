@@ -457,6 +457,11 @@ void Foam::laserRayParticle::hitWallPatch
         td.deposition_[cellI] += power_ / VI[cellI];
         power_ = 0.0;
     }
+    else if (cellI >= 0 && power_ > SMALL)
+    {
+        // Outside the material: the power leaves the domain with the ray
+        td.wallDiscardedPower_ += power_;
+    }
 
     path_.append(position());
     td.finishedRayIDs_.append(globalRayIndex_);
