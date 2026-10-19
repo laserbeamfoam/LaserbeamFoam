@@ -310,8 +310,24 @@ void laserHeatSource::seedRayCloud
 
     label seedCellI = -1;
 
+    // For a mesh of convex cells, a seed outside the bounding box of this
+    // processor's points cannot lie in one of its cells, so the search below
+    // would fail for it. Skipping such seeds does not change the result:
+    // seedCellI is only updated after a successful search. The box is grown
+    // slightly, relative to its size, to allow for the geometric tolerances
+    // of the point-in-cell tests. With strongly warped or non-convex cells, a
+    // seed accepted by a cell slightly outside this box could in principle
+    // be skipped.
+    boundBox localBb(mesh.points(), false);
+    localBb.inflate(1e-6);
+
     forAll(rayCoords, i)
     {
+        if (!localBb.contains(rayCoords[i]))
+        {
+            continue;
+        }
+
         const label cellI = findLocalCell
             (
                 rayCoords[i],
@@ -743,6 +759,25 @@ void laserHeatSource::updateDeposition
             dict.lookupOrDefault<scalar>("nearZeroAbsorptivityTol", SMALL)
         );
 
+        // A laser with zero power deposits no energy, so there is no need to
+        // seed and track its rays. Its dictionary is still read above, so that
+        // a misconfigured laser is reported even while it is off, and the
+        // total deposition is still reported, as it would be after tracking
+        // its rays. The power comes from the same time table on every
+        // processor, so all processors skip the laser together.
+        if (currentLaserPower == 0)
+        {
+            if (Pstream::master())
+            {
+                rayPaths_[laserI].clear();
+            }
+
+            Info<< "    Total Q deposited: "
+                << fvc::domainIntegrate(deposition_).value() << endl;
+
+            continue;
+        }
+
         updateDeposition
         (
             alphaFiltered,
@@ -884,6 +919,10 @@ void laserHeatSource::updateDeposition
 
     DynamicList<label> finishedRayIDs;
     DynamicList<DynamicList<point>> finishedRayPaths;
+
+    // The ray paths are only used for the VTK output, which is written at
+    // write times; the same decision is taken on every processor
+    const bool recordPaths = mesh.time().writeTime();
     label maxBounceTerminations = 0;
     scalar maxBounceResidualPower = 0.0;
     scalar wallDiscardedPower = 0.0;
@@ -914,7 +953,8 @@ void laserHeatSource::updateDeposition
         nearZeroAbsorptivityCount,
         maxObservedBounces,
         finishedRayIDs,
-        finishedRayPaths
+        finishedRayPaths,
+        recordPaths
     );
 
     // Move all ray particles through the mesh.
@@ -943,9 +983,14 @@ void laserHeatSource::updateDeposition
     if (Pstream::master())
     {
         rayPaths_[laserID].clear();
-        rayPaths_[laserID].setSize(nTotalRays);
+
+        if (recordPaths)
+        {
+            rayPaths_[laserID].setSize(nTotalRays);
+        }
     }
 
+    if (recordPaths)
     {
         // Gather to master
         List<labelList> allIDs(Pstream::nProcs());

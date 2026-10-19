@@ -163,7 +163,23 @@ int main(int argc, char *argv[])
                 alpha_filtered, n_filtered, electrical_resistivity
             );
 
-            mixture.correct();
+            // With isoAdvector the mixture is already corrected at the end of
+            // the alpha transport, and on the first outer corrector nothing it
+            // depends on (alpha, U) has changed since then, so a second
+            // correction gives the same values. This assumes that the
+            // correction is idempotent, which holds for the mixtures and
+            // boundary conditions used by laserbeamFoam, but not strictly with
+            // contact-angle boundary conditions (the alpha boundary gradient
+            // is updated at each call) or with a viscosity model whose
+            // correction is not idempotent
+            if
+            (
+                interfaceTrackingScheme != "isoAdvector"
+             || !pimple.firstIter()
+            )
+            {
+                mixture.correct();
+            }
 
             if (pimple.frozenFlow())
             {
@@ -176,6 +192,16 @@ int main(int argc, char *argv[])
                 mthd->solve(phi, U);
             }
             #include "TEqn.H"
+
+            // The surface tension force depends on the interface and the
+            // damper and, with a temperature-dependent surface tension model,
+            // on the temperature, none of which change in the pressure
+            // corrector loop: calculate it once here, after the energy
+            // equation, rather than in every corrector
+            const surfaceScalarField surfaceTensionForce
+            (
+                mixture.surfaceTensionForce()*fvc::interpolate(damper)
+            );
 
             // --- Pressure corrector loop
             while (pimple.correct())

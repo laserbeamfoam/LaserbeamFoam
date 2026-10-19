@@ -28,7 +28,7 @@
     surfaceScalarField phig
     (
         (
-            mixture.surfaceTensionForce()*fvc::interpolate(damper)
+            surfaceTensionForce
           +(fvc::interpolate(pVap)*fvc::snGrad(alpha1)*fvc::interpolate(damper))
           - ghf*fvc::snGrad(rho*rhok)
         )*rAUf*mesh.magSf()
@@ -87,7 +87,4 @@
     {
         rAU.clear();
     }
-
-    Num_divU = fvc::div(phi);
-
 }

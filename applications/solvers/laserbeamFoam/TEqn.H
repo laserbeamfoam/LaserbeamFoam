@@ -24,7 +24,6 @@
     do
     {
         epsilon1.storePrevIter();
-        T.storePrevIter();
         TRHS =
             LatentHeat*((fvc::ddt(rho, epsilon1) + fvc::div(rhoPhi, epsilon1)));
 
