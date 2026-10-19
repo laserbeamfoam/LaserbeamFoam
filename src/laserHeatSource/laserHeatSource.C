@@ -925,6 +925,7 @@ void laserHeatSource::updateDeposition
     const bool recordPaths = mesh.time().writeTime();
     label maxBounceTerminations = 0;
     scalar maxBounceResidualPower = 0.0;
+    scalar wallDiscardedPower = 0.0;
     scalar minAbsorptivity = GREAT;
     label nearZeroAbsorptivityCount = 0;
     label maxObservedBounces = 0;
@@ -947,6 +948,7 @@ void laserHeatSource::updateDeposition
         nearZeroAbsorptivityTol,
         maxBounceTerminations,
         maxBounceResidualPower,
+        wallDiscardedPower,
         minAbsorptivity,
         nearZeroAbsorptivityCount,
         maxObservedBounces,
@@ -964,6 +966,7 @@ void laserHeatSource::updateDeposition
 
     reduce(maxBounceTerminations, sumOp<label>());
     reduce(maxBounceResidualPower, sumOp<scalar>());
+    reduce(wallDiscardedPower, sumOp<scalar>());
     reduce(minAbsorptivity, minOp<scalar>());
     reduce(nearZeroAbsorptivityCount, sumOp<label>());
     reduce(maxObservedBounces, maxOp<label>());
@@ -1047,6 +1050,14 @@ void laserHeatSource::updateDeposition
 
     const scalar TotalQ = fvc::domainIntegrate(deposition_).value();
     Info<< "    Total Q deposited: " << TotalQ << endl;
+
+    if (wallDiscardedPower > 0)
+    {
+        Info<< "    Power discarded at walls outside the material: "
+            << wallDiscardedPower << " (fraction of current laser power "
+            << wallDiscardedPower/(mag(currentLaserPower) + VSMALL) << ")"
+            << endl;
+    }
 
     if (maxBounceTerminations > 0)
     {

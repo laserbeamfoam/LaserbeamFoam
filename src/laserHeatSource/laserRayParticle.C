@@ -433,14 +433,27 @@ void Foam::laserRayParticle::hitWallPatch
 )
 {
     // Wall boundary - absorb remaining power into the boundary cell
-    // (or simply kill the ray if the wall is outside the material)
+    // (or simply kill the ray if the wall is outside the material).
+    // The boundary cell is material if its filtered alpha is at or above the
+    // deposition cutoff, as for the bulk absorption in move(); otherwise no
+    // power is deposited, so that the gas next to a wall is not heated.
     const label cellI = cell();
 
-    if (cellI >= 0 && power_ > SMALL)
+    if
+    (
+        cellI >= 0
+     && power_ > SMALL
+     && td.alphaFiltered_[cellI] >= td.depCutoff_
+    )
     {
         const scalarField& VI = this->mesh().cellVolumes();
         td.deposition_[cellI] += power_ / VI[cellI];
         power_ = 0.0;
+    }
+    else if (cellI >= 0 && power_ > SMALL)
+    {
+        // Outside the material: the power leaves the domain with the ray
+        td.wallDiscardedPower_ += power_;
     }
 
     recordPathPoint(td);

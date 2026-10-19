@@ -161,6 +161,9 @@ public:
             //- Residual ray power handled by maxRayBounces on this rank
             scalar& maxBounceResidualPower_;
 
+            //- Ray power discarded at walls outside the material on this rank
+            scalar& wallDiscardedPower_;
+
             //- Smallest absorptivity encountered on this rank
             scalar& minAbsorptivity_;
 
@@ -200,6 +203,7 @@ public:
             const scalar nearZeroAbsorptivityTol,
             label& maxBounceTerminations,
             scalar& maxBounceResidualPower,
+            scalar& wallDiscardedPower,
             scalar& minAbsorptivity,
             label& nearZeroAbsorptivityCount,
             label& maxObservedBounces,
@@ -224,6 +228,7 @@ public:
             nearZeroAbsorptivityTol_(nearZeroAbsorptivityTol),
             maxBounceTerminations_(maxBounceTerminations),
             maxBounceResidualPower_(maxBounceResidualPower),
+            wallDiscardedPower_(wallDiscardedPower),
             minAbsorptivity_(minAbsorptivity),
             nearZeroAbsorptivityCount_(nearZeroAbsorptivityCount),
             maxObservedBounces_(maxObservedBounces),
