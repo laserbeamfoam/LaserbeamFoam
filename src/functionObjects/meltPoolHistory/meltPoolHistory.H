@@ -84,6 +84,9 @@ class meltPoolHistory
         scalar liquidMetalThreshold_;
         scalar solidificationThreshold_;
 
+        //- Name of the time the run started from, where the fields are read
+        word startTimeName_;
+
         autoPtr<volScalarField> previousLiquidFractionPtr_;
         autoPtr<volScalarField> meltHistoryPtr_;
         autoPtr<volScalarField> solidificationTimePtr_;
