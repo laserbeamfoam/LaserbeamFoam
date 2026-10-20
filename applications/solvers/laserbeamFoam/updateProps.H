@@ -96,8 +96,19 @@
 
     alpha_smoothed = fvc::average(alpha1);
 
-    LatentHeat =
-        alpha_filtered*LatentHeat1 + (1.0 - alpha_filtered)*LatentHeat2;
+    // The latent heat is per unit mass: it is mixed with the mass fraction of
+    // the metal, so that rho*LatentHeat is the latent heat of the metal in the
+    // cell
+    {
+        const volScalarField massFraction
+        (
+            alpha_filtered*rho1
+           /(alpha_filtered*rho1 + (1.0 - alpha_filtered)*rho2)
+        );
+
+        LatentHeat =
+            massFraction*LatentHeat1 + (1.0 - massFraction)*LatentHeat2;
+    }
 
     // gradepsilon1 = fvc::grad(epsilon1);
     // gradepsilon1.correctBoundaryConditions();
