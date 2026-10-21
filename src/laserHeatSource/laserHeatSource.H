@@ -236,6 +236,10 @@ public:
         //- Return true if all the lasers have zero power at time t
         bool allOff(const scalar t) const;
 
+        //- Return the earliest time from t at which a laser has a non-zero
+        //  power (t itself if one is on at t), or GREAT if there is none
+        scalar nextOnTime(const scalar t) const;
+
         //- Set the deposition and the ray fields to zero and clear the ray
         //  paths
         void resetDeposition();

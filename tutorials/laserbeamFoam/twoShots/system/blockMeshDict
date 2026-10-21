@@ -1,0 +1,72 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Box of 200 x 150 x 200 um, 5 um cells; y is the build direction
+convertToMeters 1e-6;
+
+vertices
+(
+    (0   0   0)
+    (200 0   0)
+    (200 150 0)
+    (0   150 0)
+    (0   0   200)
+    (200 0   200)
+    (200 150 200)
+    (0   150 200)
+);
+
+blocks
+(
+    hex (0 1 2 3 4 5 6 7) (40 30 40) simpleGrading (1 1 1)
+);
+
+boundary
+(
+    back
+    {
+        type wall;
+        faces ((0 4 7 3));
+    }
+    front
+    {
+        type wall;
+        faces ((1 2 6 5));
+    }
+    leftWall
+    {
+        type wall;
+        faces ((0 3 2 1));
+    }
+    rightWall
+    {
+        type wall;
+        faces ((4 5 6 7));
+    }
+    topWall
+    {
+        type patch;
+        faces ((3 7 6 2));
+    }
+    bottomWall
+    {
+        type patch;
+        faces ((1 5 4 0));
+    }
+);
+
+// ************************************************************************* //
