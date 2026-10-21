@@ -27,6 +27,11 @@ Class
 Description
     Tracks melt-pool history fields for laserbeamFoam-style simulations.
 
+    The fields meltHistory, solidificationTime and gradTSol are written at
+    every write time of the solver (including writeNow), whatever the
+    writeControl of the function object, and read from the start time, so
+    that a run continued from any written time keeps its history.
+
 Usage
     Minimal example by using \c system/controlDict.functions:
     \verbatim
@@ -76,17 +81,37 @@ class meltPoolHistory
 {
     // Private Data
 
+        //- Name of the temperature field
         word temperatureName_;
+
+        //- Name of the liquid fraction field
         word liquidFractionName_;
+
+        //- Name of the metal volume fraction field
         word alphaMetalName_;
 
+        //- Metal volume fraction above which a cell is metal
         scalar metalThreshold_;
+
+        //- Liquid fraction above which a metal cell is liquid
         scalar liquidMetalThreshold_;
+
+        //- Liquid fraction below which a cell is solid
         scalar solidificationThreshold_;
 
+        //- Name of the time the run started from, where the fields are read
+        word startTimeName_;
+
+        //- Liquid fraction at the previous time step
         autoPtr<volScalarField> previousLiquidFractionPtr_;
+
+        //- Number of time steps each metal cell has been liquid
         autoPtr<volScalarField> meltHistoryPtr_;
+
+        //- Time of the last solidification of each cell (-1 if none)
         autoPtr<volScalarField> solidificationTimePtr_;
+
+        //- Temperature gradient at the last solidification of each cell
         autoPtr<volVectorField> gradTSolPtr_;
 
 
