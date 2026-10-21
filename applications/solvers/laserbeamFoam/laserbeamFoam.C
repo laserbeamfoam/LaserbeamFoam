@@ -73,10 +73,12 @@ int main(int argc, char *argv[])
 {
     argList::addNote
     (
-        "Solver for two incompressible, isothermal immiscible fluids"
-        " using VOF phase-fraction based interface capturing.\n"
+        "Solver for two incompressible, immiscible fluids with heat"
+        " transfer, using VOF phase-fraction based interface capturing,"
+        " and a ray-tracing laser heat source.\n"
         "With optional mesh motion and mesh topology changes including"
-        " adaptive re-meshing."
+        " adaptive re-meshing, and an optional thermal-only mode for long"
+        " laser pauses."
     );
 
     #include "postProcess.H"
@@ -91,6 +93,7 @@ int main(int argc, char *argv[])
     #include "MULES/createAlphaFluxes.H"
     #include "initCorrectPhi.H"
     #include "createUfIfPresent.H"
+    #include "longPause/createLongPauseControls.H"
 
     if (interfaceTrackingScheme == "MULES")
     {
@@ -109,7 +112,15 @@ int main(int argc, char *argv[])
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     Info<< "\nStarting time loop\n" << endl;
 
-    while (runTime.run())
+    // Set when the end time is reached in the thermal mode of longPause
+    bool endReached = false;
+
+    if (longPauseActive)
+    {
+        #include "longPause/longPause.H"
+    }
+
+    while (!endReached && runTime.run())
     {
         #include "readControls.H"
         #include "readDyMControls.H"
@@ -230,6 +241,11 @@ int main(int argc, char *argv[])
         }
 
         runTime.printExecutionTime(Info);
+
+        if (longPauseActive)
+        {
+            #include "longPause/longPause.H"
+        }
     }
 
     Info<< "End\n" << endl;

@@ -1082,6 +1082,121 @@ void laserHeatSource::updateDeposition
 }
 
 
+bool laserHeatSource::allOff(const scalar t) const
+{
+    forAll(timeVsLaserPower_, laserI)
+    {
+        if (timeVsLaserPower_[laserI](t) > 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+scalar laserHeatSource::nextOnTime(const scalar t) const
+{
+    // Earliest time from tl (in the range of the table, or before it) at
+    // which the piecewise-linear power of the table is non-zero, or GREAT;
+    // with clampAfter, the last value is kept after the end of the table
+    auto firstOn = []
+    (
+        const interpolationTable<scalar>& table,
+        const scalar tl,
+        const bool clampAfter
+    )
+    {
+        if (tl < table.first().first() && table.first().second() > 0)
+        {
+            return tl;
+        }
+
+        for (label i = 0; i < table.size() - 1; ++i)
+        {
+            if
+            (
+                table[i + 1].first() > tl
+             && max(table[i].second(), table[i + 1].second()) > 0
+            )
+            {
+                return max(tl, table[i].first());
+            }
+        }
+
+        if (clampAfter && table.last().second() > 0)
+        {
+            return max(tl, table.last().first());
+        }
+
+        return GREAT;
+    };
+
+    scalar tOn = GREAT;
+
+    forAll(timeVsLaserPower_, laserI)
+    {
+        const interpolationTable<scalar>& table = timeVsLaserPower_[laserI];
+
+        if (table.empty())
+        {
+            continue;
+        }
+
+        const bool repeat =
+            laserDicts_[laserI].subDict("timeVsLaserPower")
+           .getOrDefault<word>("outOfBounds", "warn") == "repeat";
+
+        const scalar t0 = table.first().first();
+        const scalar period = table.last().first() - t0;
+
+        if (repeat && period > SMALL)
+        {
+            // Time within the table period that contains t; if no laser is
+            // on in the rest of this period, look from the start of the next
+            scalar tl = t0 + std::fmod(t - t0, period);
+            if (tl < t0)
+            {
+                tl += period;
+            }
+
+            const scalar inThisPeriod = firstOn(table, tl, false);
+
+            if (inThisPeriod < GREAT)
+            {
+                tOn = min(tOn, t + inThisPeriod - tl);
+            }
+            else
+            {
+                const scalar inNextPeriod = firstOn(table, t0, false);
+
+                if (inNextPeriod < GREAT)
+                {
+                    tOn = min
+                    (
+                        tOn, t + (t0 + period - tl) + (inNextPeriod - t0)
+                    );
+                }
+            }
+        }
+        else
+        {
+            tOn = min(tOn, firstOn(table, t, true));
+        }
+    }
+
+    return tOn;
+}
+
+
+void laserHeatSource::resetDeposition()
+{
+    deposition_ = dimensionedScalar(deposition_.dimensions(), Zero);
+    deposition_.correctBoundaryConditions();
+}
+
+
 void laserHeatSource::writeRayPathsToVTK()
 {
     const Time& runTime = deposition_.time();

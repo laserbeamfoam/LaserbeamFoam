@@ -229,6 +229,16 @@ public:
             return globalBB_;
         }
 
+        //- Return true if all the lasers have zero power at time t
+        bool allOff(const scalar t) const;
+
+        //- Return the earliest time from t at which a laser has a non-zero
+        //  power (t itself if one is on at t), or GREAT if there is none
+        scalar nextOnTime(const scalar t) const;
+
+        //- Set the deposition field to zero
+        void resetDeposition();
+
         //- Write the given ray paths to a VTK file with the given name
         void writeRayPathsToVTK
         (
