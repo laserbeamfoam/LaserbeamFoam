@@ -34,6 +34,14 @@
     beta.correctBoundaryConditions();  // ADDED
     rhok.correctBoundaryConditions();  // ADDED
 
+    // Mass fraction of the metal, for cp (updateKappaCp.H) and LatentHeat.
+    // LatentHeat is specific (per unit mass), so it is mixed with the mass
+    // fraction so that rho*LatentHeat is volume-additive
+    {
+        const volScalarField a(max(min(alpha1, scalar(1)), scalar(0)));
+        massFraction = a*rho1/(a*rho1 + (1.0 - a)*rho2);
+    }
+
     #include "updateKappaCp.H"
 
     const vectorField& CI = mesh.C();
@@ -96,19 +104,8 @@
 
     alpha_smoothed = fvc::average(alpha1);
 
-    // The latent heat is per unit mass: it is mixed with the mass fraction of
-    // the metal, so that rho*LatentHeat is the latent heat of the metal in the
-    // cell
-    {
-        const volScalarField massFraction
-        (
-            alpha_filtered*rho1
-           /(alpha_filtered*rho1 + (1.0 - alpha_filtered)*rho2)
-        );
-
-        LatentHeat =
-            massFraction*LatentHeat1 + (1.0 - massFraction)*LatentHeat2;
-    }
+    LatentHeat =
+        massFraction*LatentHeat1 + (1.0 - massFraction)*LatentHeat2;
 
     // gradepsilon1 = fvc::grad(epsilon1);
     // gradepsilon1.correctBoundaryConditions();
