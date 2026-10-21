@@ -53,7 +53,10 @@
             }
         }
         deltaT = min(deltaT, thermalMaxDeltaT);
-        deltaT = min(deltaT, runTime.endTime().value() - t);
+
+        // Equal steps to the end time, so that the last one ends on it
+        const scalar remaining = runTime.endTime().value() - t;
+        deltaT = remaining/std::ceil(remaining/deltaT);
 
         // Stop leadTime before the next laser is turned on
         const scalar tResume = laser.nextOnTime(t) - thermalLeadTime;
