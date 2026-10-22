@@ -233,6 +233,18 @@ int main(int argc, char *argv[])
 
         runTime.write();
 
+        // Write the final time also when it is not a write time, while the
+        // fields of the function objects (e.g. meltPoolHistory) still exist
+        if
+        (
+            runTime.value()
+          > runTime.endTime().value() - 0.5*runTime.deltaTValue()
+         && !runTime.writeTime()
+        )
+        {
+            runTime.writeNow();
+        }
+
         // Write ray paths to VTK files
         if (runTime.outputTime())
         {
