@@ -86,6 +86,20 @@
             << " K, min/max(T) = " << gMin(T) << ", " << gMax(T) << endl;
 
         runTime.write();
+
+        // Write the final time also when it is not a write time (not at the
+        // return to the full mode, which may be close to the end time)
+        if
+        (
+            !resumeFull
+         && runTime.value()
+          > runTime.endTime().value() - 0.5*runTime.deltaTValue()
+         && !runTime.writeTime()
+        )
+        {
+            runTime.writeNow();
+        }
+
         runTime.printExecutionTime(Info);
     }
 
