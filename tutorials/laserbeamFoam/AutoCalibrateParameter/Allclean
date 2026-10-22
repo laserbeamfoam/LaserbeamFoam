@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Source tutorial clean functions
+. $WM_PROJECT_DIR/bin/tools/CleanFunctions
+
+cleanCase
+
+echo "Removing 0 and VTKs"
+rm -rf 0 VTKs
