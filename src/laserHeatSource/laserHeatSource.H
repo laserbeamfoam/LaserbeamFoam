@@ -113,6 +113,10 @@ class laserHeatSource
         //- Global bounding box of the mesh
         boundBox globalBB_;
 
+        //- True while the deposition and the ray fields have been reset and
+        //  no ray has been tracked since
+        bool depositionReset_;
+
 
     // Private Member Functions
 
@@ -228,6 +232,13 @@ public:
         {
             return globalBB_;
         }
+
+        //- Return true if all the lasers have zero power at time t
+        bool allOff(const scalar t) const;
+
+        //- Set the deposition and the ray fields to zero and clear the ray
+        //  paths
+        void resetDeposition();
 
         //- Write the given ray paths to a VTK file with the given name
         void writeRayPathsToVTK
