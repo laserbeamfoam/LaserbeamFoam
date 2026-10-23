@@ -847,3 +847,9 @@ mesh.setFluxRequired(alpha1.name());
 
 #include "isoAdvector/createPorosity.H"
 isoAdvection advector(alpha1, phi, U);
+
+// Assembly of the energy equation (see checkTEqnAssembly.H)
+bool TEqnAssembleOnce = false;
+bool TEqnAssemblyChecked = false;
+bool TEqnNonOrthCorrectionZero = false;
+#include "checkTEqnAssembly.H"
