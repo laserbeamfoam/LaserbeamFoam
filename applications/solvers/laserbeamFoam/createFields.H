@@ -323,19 +323,6 @@ volScalarField DC
     dimensionedScalar("DC", dimensionSet(1,-3,-1,0,0), 1.0e14)
 );
 
-volScalarField metalaverage
-(
-    IOobject
-    (
-        "metalaverage",
-        runTime.timeName(),
-        mesh,
-        IOobject::READ_IF_PRESENT,
-        IOobject::NO_WRITE
-    ),
-    fvc::average(alpha1)
-);
-
 volScalarField epsilon1
 (
     IOobject
@@ -589,20 +576,6 @@ volScalarField alpha_filtered
     ),
     mesh,
     dimensionedScalar("alpha_filtered", dimensionSet(0, 0, 0, -0, 0), 0.0)
-);
-
-volScalarField alpha_smoothed
-(
-    IOobject
-    (
-        "alpha_smoothed",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::AUTO_WRITE
-    ),
-    mesh,
-    dimensionedScalar("alpha_smoothed", dimensionSet(0, 0, 0, -0, 0), 0.0)
 );
 
 volScalarField e1temp

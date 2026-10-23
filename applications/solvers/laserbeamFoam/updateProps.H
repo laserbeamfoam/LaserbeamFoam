@@ -37,8 +37,6 @@
     #include "updateKappaCp.H"
 
     const vectorField& CI = mesh.C();
-    metalaverage = fvc::average(alpha1);
-    metalaverage.correctBoundaryConditions();  // ADDED
 
     alpha_filtered = volScalarField("alpha_filtered", alpha1);
     alpha_filtered.correctBoundaryConditions();
@@ -93,8 +91,6 @@
     }
 
     alpha_filtered.correctBoundaryConditions();
-
-    alpha_smoothed = fvc::average(alpha1);
 
     LatentHeat =
         alpha_filtered*LatentHeat1 + (1.0 - alpha_filtered)*LatentHeat2;

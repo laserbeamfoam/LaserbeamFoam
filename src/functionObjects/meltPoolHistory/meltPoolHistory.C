@@ -142,7 +142,18 @@ void Foam::functionObjects::meltPoolHistory::update()
     volScalarField& solidificationTime = solidificationTimePtr_();
     volVectorField& gradTSol = gradTSolPtr_();
 
-    tmp<volVectorField> tgradT(fvc::grad(T));
+    // laserbeamFoam registers the gradient of T that it calculates after the
+    // energy equation, which is current when the function object executes:
+    // use it when it is there rather than calculating it again
+    tmp<volVectorField> tgradT;
+    if (mesh_.foundObject<volVectorField>("gradT"))
+    {
+        tgradT.cref(mesh_.lookupObject<volVectorField>("gradT"));
+    }
+    else
+    {
+        tgradT = fvc::grad(T);
+    }
     const volVectorField& gradT = tgradT();
 
     forAll(liquidFraction, cellI)
