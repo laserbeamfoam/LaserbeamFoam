@@ -102,6 +102,9 @@
     // gradepsilon1 = fvc::grad(epsilon1);
     // gradepsilon1.correctBoundaryConditions();
 
+    // n_filtered is only used by the laser: calculate it only while a laser
+    // is on
+    if (!laser.allOff(runTime.value()))
     {
         const volVectorField gradAlphaFiltered(fvc::grad(alpha_filtered));
         n_filtered = gradAlphaFiltered/(mag(gradAlphaFiltered) + deltaN);
