@@ -14,6 +14,21 @@
 
     em = (epsilon1*emL) + ((1.0 - epsilon1)*emS);
 
+    #include "checkTEqnAssembly.H"
+
+    // The temperature-independent terms, assembled once per time step when
+    // their coefficients do not depend on the temperature of the current
+    // correction (see checkTEqnAssembly.H)
+    tmp<fvScalarMatrix> tTEqnBase;
+    if (TEqnAssembleOnce)
+    {
+        tTEqnBase =
+            fvm::ddt(rhoCp,T)
+          + fvm::div(rhophicp, T)
+          - fvm::Sp(fvc::ddt(rhoCp) + fvc::div(rhophicp), T)
+          - fvm::laplacian(kappa, T);
+    }
+
     // const volTensorField gradU(fvc::grad(U));
     // volTensorField tau
     // (
@@ -63,14 +78,25 @@
       ? mthd->Joulesource()
       : zeroJoulesource;
 
-        fvScalarMatrix TEqn
+        tmp<fvScalarMatrix> tTEqn;
+        if (TEqnAssembleOnce)
+        {
+            tTEqn = tmp<fvScalarMatrix>::New(tTEqnBase());
+        }
+        else
+        {
+            tTEqn =
+                fvm::ddt(rhoCp,T)
+              + fvm::div(rhophicp, T)
+              - fvm::Sp(fvc::ddt(rhoCp) + fvc::div(rhophicp), T)
+              - fvm::laplacian(kappa, T);
+        }
+        fvScalarMatrix& TEqn = tTEqn.ref();
+
+        TEqn -= fvm::Sp(Qrad_inpl*gradAlphaDamper, T);
+
+        TEqn -=
         (
-            fvm::ddt(rhoCp,T)
-          + fvm::div(rhophicp, T)
-          - fvm::Sp(fvc::ddt(rhoCp) + fvc::div(rhophicp), T)
-          - fvm::laplacian(kappa, T)
-          - fvm::Sp(Qrad_inpl*gradAlphaDamper, T)
-          ==
             laser.deposition()
           + Joulesource
           + (Qrad_expl - Qv)*gradAlphaDamper
