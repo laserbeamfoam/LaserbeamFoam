@@ -195,12 +195,16 @@ int main(int argc, char *argv[])
 
             // The surface tension force depends on the interface and the
             // damper and, with a temperature-dependent surface tension model,
-            // on the temperature, none of which change in the pressure
-            // corrector loop: calculate it once here, after the energy
-            // equation, rather than in every corrector
-            const surfaceScalarField surfaceTensionForce
+            // on the temperature, and the recoil pressure and buoyancy terms
+            // on the temperature, the interface and the density, none of
+            // which change in the pressure corrector loop: calculate their
+            // sum once here, after the energy equation, rather than in every
+            // corrector
+            const surfaceScalarField surfaceForces
             (
                 mixture.surfaceTensionForce()*fvc::interpolate(damper)
+              + (fvc::interpolate(pVap)*fvc::snGrad(alpha1)*fvc::interpolate(damper))
+              - ghf*fvc::snGrad(rho*rhok)
             );
 
             // --- Pressure corrector loop

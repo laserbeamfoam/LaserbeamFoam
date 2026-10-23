@@ -25,14 +25,7 @@
         fvc::makeAbsolute(phiHbyA, U);
     }
 
-    surfaceScalarField phig
-    (
-        (
-            surfaceTensionForce
-          +(fvc::interpolate(pVap)*fvc::snGrad(alpha1)*fvc::interpolate(damper))
-          - ghf*fvc::snGrad(rho*rhok)
-        )*rAUf*mesh.magSf()
-    );
+    surfaceScalarField phig(surfaceForces*rAUf*mesh.magSf());
 
     phiHbyA += phig;
 
