@@ -21,6 +21,65 @@
     //   - ((2.0/3.0)*mixture.mu()*(fvc::div(phi))*I)
     // );
 
+    // The evaporation and radiation sources and the thermal damper enter the
+    // equation multiplied by mag(gradAlpha), which is zero away from the
+    // interface: they are evaluated, with the same expressions, only in the
+    // cells where mag(gradAlpha) is not zero, and are zero elsewhere
+    const scalarField magGradAlpha(mag(gradAlpha.primitiveField()));
+
+    DynamicList<label> interfaceCells(magGradAlpha.size()/8);
+    forAll(magGradAlpha, celli)
+    {
+        if (magGradAlpha[celli] > 0)
+        {
+            interfaceCells.append(celli);
+        }
+    }
+
+    Qv = dimensionedScalar(Qv.dimensions(), Zero);
+
+    volScalarField Qrad_expl
+    (
+        IOobject
+        (
+            "Qrad_expl",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedScalar(SB.dimensions()*pow4(dimTemperature), Zero)
+    );
+
+    volScalarField Qrad_inpl
+    (
+        IOobject
+        (
+            "Qrad_inpl",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedScalar(SB.dimensions()*pow3(dimTemperature), Zero)
+    );
+
+    if (damperSwitch)
+    {
+        thermalDamper = dimensionedScalar(thermalDamper.dimensions(), Zero);
+    }
+
+    // Constants of the expressions, combined in the same order as before
+    const scalar QvCoeff = (0.82*LatentHeatVap*Mm*p0).value();
+    const scalar QvExpCoeff = (LatentHeatVap*Mm).value();
+    const scalar QvRootCoeff = (2*M_PI*Mm*R).value();
+    const scalar TRef4 = Foam::pow(TRef, 4).value();
+    const scalar TvapValue = Tvap.value();
+    const scalar RValue = R.value();
+    const scalar SBValue = SB.value();
+
     do
     {
         epsilon1.storePrevIter();
@@ -29,23 +88,41 @@
 
         TRHS.correctBoundaryConditions();
 
-        Qv =
-            0.82*LatentHeatVap*Mm*p0
-           *Foam::exp(LatentHeatVap*Mm*((T - Tvap)/(R*T*Tvap)))
-           /Foam::pow(2*M_PI*Mm*R*T,0.5);
+        {
+            scalarField& QvI = Qv.primitiveFieldRef();
+            scalarField& Qrad_explI = Qrad_expl.primitiveFieldRef();
+            scalarField& Qrad_inplI = Qrad_inpl.primitiveFieldRef();
+            const scalarField& TI = T;
+            const scalarField& emI = em;
+
+            forAll(interfaceCells, i)
+            {
+                const label celli = interfaceCells[i];
+                const scalar Tc = TI[celli];
+
+                QvI[celli] =
+                    QvCoeff
+                   *Foam::exp(QvExpCoeff*((Tc - TvapValue)/((RValue*Tc)*TvapValue)))
+                   /Foam::pow(QvRootCoeff*Tc, 0.5);
+
+                Qrad_explI[celli] =
+                    (SBValue*emI[celli])*(TRef4 + 3.0*Foam::pow(Tc, 4.0));
+
+                Qrad_inplI[celli] =
+                    -((4*SBValue)*emI[celli]*Foam::pow(Tc, 3.0));
+            }
+        }
 
         Qv.correctBoundaryConditions();
-
-        const volScalarField Qrad_expl (SB*em*(Foam::pow(TRef,4) + 3*Foam::pow(T,4)));
-        const volScalarField Qrad_inpl (-(4*SB*em*Foam::pow(T,3)));
 
         if (damperSwitch)
         {
             scalarField& thermalDamperI = thermalDamper;
             const scalarField& rhoCpI = rhoCp;
             const scalarField& TI = T;
-            forAll(thermalDamperI, celli)
+            forAll(interfaceCells, i)
             {
+                const label celli = interfaceCells[i];
                 thermalDamperI[celli] =
                     2.0*rhoCpI[celli]
                    /(
