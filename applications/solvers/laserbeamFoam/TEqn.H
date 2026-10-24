@@ -159,7 +159,12 @@
         if (newtonLatentHeat)
         {
             // Liquid fraction from the new temperature: the Newton update in
-            // the cells of the mushy range, the equilibrium value elsewhere
+            // the cells of the mushy range. A solid or liquid cell keeps its
+            // liquid fraction; if its new temperature has entered the mushy
+            // range, it is classified as mushy in the next correction and
+            // linearised from the edge of the range (Tcorr = TSolidus or
+            // TLiquidus), rather than set to the equilibrium value of a
+            // temperature that may have overshot the whole range
             scalarField& epsilon1I = epsilon1.primitiveFieldRef();
             const scalarField& latentCoeffI = latentCoeff;
             const scalarField& TcorrI = Tcorr;
@@ -176,12 +181,13 @@
                     continue;
                 }
 
-                const scalar eps =
-                    latentCoeffI[celli] > 0
-                  ? epsilon1I[celli] + (TI[celli] - TcorrI[celli])/range
-                  : (TI[celli] - TSolidusI[celli])/range;
+                if (latentCoeffI[celli] > 0)
+                {
+                    const scalar eps =
+                        epsilon1I[celli] + (TI[celli] - TcorrI[celli])/range;
 
-                epsilon1I[celli] = max(min(eps, scalar(1)), scalar(0));
+                    epsilon1I[celli] = max(min(eps, scalar(1)), scalar(0));
+                }
             }
         }
         else
