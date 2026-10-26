@@ -204,9 +204,10 @@ int main(int argc, char *argv[])
             );
 
             // rAU, its face interpolate and the ddtCorr flux depend on the
-            // momentum matrix and on the fields of the previous time step,
-            // none of which change in the pressure corrector loop: calculate
-            // them once here rather than in every corrector
+            // momentum matrix and on the fields of the previous time step
+            // (for the ddt schemes allowed by checkDdtCorrScheme.H), none of
+            // which change in the pressure corrector loop: calculate them
+            // once here rather than in every corrector
             if (correctPhi)
             {
                 rAU.ref() = 1.0/UEqn.A();
@@ -217,6 +218,8 @@ int main(int argc, char *argv[])
             }
 
             const surfaceScalarField rAUf("rAUf", fvc::interpolate(rAU()));
+
+            #include "checkDdtCorrScheme.H"
 
             const surfaceScalarField phiDdtCorr
             (
