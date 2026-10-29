@@ -30,7 +30,11 @@ const word latentHeatMethod
 (
     meltingDict.getOrDefault<word>("latentHeatMethod", "apparentCapacity")
 );
-if (latentHeatMethod != "sourceBased" && latentHeatMethod != "apparentCapacity")
+if
+(
+    latentHeatMethod != "sourceBased"
+ && latentHeatMethod != "apparentCapacity"
+)
 {
     FatalIOErrorInFunction(meltingDict)
         << "latentHeatMethod must be sourceBased or apparentCapacity, not "

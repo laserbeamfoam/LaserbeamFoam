@@ -31,23 +31,51 @@
     // with sourceBased
     const bool newtonLatentHeat = (latentHeatMethod == "apparentCapacity");
 
-    volScalarField latentCoeff
-    (
-        IOobject
+    // The coefficient of the linearised latent heat, only with
+    // apparentCapacity
+    autoPtr<volScalarField> latentCoeffPtr;
+
+    if (newtonLatentHeat)
+    {
+        latentCoeffPtr.reset
         (
-            "latentCoeff",
-            runTime.timeName(),
-            mesh,
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        mesh,
-        dimensionedScalar
-        (
-            rho.dimensions()*LatentHeat.dimensions()/dimTemperature/dimTime,
-            Zero
-        )
-    );
+            new volScalarField
+            (
+                IOobject
+                (
+                    "latentCoeff",
+                    runTime.timeName(),
+                    mesh,
+                    IOobject::NO_READ,
+                    IOobject::NO_WRITE
+                ),
+                mesh,
+                dimensionedScalar
+                (
+                    rho.dimensions()*LatentHeat.dimensions()
+                   /dimTemperature/dimTime,
+                    Zero
+                )
+            )
+        );
+    }
+
+    // Whether the latent heat of a cell is linearised, from its liquid
+    // fraction and temperature: a cell in the mushy range, or a solid or
+    // liquid cell whose temperature has entered the range
+    const auto inMushyRange = [&](const label celli)
+    {
+        const scalar eps = epsilon1[celli];
+
+        return
+            TLiquidus[celli] - TSolidus[celli] > SMALL
+         && LatentHeat[celli] > SMALL
+         && (
+                (eps > 0 && eps < 1)
+             || (eps <= 0 && T[celli] > TSolidus[celli])
+             || (eps >= 1 && T[celli] < TLiquidus[celli])
+            );
+    };
 
     do
     {
@@ -58,9 +86,7 @@
             // The cells in the mushy range, from the liquid fraction and the
             // temperature of the previous correction (a cell that leaves the
             // range is treated as solid or liquid in the next correction)
-            scalarField& latentCoeffI = latentCoeff.primitiveFieldRef();
-            const scalarField& TI = T;
-            const scalarField& epsilon1I = epsilon1;
+            scalarField& latentCoeffI = latentCoeffPtr->primitiveFieldRef();
             const scalarField& TSolidusI = TSolidus;
             const scalarField& TLiquidusI = TLiquidus;
             const scalarField& rhoI = rho;
@@ -70,19 +96,11 @@
             forAll(latentCoeffI, celli)
             {
                 const scalar range = TLiquidusI[celli] - TSolidusI[celli];
-                const scalar eps = epsilon1I[celli];
-
-                const bool mushy =
-                    range > SMALL
-                 && LatentHeatI[celli] > SMALL
-                 && (
-                        (eps > 0 && eps < 1)
-                     || (eps <= 0 && TI[celli] > TSolidusI[celli])
-                     || (eps >= 1 && TI[celli] < TLiquidusI[celli])
-                    );
 
                 latentCoeffI[celli] =
-                    mushy ? rhoI[celli]*LatentHeatI[celli]/range*rDeltaT : 0;
+                    inMushyRange(celli)
+                  ? rhoI[celli]*LatentHeatI[celli]/range*rDeltaT
+                  : 0;
             }
 
             Tcorr = (TLiquidus - TSolidus)*epsilon1 + TSolidus;
@@ -144,6 +162,7 @@
         if (newtonLatentHeat)
         {
             // rho*L/(TLiquidus - TSolidus)*(T - Tcorr)/deltaT: implicit in T
+            const volScalarField& latentCoeff = latentCoeffPtr();
             TEqn += fvm::Sp(latentCoeff, T);
             TEqn -= latentCoeff*Tcorr;
         }
@@ -166,7 +185,7 @@
             // TLiquidus), rather than set to the equilibrium value of a
             // temperature that may have overshot the whole range
             scalarField& epsilon1I = epsilon1.primitiveFieldRef();
-            const scalarField& latentCoeffI = latentCoeff;
+            const scalarField& latentCoeffI = latentCoeffPtr();
             const scalarField& TcorrI = Tcorr;
             const scalarField& TI = T;
             const scalarField& TSolidusI = TSolidus;
