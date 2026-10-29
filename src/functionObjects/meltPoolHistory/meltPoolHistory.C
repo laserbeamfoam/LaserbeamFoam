@@ -144,9 +144,14 @@ void Foam::functionObjects::meltPoolHistory::update()
 
     // laserbeamFoam registers the gradient of T that it calculates after the
     // energy equation, which is current when the function object executes:
-    // use it when it is there rather than calculating it again
+    // use it when the temperature field is T and it is there, rather than
+    // calculating it again
     tmp<volVectorField> tgradT;
-    if (mesh_.foundObject<volVectorField>("gradT"))
+    if
+    (
+        temperatureName_ == "T"
+     && mesh_.foundObject<volVectorField>("gradT")
+    )
     {
         tgradT.cref(mesh_.lookupObject<volVectorField>("gradT"));
     }
