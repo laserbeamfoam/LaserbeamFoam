@@ -1,0 +1,22 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+runApplication blockMesh
+runApplication setFields
+if [ "$1" = parallel ]
+then
+    # Run in parallel (system/decomposeParDict)
+    runApplication decomposePar
+    runParallel $(getApplication)
+    runApplication reconstructPar
+else
+    # Run in serial
+    runApplication $(getApplication)
+fi
+
+#------------------------------------------------------------------------------
