@@ -203,7 +203,8 @@ int main(int argc, char *argv[])
             const surfaceScalarField surfaceForces
             (
                 mixture.surfaceTensionForce()*fvc::interpolate(damper)
-              + (fvc::interpolate(pVap)*fvc::snGrad(alpha1)*fvc::interpolate(damper))
+              + fvc::interpolate(pVap)*fvc::snGrad(alpha1)
+               *fvc::interpolate(damper)
               - ghf*fvc::snGrad(rho*rhok)
             );
 

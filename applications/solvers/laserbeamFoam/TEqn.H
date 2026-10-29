@@ -102,7 +102,10 @@
 
                 QvI[celli] =
                     QvCoeff
-                   *Foam::exp(QvExpCoeff*((Tc - TvapValue)/((RValue*Tc)*TvapValue)))
+                   *Foam::exp
+                    (
+                        QvExpCoeff*((Tc - TvapValue)/((RValue*Tc)*TvapValue))
+                    )
                    /Foam::pow(QvRootCoeff*Tc, 0.5);
 
                 Qrad_explI[celli] =
