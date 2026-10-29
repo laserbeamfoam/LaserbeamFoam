@@ -235,6 +235,36 @@
               - epsilon1.prevIter().primitiveField()
             );
 
+        if (newtonLatentHeat)
+        {
+            // A solid or liquid cell whose new temperature has entered the
+            // mushy range keeps its liquid fraction until the next correction:
+            // its residual is how far its temperature has entered the range,
+            // so that the loop does not stop before its latent heat is taken
+            const scalarField& latentCoeffI = latentCoeffPtr();
+            const scalarField& epsilon1I = epsilon1;
+            const scalarField& TI = T;
+            const scalarField& TSolidusI = TSolidus;
+            const scalarField& TLiquidusI = TLiquidus;
+
+            forAll(residual, celli)
+            {
+                if (latentCoeffI[celli] <= 0 && inMushyRange(celli))
+                {
+                    const scalar range = TLiquidusI[celli] - TSolidusI[celli];
+
+                    residual[celli] =
+                        min
+                        (
+                            epsilon1I[celli] <= 0
+                          ? (TI[celli] - TSolidusI[celli])/range
+                          : (TLiquidusI[celli] - TI[celli])/range,
+                            scalar(1)
+                        );
+                }
+            }
+        }
+
         maxResidual = gMax(residual);
 
         meanResidual = gSum(residual*mesh.V())/gSum(mesh.V().field());
