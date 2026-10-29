@@ -87,6 +87,9 @@ MELTING
     minTempCorrector 1;
     maxTempCorrector 20;
     epsilonTolerance 1e-6;
+    // The default latentHeatMethod is apparentCapacity; the previous method,
+    // the only one that uses epsilonRelaxation, is selected with
+    // latentHeatMethod sourceBased;
     epsilonRelaxation 0.9;
     
     damperSwitch true;
