@@ -38,6 +38,11 @@ divSchemes
 
     div(rhoPhi,epsilon1)	Gauss linear;//Gauss vanLeer01;
     div(rhoCvPhi,T)  Gauss upwind;
+
+    div((oneoversigma*grad(H).T()))             Gauss linear;
+    div((interpolate(magperm)*phiH),U)          Gauss linear;
+    div((interpolate(magperm)*phi),H)           Gauss linear;
+    div(((1|eleccond)*grad(H).T()))             Gauss linear;
 }
 
 laplacianSchemes
@@ -55,5 +60,12 @@ snGradSchemes
     default         corrected;
 }
 
+fluxRequired
+{
+    default         no;
+    p_rgh;
+    pH;             // required
+    "alphaRho.*";
+}
 
 // ************************************************************************* //
