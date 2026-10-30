@@ -7,6 +7,7 @@
     TSolidus *= 0.0;
     TLiquidus *= 0.0;
     LatentHeat *= 0.0;
+    rhoLatentHeat *= 0.0;   // sum_cond alpha_i*rho_i*L_i [J/m^3], see createFields.H
 
     // electrical resistivity of condensed mixture/
     electrical_resistivity *= 0.0;
@@ -85,12 +86,18 @@
         );
 
 
-        // Melt properties are a condensed-phase quantity. 
+        // Melt properties are a condensed-phase quantity.
         if (phase1.isCondensed())
         {
             TSolidus   += alpha1*phaseTSolidus;
             TLiquidus  += alpha1*phaseTLiquidus;
             LatentHeat += alpha1*phaseLH;
+
+            // L is per unit mass, so the volume-additive latent heat is
+            // alpha*rho*L (mass-fraction weighting). This is the field the
+            // energy equation uses; LatentHeat above is kept as the
+            // volume-weighted average for output/restart compatibility only.
+            rhoLatentHeat += alpha1*phase1.thermo().rho()*phaseLH;
         }
 
         if (mthd.valid())
@@ -152,6 +159,7 @@
     }
 
     LatentHeat.correctBoundaryConditions();
+    rhoLatentHeat.correctBoundaryConditions();
     TLiquidus.correctBoundaryConditions();
     TSolidus.correctBoundaryConditions();
 
