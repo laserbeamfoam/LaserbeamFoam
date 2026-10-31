@@ -49,8 +49,8 @@
                 thermalDamperI[celli] =
                     2.0*rhoCpI[celli]
                    /(
-                       (rho1.value()*polycp_m.value(TI[celli]))
-                     + (rho2.value()*polycp_g.value(TI[celli]))
+                       (rho1.value()*cpTable_m.value(TI[celli]))
+                     + (rho2.value()*cpTable_g.value(TI[celli]))
                    );
             }
 
