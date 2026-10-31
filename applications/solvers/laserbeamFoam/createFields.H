@@ -245,12 +245,137 @@ const dimensionedScalar SB
 [[maybe_unused]]const scalar emS(readScalar(transportProperties.lookup("emS")));
 const dimensionedScalar TRef ("TRef",transportProperties);
 
-const Polynomial<8> polykappa_m(transportPropertiesMetal.lookup("poly_kappa"));
-const Polynomial<8> polykappa_g(transportPropertiesGas.lookup("poly_kappa"));
+autoPtr<mthdModel> mthd(nullptr);
 
-const Polynomial<8> polycp_m(transportPropertiesMetal.lookup("poly_cp"));
-const Polynomial<8> polycp_g(transportPropertiesGas.lookup("poly_cp"));
+if (mthdModel::electromagneticsEnabled(mesh, "transportProperties"))
+{
+    mthd.reset(new mthdModel(mesh, "transportProperties"));
+}
 
+// Temperature dependant properties: Function1 entries (table, polynomial,
+// constant, ...) cached on a uniform T grid, see src/temperatureDependentProperties.
+// poly_cp/poly_kappa still work as the fallback so old cases are unchanged.
+const dictionary propertyTableControls
+(
+    transportProperties.subOrEmptyDict("propertyTables")
+);
+
+const temperatureTable cpTable_m
+(
+    "cp", transportPropertiesMetal, propertyTableControls, "poly_cp"
+);
+const temperatureTable cpTable_g
+(
+    "cp", transportPropertiesGas, propertyTableControls, "poly_cp"
+);
+
+const temperatureTable kappaTable_m
+(
+    "kappa", transportPropertiesMetal, propertyTableControls, "poly_kappa"
+);
+const temperatureTable kappaTable_g
+(
+    "kappa", transportPropertiesGas, propertyTableControls, "poly_kappa"
+);
+
+// Elec_conductivity [S/m] as a Function1 of T; the deprecated constant
+// elec_resistivity is still accepted
+auto conductivityTable = [&](const dictionary& dict) -> temperatureTable*
+{
+    if (dict.found("Elec_conductivity"))
+    {
+        return new temperatureTable
+        (
+            "Elec_conductivity", dict, propertyTableControls
+        );
+    }
+
+    if (dict.found("elec_resistivity"))
+    {
+        Info<< "Warning: using deprecated keyword elec_resistivity in "
+            << dict.dictName() << ", please use Elec_conductivity" << endl;
+
+        return new temperatureTable
+        (
+            "Elec_conductivity",
+            1.0/dict.get<scalar>("elec_resistivity"),
+            propertyTableControls
+        );
+    }
+
+    FatalIOErrorInFunction(dict)
+        << "Elec_conductivity not found in dictionary " << dict.dictName()
+        << exit(FatalIOError);
+
+    return nullptr;
+};
+
+// the metal conductivity is always needed (laser absorptivity), the gas one
+// and the permeabilities only for the MHD
+autoPtr<temperatureTable> condTable_mPtr(conductivityTable(transportPropertiesMetal));
+const temperatureTable& condTable_m = *condTable_mPtr;
+
+autoPtr<temperatureTable> condTable_gPtr;
+autoPtr<temperatureTable> magpermTable_mPtr;
+autoPtr<temperatureTable> magpermTable_gPtr;
+
+if (mthd.valid())
+{
+    condTable_gPtr.reset(conductivityTable(transportPropertiesGas));
+
+    magpermTable_mPtr.reset
+    (
+        new temperatureTable
+        (
+            "Mag_permitivity", transportPropertiesMetal, propertyTableControls
+        )
+    );
+    magpermTable_gPtr.reset
+    (
+        new temperatureTable
+        (
+            "Mag_permitivity", transportPropertiesGas, propertyTableControls
+        )
+    );
+}
+
+{
+    const scalarList Tsample
+    ({
+        300.0,
+        Tsolidus1.value(),
+        Tliquidus1.value(),
+        2500.0,
+        3500.0
+    });
+
+    Info<< "Temperature dependent properties of " << mixture.phase1Name()
+        << ":" << nl;
+    cpTable_m.printInfo(Tsample);
+    kappaTable_m.printInfo(Tsample);
+    condTable_m.printInfo(Tsample);
+
+    if (mthd.valid())
+    {
+        magpermTable_mPtr->printInfo(Tsample);
+    }
+
+    Info<< "Temperature dependent properties of " << mixture.phase2Name()
+        << ":" << nl;
+    cpTable_g.printInfo(Tsample);
+    kappaTable_g.printInfo(Tsample);
+
+    if (mthd.valid())
+    {
+        condTable_gPtr->printInfo(Tsample);
+        magpermTable_gPtr->printInfo(Tsample);
+    }
+
+    Info<< endl;
+}
+
+// zeroGradient so the patch values follow the cells, otherwise the calculated
+// patches stay at zero and every boundry is adiabatic whatever T says
 volScalarField cp
 (
     IOobject
@@ -278,6 +403,69 @@ volScalarField kappa
     ),
     mesh,
     dimensionedScalar("kappa",dimensionSet(1, 1, -3, -1, 0),0.0),
+    zeroGradientFvPatchScalarField::typeName
+);
+
+// metal resistivity at the cell T, for the Fresnel absorptivity of the laser
+volScalarField electrical_resistivity
+(
+    IOobject
+    (
+        "electrical_resistivity",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar
+    (
+        "electrical_resistivity",
+        dimensionSet(1, 3, -3, 0, 0),
+        1.0/max(condTable_m.value(300.0), SMALL)
+    ),
+    zeroGradientFvPatchScalarField::typeName
+);
+
+// alpha blended mixture conductivity and permeability for the MHD (dimension
+// sets as in mthdModel so the fields can be assigned accross)
+volScalarField electrical_conductivity
+(
+    IOobject
+    (
+        "electrical_conductivity",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar
+    (
+        "electrical_conductivity",
+        dimensionSet(-1, -3, 3, 0, 0),
+        condTable_m.value(300.0)
+    ),
+    zeroGradientFvPatchScalarField::typeName
+);
+
+volScalarField magnetic_permeability
+(
+    IOobject
+    (
+        "magnetic_permeability",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar
+    (
+        "magnetic_permeability",
+        dimensionSet(1, 1, -2, 0, 0),
+        mthd.valid() ? magpermTable_mPtr->value(300.0) : 0.0
+    ),
     zeroGradientFvPatchScalarField::typeName
 );
 
@@ -768,36 +956,6 @@ autoPtr<transportModelType> turbulence
 #include "readGravitationalAcceleration.H"
 #include "readhRef.H"
 #include "gh.H"
-
-
-
-
-
-autoPtr<mthdModel> mthd(nullptr);
-
-if (mthdModel::electromagneticsEnabled(mesh, "transportProperties"))
-{
-    mthd.reset(new mthdModel(mesh, "transportProperties"));
-}
-
-const dimensionedScalar eleccond1 =
-    mthdModel::readElectricalConductivity(transportPropertiesMetal);
-
-volScalarField electrical_resistivity
-(
-    IOobject
-    (
-        "electrical_resistivity",
-        runTime.timeName(),
-        mesh,
-        IOobject::NO_READ,
-        IOobject::NO_WRITE
-    ),
-    mesh,
-    1.0/eleccond1
-);
-
-
 
 
 // Create laser heat source
