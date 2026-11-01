@@ -39,6 +39,7 @@ divSchemes
 
     // compLaserBeam
     div(rhoPhi,epsilon1)	                    Gauss linear;
+    div(rhoCvPhi,T)  Gauss upwind;
 
     //MHDcomp
     div((oneoversigma*grad(H).T()))	            Gauss linear;

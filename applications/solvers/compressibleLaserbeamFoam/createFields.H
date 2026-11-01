@@ -122,19 +122,25 @@ autoPtr<compressible::turbulenceModel> turbulence
 
 
 
-        volScalarField mass_dot //
+        // Latent heat of vaporisation/condensation sink for TEqn.H:
+        //   mass_dot = sum_pairs Lvap*r   [W/m^3]   (r > 0 evaporates)
+        // Rebuilt from scratch by mixture.solve() every time step, so it is
+        // NO_READ: the energy equation is now in rho*Cv form and this term
+        // enters it directly in W/m^3 (it used to be rCv*Lvap*r in
+        // [K kg/m^3/s]); a restart that read an old-dimension mass_dot file
+        // would otherwise die on a dimension check in solveAlphas.
+        volScalarField mass_dot
     (
         IOobject
         (
             "mass_dot",
             runTime.timeName(),
             mesh,
-            IOobject::READ_IF_PRESENT,
+            IOobject::NO_READ,
             IOobject::AUTO_WRITE
         ),
         mesh,
-        dimensionedScalar("mass_dot", dimensionSet(1, -3, -1, 1, 0), 0.0)
-    //    dimensionedScalar("mass_dot",dimensionSet(1,-1,-3,0,0),0.0)
+        dimensionedScalar("mass_dot", dimensionSet(1, -1, -3, 0, 0), 0.0)
     );
 
 
@@ -329,6 +335,82 @@ volScalarField TSolidus
     );
 
 
+// ---- mass-weighted energy mixing (see updateRhoCv.H / update.H / TEqn.H) --
+
+// Latent heat of fusion per unit VOLUME of the cell:
+//   rhoLatentHeat = sum_{i condensed} alpha_i*rho_i*L_i   [J/m^3]
+// This is the volume-additive quantity (the compressible analogue of
+// laserbeamFoam's massFraction-weighted LatentHeat: rho*L_mass). The old
+// product LatentHeat*rho = (sum_cond alpha_i L_i)*(sum_all alpha_j rho_j)
+// under-counts the fusion latent heat of an interface cell by ~a factor
+// condensate (10x in a 10% metal cell). Filled in update.H once per step
+// (alphas are fixed for the step; the condensed rho_i barely move).
+volScalarField rhoLatentHeat
+(
+    IOobject
+    (
+        "rhoLatentHeat",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("rhoLatentHeat", dimEnergy/dimVolume, 0.0)
+);
+
+// rhoCv = sum_i alpha_i*rho_i*Cv_i [J/m^3/K]: the heat capacity per unit
+// volume that multiplies DT/Dt in TEqn.H (rho*Cv form, like laserbeamFoam's
+// rhoCp). Needs an oldTime for fvm::ddt(rhoCv, T) / fvc::ddt(rhoCv).
+volScalarField rhoCv
+(
+    IOobject
+    (
+        "rhoCv",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("rhoCv", dimEnergy/dimVolume/dimTemperature, 0.0)
+);
+
+// condensed-only part, for the source-based melt-fraction correction
+// coefficient epsilonRel*rhoCvCond/rhoLatentHeat (= epsilonRel*Cv/L of the
+// condensed material, mass weighted)
+volScalarField rhoCvCond
+(
+    IOobject
+    (
+        "rhoCvCond",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("rhoCvCond", dimEnergy/dimVolume/dimTemperature, 0.0)
+);
+
+// CvMass = rhoCv/rho = sum_i Y_i Cv_i [J/kg/K], the mass-weighted mixture
+// Cv. Written so you can eyeball it: ~Cv_metal in metal, ~Cv_gas in gas.
+// Its face interpolate times rhoPhi is the Cv-weighted mass flux of TEqn.H.
+volScalarField CvMass
+(
+    IOobject
+    (
+        "CvMass",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("CvMass", dimEnergy/dimMass/dimTemperature, 0.0)
+);
+
+
         volScalarField electrical_resistivity//electrical resistivity of condensate only
     (
         IOobject
@@ -377,6 +459,13 @@ laserHeatSource laser(mesh);
 
 
 #include "update.H"
+
+// seed rhoCv/CvMass and enable their oldTime storage (first assignment in
+// a new time step then shifts the end-of-previous-step values into
+// .oldTime(), exactly as laserbeamFoam does with rhoCp.oldTime())
+#include "updateRhoCv.H"
+rhoCv.oldTime();
+CvMass.oldTime();
 
 
 
