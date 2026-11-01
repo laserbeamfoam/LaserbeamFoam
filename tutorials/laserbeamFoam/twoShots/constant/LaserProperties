@@ -1,0 +1,69 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      PhaseFieldProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+radialPolarHeatSource no;
+
+timeVsLaserPosition
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPosition";
+    outOfBounds clamp;
+}
+
+timeVsLaserPower
+{
+    file    "$FOAM_CASE/constant/timeVsLaserPower";
+    outOfBounds clamp;
+}
+
+// Laser angle (normalised in the code)
+V_incident (0 -1 0);
+
+laserRadius 25e-6;
+
+N_sub_divisions	1;
+
+wavelength	1.064e-6;
+e_num_density	1.11e30;
+Radius_Flavour	2.0;
+PowderSim false;
+
+// Thermal mode for the long laser pauses: once all the metal is solid, only
+// the energy equation is solved, with the interface frozen and the fluid at
+// rest (see applications/solvers/laserbeamFoam/longPause)
+longPause
+{
+    // Entry: all lasers off, none turned on for at least minPause [s]
+    minPause            70e-6;
+
+    // Entry: no liquid metal, metal below the solidus by solidusMargin [K]
+    // and at rest
+    maxLiquidFraction   1e-6;
+    solidusMargin       100;
+    maxMetalVelocity    1e-3;
+
+    // Back to the full equations leadTime [s] before the next laser is
+    // turned on
+    leadTime            5e-6;
+
+    // Time step: initialDeltaT [s] first, then at most maxDeltaT [s], with a
+    // temperature change per step of at most maxTemperatureChange [K],
+    // growing by at most maxDeltaTGrowth per step
+    initialDeltaT       1e-7;
+    maxDeltaT           1e-5;
+    maxTemperatureChange 5;
+    maxDeltaTGrowth     1.2;
+}
