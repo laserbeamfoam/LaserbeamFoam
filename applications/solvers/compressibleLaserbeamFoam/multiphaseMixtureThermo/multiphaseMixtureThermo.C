@@ -1738,9 +1738,41 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
 
    
-    const volScalarField rCvMix(this->rCv());   // mixture reciprocal Cv
-
     const volScalarField rhoMixField(this->rho());
+
+    // mixture reciprocal Cv, MASS weighted: 1/Cv_mix = rho/sum_i(alpha_i rho_i Cv_i)
+    // = 1/sum_i(Y_i Cv_i). Same capacity TEqn.H now uses (rhoCv form), so
+    // the energy clamp below brakes r against the heat capacity the energy
+    // equation actually applies. The old this->rCv() (= sum_i alpha_i/Cv_i,
+    // volume weighted) under-estimated rho*Cv of an interface cell by up to
+    // 2x for metal/metal-vapour, i.e. it was throttling evaporation in exactly
+    // the cells that evaporate. Only the clamp sees this: r is still applied
+    // as the same exactly paired +-r to both species.
+    volScalarField rCvMix
+    (
+        IOobject("rCvMix", runTime.timeName(), mesh_),
+        mesh_,
+        dimensionedScalar("rCvMix", dimMass*dimTemperature/dimEnergy, 0.0)
+    );
+    {
+        volScalarField rhoCvMix
+        (
+            IOobject("rhoCvMix", runTime.timeName(), mesh_),
+            mesh_,
+            dimensionedScalar("rhoCvMix", dimEnergy/dimVolume/dimTemperature, 0.0)
+        );
+        for (const phaseModel& ph : phases_)
+        {
+            rhoCvMix += ph*ph.thermo().rho()*ph.thermo().Cv();
+        }
+        rCvMix =
+            rhoMixField
+           /max
+            (
+                rhoCvMix,
+                dimensionedScalar("rhoCvSmall", rhoCvMix.dimensions(), SMALL)
+            );
+    }
 
 
     //
@@ -1986,18 +2018,39 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         );
 
 
-                        
+
+                        // INTERNAL-ENERGY latent heat for the Cv-form TEqn.
+                        // Lvap (dict) is the enthalpy of vaporisation and
+                        // stays in Clausius-Clapeyron/Psat/Tsat above.
+                        const volScalarField LvapE
+                        (
+                            IOobject("LvapE." + liq.name(), runTime.timeName(), mesh_),
+                            max
+                            (
+                                Lvap
+                              - p_*max
+                                (
+                                    1.0/rhoVap - 1.0/rhoLiq,
+                                    dimensionedScalar("zeroDVe", dimVolume/dimMass, 0.0)
+                                ),
+                                0.5*Lvap
+                            )
+                        );
+
                         // which cells get to keep teh implicit presure coupling kP
                         scalarField kPkeepI(r.primitiveField().size(), 1.0);
                         label nClampE = 0, nClampM = 0, nClampV = 0;
                         {
-                          
+
 
                             scalarField& rI = r.primitiveFieldRef();
                             const scalarField& TI      = Tsafe.primitiveField();
                             const scalarField& TsatI   = Tsat.primitiveField();
                             const scalarField& rhoMixI = rhoMixField.primitiveField();
                             const scalarField& rCvMixI = rCvMix.primitiveField();
+                            // clamp budget: the TOTAL cooling per kg seen by
+                            // the cell is sink + expansion work = LvapE + p*dv
+                            // = Lvap, so the cap keeps the enthalpy value
                             const scalar       LvapV   = Lvap.value();
                             const scalarField& cLiqI = c_[li].primitiveField();
                             const scalarField& cVapI = c_[vi].primitiveField();
@@ -2063,7 +2116,10 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         PCR += r*(1.0/rhoVap - 1.0/rhoLiq);
 
                         // latent-heat of vap/cond goes to TEqn through -mass_dot ..... maybe i should change the sign, but this is right !!!
-                        *massdotterm += rCvMix*Lvap*r;
+                        // now in W/m^3: TEqn.H is in rho*Cv form so the sink
+                        // is the internal-energy latent heat times r directly
+                        // (was rCvMix*Lvap*r in K kg/m^3/s; see LvapE above)
+                        *massdotterm += LvapE*r;
 
                         
                         //  implicit presure coupling. the explicit r above is
