@@ -64,6 +64,7 @@ Authors
 #include "dynamicRefineFvMesh.H"
 
 #include "Polynomial.H"
+#include "temperatureTable.H"
 #include "laserHeatSource.H"
 #include "mthdModel.H"
 
