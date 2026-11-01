@@ -279,6 +279,26 @@ volScalarField kappa
     dimensionedScalar("kappa",dimensionSet(1, 1, -3, -1, 0),0.0)
 );
 
+// Mass fraction of the metal, used to mix the specific (per unit mass)
+// properties cp and LatentHeat, so that rho*cp and rho*LatentHeat are
+// volume-additive (updated in updateProps.H)
+volScalarField massFraction
+(
+    IOobject
+    (
+        "massFraction",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    max(min(alpha1, scalar(1)), scalar(0))*rho1
+   /(
+        max(min(alpha1, scalar(1)), scalar(0))*rho1
+      + (1.0 - max(min(alpha1, scalar(1)), scalar(0)))*rho2
+    )
+);
+
 #include "updateKappaCp.H"
 
 
@@ -416,7 +436,7 @@ volScalarField LatentHeat
         IOobject::NO_READ,
         IOobject::NO_WRITE
     ),
-    alpha1*LatentHeat1 + (1.0 - alpha1)*LatentHeat2
+    massFraction*LatentHeat1 + (1.0 - massFraction)*LatentHeat2
 );
 
 volScalarField TRHS

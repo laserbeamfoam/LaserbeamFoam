@@ -203,10 +203,41 @@ int main(int argc, char *argv[])
                 mixture.surfaceTensionForce()*fvc::interpolate(damper)
             );
 
+            // rAU, its face interpolate and the ddtCorr flux depend on the
+            // momentum matrix and on the fields of the previous time step
+            // (for the ddt schemes allowed by checkDdtCorrScheme.H), none of
+            // which change in the pressure corrector loop: calculate them
+            // once here rather than in every corrector
+            if (correctPhi)
+            {
+                rAU.ref() = 1.0/UEqn.A();
+            }
+            else
+            {
+                rAU = 1.0/UEqn.A();
+            }
+
+            const surfaceScalarField rAUf("rAUf", fvc::interpolate(rAU()));
+
+            #include "checkDdtCorrScheme.H"
+
+            const surfaceScalarField phiDdtCorr
+            (
+                MRF.zeroFilter
+                (
+                    fvc::interpolate(rho*rAU())*fvc::ddtCorr(U, phi, Uf)
+                )
+            );
+
             // --- Pressure corrector loop
             while (pimple.correct())
             {
                 #include "pEqn.H"
+            }
+
+            if (!correctPhi)
+            {
+                rAU.clear();
             }
 
             if (pimple.turbCorr())
