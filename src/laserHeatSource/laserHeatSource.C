@@ -474,7 +474,8 @@ laserHeatSource::laserHeatSource
     timeVsLaserPower_(0),
     rayPaths_(0),
     vtkTimes_(),
-    globalBB_(mesh.bounds())
+    globalBB_(mesh.bounds()),
+    depositionReset_(false)
 {
     Info<< "radialPolarHeatSource = " << radialPolarHeatSource_ << endl;
 
@@ -644,14 +645,30 @@ void laserHeatSource::updateDeposition
 {
     Info<< "Updating deposition" << endl;
 
+    const scalar time = deposition_.time().value();
+
+    // With every laser off there is nothing to deposit: the fields are reset
+    // once, on the first call after a laser was on, and then left alone
+    if (allOff(time))
+    {
+        if (!depositionReset_)
+        {
+            resetDeposition();
+        }
+
+        Info<< "    all lasers off: no deposition" << endl;
+
+        return;
+    }
+
+    depositionReset_ = false;
+
     deposition_ *= 0.0;
     laserBoundary_ *= 0.0;
     laserBoundary_ = fvc::average(laserBoundary_);
     errorTrack_ *= 0.0;
     rayNumber_ *= 0.0;
     rayQ_ *= 0.0;
-
-    const scalar time = deposition_.time().value();
 
     forAll(laserNames_, laserI)
     {
@@ -1079,6 +1096,42 @@ void laserHeatSource::updateDeposition
             << "        near-zero absorptivity tolerance = "
             << nearZeroAbsorptivityTol << endl;
     }
+}
+
+
+bool laserHeatSource::allOff(const scalar t) const
+{
+    forAll(timeVsLaserPower_, laserI)
+    {
+        if (timeVsLaserPower_[laserI](t) > 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+void laserHeatSource::resetDeposition()
+{
+    deposition_ = dimensionedScalar(deposition_.dimensions(), Zero);
+    deposition_.correctBoundaryConditions();
+
+    laserBoundary_ = dimensionedScalar(laserBoundary_.dimensions(), Zero);
+    errorTrack_ = dimensionedScalar(errorTrack_.dimensions(), Zero);
+    rayNumber_ = dimensionedScalar(rayNumber_.dimensions(), Zero);
+    rayQ_ = dimensionedScalar(rayQ_.dimensions(), Zero);
+
+    if (Pstream::master())
+    {
+        forAll(rayPaths_, laserI)
+        {
+            rayPaths_[laserI].clear();
+        }
+    }
+
+    depositionReset_ = true;
 }
 
 
