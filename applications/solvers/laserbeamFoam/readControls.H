@@ -20,3 +20,23 @@ const dimensionedScalar epsilonRel
 
 const bool damperSwitch =
     meltingDict.lookupOrDefault<bool>("damperSwitch", false);
+
+// Treatment of the latent heat in the correction loop of the liquid fraction:
+// apparentCapacity (the default: the latent heat of the cells in the mushy
+// range taken implicitly in T, a Newton linearisation; see TEqn.H) or
+// sourceBased (the previous method: the explicit source and the correction
+// epsilon1 += epsilonRelaxation*cp/L*(T - Tcorr) of each correction)
+const word latentHeatMethod
+(
+    meltingDict.getOrDefault<word>("latentHeatMethod", "apparentCapacity")
+);
+if
+(
+    latentHeatMethod != "sourceBased"
+ && latentHeatMethod != "apparentCapacity"
+)
+{
+    FatalIOErrorInFunction(meltingDict)
+        << "latentHeatMethod must be sourceBased or apparentCapacity, not "
+        << latentHeatMethod << exit(FatalIOError);
+}
