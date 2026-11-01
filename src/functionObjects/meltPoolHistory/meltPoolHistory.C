@@ -69,6 +69,7 @@ void Foam::functionObjects::meltPoolHistory::initialiseFields()
         )
     );
 
+    // Read from the start time, so that a continued run keeps its history
     meltHistoryPtr_.reset
     (
         new volScalarField
@@ -76,10 +77,10 @@ void Foam::functionObjects::meltPoolHistory::initialiseFields()
             IOobject
             (
                 "meltHistory",
-                time_.timeName(),
+                startTimeName_,
                 mesh_,
                 IOobject::READ_IF_PRESENT,
-                IOobject::NO_WRITE
+                IOobject::AUTO_WRITE
             ),
             mesh_,
             dimensionedScalar("meltHistory", dimless, 0.0)
@@ -93,10 +94,10 @@ void Foam::functionObjects::meltPoolHistory::initialiseFields()
             IOobject
             (
                 "solidificationTime",
-                time_.timeName(),
+                startTimeName_,
                 mesh_,
                 IOobject::READ_IF_PRESENT,
-                IOobject::NO_WRITE
+                IOobject::AUTO_WRITE
             ),
             mesh_,
             dimensionedScalar("minusOne", dimTime, -1.0),
@@ -111,10 +112,10 @@ void Foam::functionObjects::meltPoolHistory::initialiseFields()
             IOobject
             (
                 "gradTSol",
-                time_.timeName(),
+                startTimeName_,
                 mesh_,
                 IOobject::READ_IF_PRESENT,
-                IOobject::NO_WRITE
+                IOobject::AUTO_WRITE
             ),
             mesh_,
             dimensionedVector("zero", dimTemperature/dimLength, vector::zero),
@@ -214,12 +215,19 @@ Foam::functionObjects::meltPoolHistory::meltPoolHistory
     metalThreshold_(0.5),
     liquidMetalThreshold_(0.5),
     solidificationThreshold_(SMALL),
+    startTimeName_(runTime.timeName()),
     previousLiquidFractionPtr_(),
     meltHistoryPtr_(),
     solidificationTimePtr_(),
     gradTSolPtr_()
 {
     read(dict);
+
+    // Created at the start time, so that the first time step is tracked too
+    if (mesh_.foundObject<volScalarField>(liquidFractionName_))
+    {
+        initialiseFields();
+    }
 }
 
 
@@ -255,6 +263,12 @@ bool Foam::functionObjects::meltPoolHistory::execute()
 bool Foam::functionObjects::meltPoolHistory::write()
 {
     initialiseFields();
+
+    // AUTO_WRITE: at the solver write times they are written with its fields
+    if (time_.writeTime())
+    {
+        return true;
+    }
 
     Log << type() << " " << name() << " write:" << nl
         << "    writing meltHistory" << nl
