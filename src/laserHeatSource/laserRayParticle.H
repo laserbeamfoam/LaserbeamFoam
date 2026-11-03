@@ -103,6 +103,17 @@ public:
         //- Is the ray still active?
         bool active_;
 
+        //- Is the ray leaving the smeared interface band of its last
+        //  Fresnel event? Carried across processor boundaries, so that
+        //  the rest of the band is not taken as a new interface there
+        bool escapingInterface_;
+
+        //- Band cells crossed since the last Fresnel event
+        label escapeHops_;
+
+        //- Reflections back out of the metal since the last Fresnel event
+        label escapeRedirects_;
+
         //- Accumulated path points for VTK visualisation
         DynamicList<point> path_;
 

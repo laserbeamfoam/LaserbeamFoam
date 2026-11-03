@@ -59,6 +59,9 @@ Foam::laserRayParticle::laserRayParticle
     nearZeroAbsorptivityCount_(0),
     globalRayIndex_(globalRayIndex),
     active_(true),
+    escapingInterface_(false),
+    escapeHops_(0),
+    escapeRedirects_(0),
     path_()
 {
     path_.append(position);
@@ -83,6 +86,9 @@ Foam::laserRayParticle::laserRayParticle
     nearZeroAbsorptivityCount_(0),
     globalRayIndex_(-1),
     active_(true),
+    escapingInterface_(false),
+    escapeHops_(0),
+    escapeRedirects_(0),
     path_()
 {
     if (readFields)
@@ -95,7 +101,10 @@ Foam::laserRayParticle::laserRayParticle
             >> minAbsorptivity_
             >> nearZeroAbsorptivityCount_
             >> globalRayIndex_
-            >> active_;
+            >> active_
+            >> escapingInterface_
+            >> escapeHops_
+            >> escapeRedirects_;
     }
 
     is.check(FUNCTION_NAME);
@@ -146,10 +155,8 @@ bool Foam::laserRayParticle::move
     // One smeared interface crossing = one Fresnel event.  After an event
     // the ray is still inside the alpha >= depCutoff band (which spans
     // 2-3 cells), and at grazing incidence the reflected leg traverses
-    // several band cells laterally 
-    bool escapingInterface = false;
-    label escapeHops = 0;
-    label escapeRedirects = 0;
+    // several band cells laterally. The escape state is a member of the ray,
+    // so that it survives a transfer to another processor inside the band.
 
     while (td.keepParticle && !td.switchProcessor && active_)
     {
@@ -179,14 +186,14 @@ bool Foam::laserRayParticle::move
 
         // ---- Physics: check for interface or bulk metal ----
 
-        if (escapingInterface)
+        if (escapingInterface_)
         {
             if (alphaI[cellI] < td.depCutoff_)
             {
                 // Clear of the band: resume normal physics next cell
-                escapingInterface = false;
-                escapeHops = 0;
-                escapeRedirects = 0;
+                escapingInterface_ = false;
+                escapeHops_ = 0;
+                escapeRedirects_ = 0;
             }
             else if
             (
@@ -194,7 +201,7 @@ bool Foam::laserRayParticle::move
             )
             {
                 // The reflected bit is heading into the metal
-                if (escapeRedirects < 3 && mag(nI[cellI]) > 0.5)
+                if (escapeRedirects_ < 3 && mag(nI[cellI]) > 0.5)
                 {
                     vector n = nI[cellI];
                     n /= mag(n);
@@ -204,7 +211,7 @@ bool Foam::laserRayParticle::move
                     }
                     direction_ = direction_ - 2.0*(direction_ & n)*n;
                     direction_ /= mag(direction_) + VSMALL;
-                    ++escapeRedirects;
+                    ++escapeRedirects_;
                     recordPathPoint(td);
                 }
                 else
@@ -218,7 +225,7 @@ bool Foam::laserRayParticle::move
                     break;
                 }
             }
-            else if (++escapeHops > 200)
+            else if (++escapeHops_ > 200)
             {
                 // Stuck skimming the band: absorb the remainder and die.
                 td.deposition_[cellI] += power_ / VI[cellI];
@@ -286,8 +293,8 @@ bool Foam::laserRayParticle::move
             recordPathPoint(td);
 
             // Suppress further events until the ray exits this band
-            escapingInterface = true;
-            escapeHops = 0;
+            escapingInterface_ = true;
+            escapeHops_ = 0;
 
             if (td.maxRayBounces_ > 0 && bounceCount_ >= td.maxRayBounces_)
             {
@@ -779,7 +786,10 @@ Foam::Ostream& Foam::operator<<
         << token::SPACE << p.minAbsorptivity_
         << token::SPACE << p.nearZeroAbsorptivityCount_
         << token::SPACE << p.globalRayIndex_
-        << token::SPACE << p.active_;
+        << token::SPACE << p.active_
+        << token::SPACE << p.escapingInterface_
+        << token::SPACE << p.escapeHops_
+        << token::SPACE << p.escapeRedirects_;
 
     os.check(FUNCTION_NAME);
     return os;
