@@ -12,14 +12,10 @@
     #include "updateRhoCv.H"
 
 
-    rhoCv.oldTime() = rho.oldTime()*CvMass.oldTime();
+    rhoCv.oldTime() = rhoM.oldTime()*CvMass.oldTime();   // == rhoCv^n since CvMass = rhoCv/rhoM
 
-    // Cv-weighted mass flux (laserbeamFoam: rhophicp = interpolate(cp)*rhoPhi)
-    const surfaceScalarField rhoCvPhi
-    (
-        "rhoCvPhi",
-        fvc::interpolate(CvMass)*mixture.rhoPhi()
-    );
+    // sum_i F_i*Cv_i from solveAlphas: the capacity each species flux carries, not interpolate(CvMass)*rhoPhi
+    const surfaceScalarField& rhoCvPhi = mixture.rhoCvPhi();
 
 
     const volScalarField kappaEff
@@ -34,11 +30,16 @@
         "contErrCv",
         fvc::ddt(rhoCv) + fvc::div(rhoCvPhi)
     );
+
+    // roundoff in pure-ledger mode; with ledgerFloorEOS it is the rate of change of the guard mass
     const volScalarField contErrRho
     (
         "contErrRho",
-        fvc::ddt(rho) + fvc::div(mixture.rhoPhi())
+        fvc::ddt(rhoM) + fvc::div(mixture.rhoPhi())
     );
+    Info<< "contErr (rhoM): max|ddt(rhoM) + div(rhoPhi)| = "
+        << gMax(mag(contErrRho.primitiveField())())
+        << " kg/m3/s" << endl;
 
     // ---- melting / solidification -----------------------------------------
 
@@ -53,7 +54,7 @@
     const volScalarField LatentHeatMass
     (
         "LatentHeatMass",
-        rhoLatentHeat/max(rho, dimensionedScalar("rhoSmallT", dimDensity, SMALL))
+        rhoLatentHeat/rhoM    // rhoM already floored
     );
 
     const dimensionedScalar rhoLfloor
@@ -179,7 +180,7 @@
         TRHS =
             meltMask*LatentHeatMass
            *(
-                fvc::ddt(rho, epsilon1)
+                fvc::ddt(rhoM, epsilon1)
               + fvc::div(mixture.rhoPhi(), epsilon1)
               - epsilon1*contErrRho
             );
@@ -191,7 +192,7 @@
           ? mthd->Joulesource()
           : zeroJoulesource;
 
-        // every term in W/m^3
+        // every term in W/m^3; the K terms are rhoM*DK/Dt exactly (K*contErrRho removes the residue)
         fvScalarMatrix TEqn
         (
             fvm::ddt(rhoCv, T)
@@ -200,7 +201,9 @@
           - fvm::laplacian(kappaEff, T)
           + (
                 fvc::div(fvc::absolute(phi, U), p)
-              + fvc::ddt(rho, K) + fvc::div(mixture.rhoPhi(), K)
+              - p*closureSrc    // closure volume is bookkeeping, not p*dV work (phase-change dV stays: LvapE + p*dv = Lvap)
+              + fvc::ddt(rhoM, K) + fvc::div(mixture.rhoPhi(), K)
+              - K*contErrRho
             )
          ==
             laser.deposition()

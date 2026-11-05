@@ -7,7 +7,10 @@
     TSolidus *= 0.0;
     TLiquidus *= 0.0;
     LatentHeat *= 0.0;
-    rhoLatentHeat *= 0.0;   // sum_cond alpha_i*rho_i*L_i [J/m^3], see createFields.H
+    rhoLatentHeat *= 0.0;   // sum_cond c_i*L_i [J/m^3], see createFields.H
+
+    const dimensionedScalar cZeroLH("cZeroLH", dimDensity, Zero);
+    label phaseiLH = 0;     // index into mixture.c(), phases() iteration order
 
     // electrical resistivity of condensed mixture/
     electrical_resistivity *= 0.0;
@@ -94,10 +97,15 @@
             LatentHeat += alpha1*phaseLH;
 
             // L is per unit mass, so the volume-additive latent heat is
-            // alpha*rho*L (mass-fraction weighting). This is the field the
+            // c_i*L with the ledger mass (mass-fraction weighting). This is the field the
             // energy equation uses; LatentHeat above is kept as the
             // volume-weighted average for output/restart compatibility only.
-            rhoLatentHeat += alpha1*phase1.thermo().rho()*phaseLH;
+            volScalarField cLH(max(mixture.c()[phaseiLH], cZeroLH));
+            if (ledgerFloorEOS)
+            {
+                cLH = max(cLH, alpha1*phase1.thermo().rho());   // same guard as rhoCv
+            }
+            rhoLatentHeat += cLH*phaseLH;
         }
 
         if (mthd.valid())
@@ -139,11 +147,12 @@
         {
             electrical_resistivity += alpha1/phaseconductivity;
         }
-        
+
 
 
 
         alphasum += alpha1;
+        ++phaseiLH;
     }
 
     condensate = max(min(condensate, 1.0), 0.0);

@@ -164,8 +164,9 @@ int main(int argc, char *argv[])
             if (pimple.firstIter())
             {
                 rho.oldTime() = rho;   // set once per time step
+                rhoM.oldTime() = rhoM; // ledger density, likewise
 
-                vDot = mixture.solve(&mass_dot, &vDotP);
+                vDot = mixture.solve(&mass_dot, &vDotP, &closureSrc);
                 vDot.correctBoundaryConditions();
                 mass_dot.correctBoundaryConditions();
                 vDotP.correctBoundaryConditions();
@@ -176,10 +177,16 @@ int main(int argc, char *argv[])
 
             }
 
-            
+
             rho = mixture.rho();
 
-            
+            // ledger density for UEqn/pEqn/TEqn, frozen over the outer correctors like rhoPhi
+            if (pimple.firstIter())
+            {
+                #include "updateRhoM.H"
+            }
+
+
 
             // Ray-trace expensive: evaluate once per time step.
             if (pimple.firstIter())

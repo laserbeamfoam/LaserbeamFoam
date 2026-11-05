@@ -11,20 +11,21 @@
 
 
     // volScalarField rAU("rAU", 1.0/UEqn.A());
+    // ddtCorr weight and gravity split use rhoM to match UEqn.H; compressibility below stays EOS
     surfaceScalarField rAUf("rAUf", fvc::interpolate(rAU()));
     volVectorField HbyA(constrainHbyA(rAU()*UEqn.H(), U, p_rgh));
     surfaceScalarField phiHbyA
     (
         "phiHbyA",
         fvc::flux(HbyA)
-      + fvc::interpolate(rho*rAU())*fvc::ddtCorr(U, phi)
+      + fvc::interpolate(rhoM*rAU())*fvc::ddtCorr(U, phi)
     );
 
     surfaceScalarField phig
     (
         (
             mixture.surfaceTensionForce()
-          - ghf*fvc::snGrad(rho)
+          - ghf*fvc::snGrad(rhoM)
         )*rAUf*mesh.magSf()
     );
 
@@ -119,14 +120,15 @@
         }
     }
 
-    p = max(p_rgh + mixture.rho()*gh, pMin);
+    // hydrostatic split with rhoM (frozen over the correctors, so the round trip is exact)
+    p = max(p_rgh + rhoM*gh, pMin);
 
     // Update densities from change in p_rgh
     mixture.correctRho(p_rgh - p_rgh_0);
     rho = mixture.rho();
 
-    // Correct p_rgh for consistency with p and the updated densities
-    p_rgh = p - rho*gh;
+    // Correct p_rgh for consistency with p
+    p_rgh = p - rhoM*gh;
     p_rgh.correctBoundaryConditions();
 
     K = 0.5*magSqr(U);

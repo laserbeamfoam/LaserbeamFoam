@@ -69,6 +69,7 @@ volVectorField U
 Info<< "Constructing multiphaseMixtureThermo\n" << endl;
 multiphaseMixtureThermo mixture(U, phi);
 
+// EOS density sum_i alpha_i*rho_i(p,T): pEqn compressibility, sound speed, viscosity only
 volScalarField rho
 (
     IOobject
@@ -85,6 +86,43 @@ volScalarField rho
 
 dimensionedScalar pMin("pMin", dimPressure, mixture);
 
+// floor for the ledger density in empty cells (same value as rhoMinEOS)
+dimensionedScalar rhoMMin
+(
+    "rhoMMin",
+    dimDensity,
+    mixture.getOrDefault<scalar>("rhoMMin", 1e-3)
+);
+
+// inertia and heat capacity never below the EOS values the pressure equation assumes (ledgerFloorEOS false = pure ledger)
+const bool ledgerFloorEOS(mixture.getOrDefault<bool>("ledgerFloorEOS", true));
+Info<< "ledgerFloorEOS = "
+    << (
+           ledgerFloorEOS
+         ? "true: rhoM, rhoCv = max(ledger, EOS), UEqn in rhoM*DU/Dt form"
+         : "false: pure ledger"
+       )
+    << endl;
+
+// transported density sum_i c_i, the mass rhoPhi moves (updateRhoM.H); rebuilt from c_i on restart
+volScalarField rhoM
+(
+    IOobject
+    (
+        "rhoM",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::AUTO_WRITE
+    ),
+    max(mixture.rhoM(), rhoMMin)
+);
+if (ledgerFloorEOS)
+{
+    rhoM = max(rhoM, rho);
+}
+rhoM.oldTime();     // oldTime storage for fvm::ddt(rhoM, U)
+
 mesh.setFluxRequired(p_rgh.name());
 
 
@@ -94,6 +132,7 @@ mesh.setFluxRequired(p_rgh.name());
 
 
 // Construct compressible turbulence model
+// EOS rho on purpose: laminar rho*nuEff == mu only with the density nu was built from
 autoPtr<compressible::turbulenceModel> turbulence
 (
     compressible::turbulenceModel::New
@@ -141,6 +180,23 @@ autoPtr<compressible::turbulenceModel> turbulence
         ),
         mesh,
         dimensionedScalar("mass_dot", dimensionSet(1, -1, -3, 0, 0), 0.0)
+    );
+
+
+        // ledger-closure volume source [1/s] that mixture.solve() adds into vDot;
+        // kept separately so setDeltaT_.H can leave it out of maxPhaseChangeFraction
+        volScalarField closureSrc
+    (
+        IOobject
+        (
+            "closureSrc",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("closureSrc", dimensionSet(0,0,-1,0,0), 0.0)
     );
 
 
@@ -338,13 +394,13 @@ volScalarField TSolidus
 // ---- mass-weighted energy mixing (see updateRhoCv.H / update.H / TEqn.H) --
 
 // Latent heat of fusion per unit VOLUME of the cell:
-//   rhoLatentHeat = sum_{i condensed} alpha_i*rho_i*L_i   [J/m^3]
+//   rhoLatentHeat = sum_{i condensed} c_i*L_i   [J/m^3]   (c_i = ledger mass, mixture.c())
 // This is the volume-additive quantity (the compressible analogue of
 // laserbeamFoam's massFraction-weighted LatentHeat: rho*L_mass). The old
 // product LatentHeat*rho = (sum_cond alpha_i L_i)*(sum_all alpha_j rho_j)
 // under-counts the fusion latent heat of an interface cell by ~a factor
 // condensate (10x in a 10% metal cell). Filled in update.H once per step
-// (alphas are fixed for the step; the condensed rho_i barely move).
+// (c_i are fixed for the step).
 volScalarField rhoLatentHeat
 (
     IOobject
@@ -359,7 +415,7 @@ volScalarField rhoLatentHeat
     dimensionedScalar("rhoLatentHeat", dimEnergy/dimVolume, 0.0)
 );
 
-// rhoCv = sum_i alpha_i*rho_i*Cv_i [J/m^3/K]: the heat capacity per unit
+// rhoCv = sum_i c_i*Cv_i [J/m^3/K]: the heat capacity per unit
 // volume that multiplies DT/Dt in TEqn.H (rho*Cv form, like laserbeamFoam's
 // rhoCp). Needs an oldTime for fvm::ddt(rhoCv, T) / fvc::ddt(rhoCv).
 volScalarField rhoCv
@@ -393,9 +449,10 @@ volScalarField rhoCvCond
     dimensionedScalar("rhoCvCond", dimEnergy/dimVolume/dimTemperature, 0.0)
 );
 
-// CvMass = rhoCv/rho = sum_i Y_i Cv_i [J/kg/K], the mass-weighted mixture
-// Cv. Written so you can eyeball it: ~Cv_metal in metal, ~Cv_gas in gas.
-// Its face interpolate times rhoPhi is the Cv-weighted mass flux of TEqn.H.
+// CvMass = rhoCv/rhoM = sum_i Y_i Cv_i [J/kg/K], the mass-weighted mixture
+// Cv (Y_i = c_i/rhoM). Written so you can eyeball it: ~Cv_metal in metal,
+// ~Cv_gas in gas. Its face interpolate times rhoPhi is the Cv-weighted mass
+// flux of TEqn.H.
 volScalarField CvMass
 (
     IOobject
