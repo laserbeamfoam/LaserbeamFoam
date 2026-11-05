@@ -353,6 +353,21 @@ void mthdModel::finaliseTransportProperties()
 }
 
 
+void mthdModel::setTransportProperties
+(
+    const volScalarField& electricalConductivity,
+    const volScalarField& magneticPermeability
+)
+{
+    // dimension checked assignement, patch types stay zeroGradient
+    eleccond_ = electricalConductivity;
+    magperm_ = magneticPermeability;
+
+    eleccond_.correctBoundaryConditions();
+    magperm_.correctBoundaryConditions();
+}
+
+
 void mthdModel::updateLorentzForce()
 {
     JcrossB_ = J_ ^ (magperm_*H_);

@@ -93,6 +93,20 @@ Foam::multiphaseMixtureThermo::multiphaseMixtureThermo
         dimensionedScalar(dimMass/dimTime, Zero)
     ),
 
+    rhoCvPhi_
+    (
+        IOobject
+        (
+            "rhoCvPhi",
+            mesh_.time().timeName(),
+            mesh_,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_,
+        dimensionedScalar(dimEnergy/dimTemperature/dimTime, Zero)
+    ),
+
     alphas_
     (
         IOobject
@@ -145,6 +159,7 @@ Foam::multiphaseMixtureThermo::multiphaseMixtureThermo
     curTimeIndex_(-1)
 {
     rhoPhi_.setOriented();
+    rhoCvPhi_.setOriented();
     calcAlphas();
     alphas_.write();
     correct();                  // therm    o (phase densities) are valid after this
@@ -602,6 +617,50 @@ Foam::tmp<Foam::scalarField> Foam::multiphaseMixtureThermo::rho
     }
 
     return trho;
+}
+
+
+const Foam::volScalarField& Foam::multiphaseMixtureThermo::c
+(
+    const word& phaseName
+) const
+{
+    label i = 0;
+    for (const phaseModel& ph : phases_)
+    {
+        if (ph.name() == phaseName)
+        {
+            return c_[i];
+        }
+        ++i;
+    }
+
+    FatalErrorInFunction
+        << "No phase named " << phaseName << " in the mixture"
+        << exit(FatalError);
+
+    return c_[0];
+}
+
+
+Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::rhoM() const
+{
+    // not named "rhoM": the solver owns a registered field of that name
+    auto trhoM = volScalarField::New
+    (
+        "rhoM.ledger",
+        IOobject::NO_REGISTER,
+        mesh_,
+        dimensionedScalar(dimDensity, Zero)
+    );
+    volScalarField& r = trhoM.ref();
+
+    for (const volScalarField& ci : c_)
+    {
+        r += ci;
+    }
+
+    return trhoM;
 }
 
 
@@ -1150,7 +1209,8 @@ const volScalarField& Temperature
 Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
 (
     volScalarField* massdotterm,
-    volScalarField* vDotPptr
+    volScalarField* vDotPptr,
+    volScalarField* closureSrcPtr
 )
 {
     tmp<volScalarField> tPCR
@@ -1195,7 +1255,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
             << exit(FatalError);
     }
 
-    PCR = solveAlphas(massdotterm, vDotPptr);
+    PCR = solveAlphas(massdotterm, vDotPptr, closureSrcPtr);
 
     writeOldTimeValues();
 
@@ -1398,7 +1458,8 @@ Foam::multiphaseMixtureThermo::nearInterface() const
 Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 (
     volScalarField* massdotterm,
-    volScalarField* vDotPptr
+    volScalarField* vDotPptr,
+    volScalarField* closureSrcPtr
 )
 {
     const word alphaScheme("div(phi,alpha)");
@@ -1737,10 +1798,32 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         //         only feels its own partial presure y_i*p not the total
 
 
-   
-    const volScalarField rCvMix(this->rCv());   // mixture reciprocal Cv
 
-    const volScalarField rhoMixField(this->rho());
+    // heat capacity TEqn.H applies (updateRhoCv.H, same guard), energy clamp only
+    const bool ledgerFloorEOS
+    (
+        phasedictionary.getOrDefault<bool>("ledgerFloorEOS", true)
+    );
+    volScalarField rhoCvMix
+    (
+        IOobject("rhoCvMix", runTime.timeName(), mesh_),
+        mesh_,
+        dimensionedScalar("rhoCvMix", dimEnergy/dimVolume/dimTemperature, 0.0)
+    );
+    {
+        const dimensionedScalar cZeroCv("cZeroCv", dimDensity, 0.0);
+        label i = 0;
+        for (const phaseModel& ph : phases_)
+        {
+            volScalarField cEff(max(c_[i], cZeroCv));
+            if (ledgerFloorEOS)
+            {
+                cEff = max(cEff, ph*ph.thermo().rho());
+            }
+            rhoCvMix += cEff*ph.thermo().Cv();
+            ++i;
+        }
+    }
 
 
     //
@@ -1986,34 +2069,52 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         );
 
 
-                        
+
+                        // INTERNAL-ENERGY latent heat for the Cv-form TEqn.
+                        // Lvap (dict) is the enthalpy of vaporisation and
+                        // stays in Clausius-Clapeyron/Psat/Tsat above.
+                        const volScalarField LvapE
+                        (
+                            IOobject("LvapE." + liq.name(), runTime.timeName(), mesh_),
+                            max
+                            (
+                                Lvap
+                              - p_*max
+                                (
+                                    1.0/rhoVap - 1.0/rhoLiq,
+                                    dimensionedScalar("zeroDVe", dimVolume/dimMass, 0.0)
+                                ),
+                                0.5*Lvap
+                            )
+                        );
+
                         // which cells get to keep teh implicit presure coupling kP
                         scalarField kPkeepI(r.primitiveField().size(), 1.0);
                         label nClampE = 0, nClampM = 0, nClampV = 0;
                         {
-                          
+
 
                             scalarField& rI = r.primitiveFieldRef();
                             const scalarField& TI      = Tsafe.primitiveField();
                             const scalarField& TsatI   = Tsat.primitiveField();
-                            const scalarField& rhoMixI = rhoMixField.primitiveField();
-                            const scalarField& rCvMixI = rCvMix.primitiveField();
+                            const scalarField& rhoCvMixI = rhoCvMix.primitiveField();
+                            // clamp budget: the TOTAL cooling per kg seen by
+                            // the cell is sink + expansion work = LvapE + p*dv
+                            // = Lvap, so the cap keeps the enthalpy value
                             const scalar       LvapV   = Lvap.value();
                             const scalarField& cLiqI = c_[li].primitiveField();
                             const scalarField& cVapI = c_[vi].primitiveField();
                             const scalarField& rhoLiqI = rhoLiq.primitiveField();
                             const scalarField& rhoVapI = rhoVap.primitiveField();
-                            const scalar cvSmall = 1e-30;
                             forAll(rI, celli)//LIMITING SO CODE DOESNT BLOW UP
                             {
                                 scalar& rc = rI[celli];
                                 const scalar rcKinetic = rc;
 
                                 //  energy limit: dont let latent heat drive
-                                //  T past Tsat this step
+                                //  T past Tsat this step (eFac = rhoCv/(dt*Lvap))
                                 const scalar eFac =
-                                    rhoMixI[celli]*rDeltaT
-                                  / (Foam::max(rCvMixI[celli], cvSmall)*LvapV);
+                                    Foam::max(rhoCvMixI[celli], 0.0)*rDeltaT/LvapV;
                                 const scalar headUp =
                                     Foam::max(TsatI[celli] - TI[celli], 0.0);
                                 const scalar headDn =
@@ -2063,7 +2164,10 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         PCR += r*(1.0/rhoVap - 1.0/rhoLiq);
 
                         // latent-heat of vap/cond goes to TEqn through -mass_dot ..... maybe i should change the sign, but this is right !!!
-                        *massdotterm += rCvMix*Lvap*r;
+                        // now in W/m^3: TEqn.H is in rho*Cv form so the sink
+                        // is the internal-energy latent heat times r directly
+                        // (was rCvMix*Lvap*r in K kg/m^3/s; see LvapE above)
+                        *massdotterm += LvapE*r;
 
                         
                         //  implicit presure coupling. the explicit r above is
@@ -2311,6 +2415,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     const dimensionedScalar betaSmall("betaSmall", dimless, 1e-8);
 
     rhoPhi_ = dimensionedScalar(dimensionSet(1, 0, -1, 0, 0), Zero);
+    rhoCvPhi_ = dimensionedScalar(dimEnergy/dimTemperature/dimTime, Zero);
 
 
     //  Y REFORMULATION of the species transport (attempt no.3, this one works)
@@ -2449,7 +2554,35 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     surfaceScalarField FCond("FCond", upwind<scalar>(mesh_, betaPhi).flux(psiCond));
     surfaceScalarField FGas ("FGas",  upwind<scalar>(mesh_, gammaPhi).flux(psiGas));
 
-   
+    // physical OUTFLOW faces: upwind takes the patch value (c_b = alpha_b*rho_b, the inflow composition); the donor is the cell
+    auto donorOutflow = [&]
+    (
+        surfaceScalarField& F,
+        const surfaceScalarField& dirFlux,
+        const volScalarField& psi
+    )
+    {
+        auto& Fbf = F.boundaryFieldRef();
+        forAll(Fbf, patchi)
+        {
+            if (Fbf[patchi].coupled()) continue;
+
+            fvsPatchScalarField& pF = Fbf[patchi];
+            const fvsPatchScalarField& pDir = dirFlux.boundaryField()[patchi];
+            const scalarField psiIn(psi.boundaryField()[patchi].patchInternalField());
+            forAll(pF, bfacei)
+            {
+                if (pDir[bfacei] > 0)
+                {
+                    pF[bfacei] = pDir[bfacei]*psiIn[bfacei];
+                }
+            }
+        }
+    };
+    donorOutflow(FCond, betaPhi, psiCond);
+    donorOutflow(FGas, gammaPhi, psiGas);
+
+
     volScalarField lamOutCond
     (
         IOobject("lamOutCond", runTime.timeName(), mesh_),
@@ -2651,6 +2784,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
     // --- per species share of the limited group flux + fickian, then the
         //     conservative update. nothing else is alowed to touch c_i
+    label nSpeciesLam = 0;
     {
         label i = 0;
         for (phaseModel& ph : phases_)
@@ -2672,6 +2806,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                 "F" + ph.name(),
                 upwind<scalar>(mesh_, FgrpL).flux(Yi)
             );
+            donorOutflow(Fi, FgrpL, Yi);    // outflow patch faces split by the cell's ledger, not the BC
 
             //  fickian diffusion within each group, listed pairs only..
             
@@ -2711,6 +2846,84 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                 }
             }
 
+            // per-species positivity: every export route (share, Fickian, patch) bounded by what the cell has
+            {
+                const scalarField& V   = mesh_.V().field();
+                const labelUList& own  = mesh_.owner();
+                const labelUList& nei  = mesh_.neighbour();
+                const scalarField& cI  = c_[i].primitiveField();
+                const scalarField& SuI = SuMass[i].primitiveField();
+
+                scalarField outflow(mesh_.nCells(), 0.0);
+                {
+                    const scalarField& FiI = Fi.primitiveField();
+                    forAll(FiI, facei)
+                    {
+                        if (FiI[facei] > 0) outflow[own[facei]] += FiI[facei];
+                        else                outflow[nei[facei]] -= FiI[facei];
+                    }
+                    forAll(Fi.boundaryField(), patchi)
+                    {
+                        const fvsPatchScalarField& pF = Fi.boundaryField()[patchi];
+                        const labelUList& fc = pF.patch().faceCells();
+                        forAll(pF, bfacei)
+                        {
+                            if (pF[bfacei] > 0) outflow[fc[bfacei]] += pF[bfacei];
+                        }
+                    }
+                }
+
+                volScalarField lamSp
+                (
+                    IOobject("lam." + ph.name(), runTime.timeName(), mesh_),
+                    mesh_, dimensionedScalar("one", dimless, 1.0)
+                );
+                scalarField& lamI = lamSp.primitiveFieldRef();
+                forAll(lamI, celli)
+                {
+                    if (outflow[celli] > VSMALL)
+                    {
+                        const scalar budget =
+                            Foam::max(cI[celli], scalar(0))*V[celli]*rDeltaT
+                          + Foam::min(SuI[celli], scalar(0))*V[celli];
+                        const scalar lam =
+                            Foam::min(scalar(1), Foam::max(budget, scalar(0))/outflow[celli]);
+                        if (lam < 1) { lamI[celli] = lam; ++nSpeciesLam; }
+                    }
+                }
+                lamSp.correctBoundaryConditions();
+
+                scalarField& FiI = Fi.primitiveFieldRef();
+                forAll(FiI, facei)
+                {
+                    FiI[facei] *= (FiI[facei] > 0) ? lamI[own[facei]] : lamI[nei[facei]];
+                }
+                auto& FiBf = Fi.boundaryFieldRef();
+                forAll(FiBf, patchi)
+                {
+                    fvsPatchScalarField& pF = FiBf[patchi];
+                    const labelUList& fc = pF.patch().faceCells();
+                    if (pF.patch().coupled())
+                    {
+                        const scalarField lamNei
+                        (
+                            lamSp.boundaryField()[patchi].patchNeighbourField()
+                        );
+                        forAll(pF, bfacei)
+                        {
+                            pF[bfacei] *= (pF[bfacei] > 0) ? lamI[fc[bfacei]] : lamNei[bfacei];
+                        }
+                    }
+                    else
+                    {
+                        forAll(pF, bfacei)
+                        {
+                            if (pF[bfacei] > 0) pF[bfacei] *= lamI[fc[bfacei]];
+                        }
+                    }
+                }
+            }
+
             // THE conservative update of c_i, flux plus the paired sources
             // and nothing else ever
             volScalarField::Internal Su
@@ -2729,8 +2942,15 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
             );
 
             rhoPhi_ += Fi;                          // accumulate mixture mass flux
+            rhoCvPhi_ += Fi*upwind<scalar>(mesh_, Fi).interpolate(ph.thermo().Cv());   // donor Cv_i rides with F_i
             ++i;
         }
+    }
+    reduce(nSpeciesLam, sumOp<label>());
+    if (nSpeciesLam)
+    {
+        Info<< "species positivity limiter: " << nSpeciesLam
+            << " cell-species export(s) throttled" << endl;
     }
 
 
@@ -3057,16 +3277,38 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
-    // dump the closure diff into the pressuqre equation term.
+    // ledger -> pressure coupling: volume source (sumImplied - 1)/dt, capped inside the transport Courant budget
+    scalarField closureSrcI(mesh_.nCells(), 0.0);
     {
         const scalar closureRelax =
-            phasedictionary.getOrDefault<scalar>("closureRelax", 0.5);
+            phasedictionary.getOrDefault<scalar>("closureRelax", 1.0);
+        const scalar closureCoFraction =
+            phasedictionary.getOrDefault<scalar>("closureCoFraction", 0.5);
+
+        const dictionary& ctrlDict = runTime.controlDict();
+        const scalar maxCo = ctrlDict.getOrDefault<scalar>("maxCo", 1.0);
+        const scalar maxAlphaCo =
+            ctrlDict.getOrDefault<scalar>("maxAlphaCo", maxCo);
         const scalar closureVolLimit =
-            phasedictionary.getOrDefault<scalar>("closureVolLimit", 0.02);
+            closureCoFraction*Foam::min(maxCo, maxAlphaCo);
+
+        if (phasedictionary.found("closureVolLimit"))
+        {
+            static bool warnedClosureVolLimit = false;
+            if (!warnedClosureVolLimit)
+            {
+                warnedClosureVolLimit = true;
+                WarningInFunction
+                    << "closureVolLimit in thermophysicalProperties is ignored;"
+                    << " the closure demand is capped at closureCoFraction*"
+                    << "min(maxCo, maxAlphaCo) = " << closureVolLimit
+                    << " per step" << endl;
+            }
+        }
 
         // dont run the closure source in cells touching the open patches in
                 // closureMaskPatches, eg (back). the patch is the volume source/sink there
-       
+
         List<bool> closureMask(mesh_.nCells(), false);
         label nMasked = 0;
         {
@@ -3107,59 +3349,111 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
             const scalarField& sI = sumImplied.primitiveField();
             const scalar srcMax = closureVolLimit*rDeltaT;
 
-            scalarField src(mesh_.nCells(), 0.0);
-            scalarField unclampedC(mesh_.nCells(), 1.0);
-            label nClampC = 0;
+            label nCapUnder = 0, nCapOver = 0;
 
-            forAll(src, celli)
+            forAll(closureSrcI, celli)
             {
                 if (closureMask[celli])
                 {
                     // patch adjacent: leave the healing to the BC
-                    unclampedC[celli] = 0;
                     continue;
                 }
                 scalar s = closureRelax*(sI[celli] - 1.0)*rDeltaT;
-                if (s >  srcMax) { s =  srcMax; unclampedC[celli] = 0; ++nClampC; }
-                if (s < -srcMax) { s = -srcMax; unclampedC[celli] = 0; ++nClampC; }
-                src[celli] = s;
+                if (s >  srcMax) { s =  srcMax; ++nCapOver; }
+                if (s < -srcMax) { s = -srcMax; ++nCapUnder; }
+                closureSrcI[celli] = s;
             }
 
-            PCR.primitiveFieldRef() += src;
+            PCR.primitiveFieldRef() += closureSrcI;
 
-            if (vDotPptr)
+            reduce(nCapUnder, sumOp<label>());
+            reduce(nCapOver, sumOp<label>());
+            reduce(nMasked, sumOp<label>());
+            Info<< "closure feedback: relax = " << closureRelax
+                << ", per-step limit = " << closureVolLimit
+                << ", capped cells under/over-full = " << nCapUnder
+                << "/" << nCapOver
+                << ", boundary-masked cells = " << nMasked << endl;
+        }
+
+        if (closureSrcPtr)
+        {
+            closureSrcPtr->primitiveFieldRef() = closureSrcI;
+            closureSrcPtr->correctBoundaryConditions();
+        }
+    }
+
+    // closure trace: worst under-/over-full cell and everything moving ledger mass there
+    {
+        const scalar traceBand =
+            phasedictionary.getOrDefault<scalar>("closureTraceBand", 0.1);
+
+        const scalarField& sI = sumImplied.primitiveField();
+        label iMin = -1, iMax = -1;
+        scalar sMin = GREAT, sMax = -GREAT;
+        forAll(sI, celli)
+        {
+            if (sI[celli] < sMin) { sMin = sI[celli]; iMin = celli; }
+            if (sI[celli] > sMax) { sMax = sI[celli]; iMax = celli; }
+        }
+        scalar gsMin = sMin, gsMax = sMax;
+        reduce(gsMin, minOp<scalar>());
+        reduce(gsMax, maxOp<scalar>());
+
+        const bool traceMin = (gsMin < 1.0 - traceBand);
+        const bool traceMax = (gsMax > 1.0 + traceBand);
+
+        if (traceMin || traceMax)
+        {
+            // per unit cell volume, per step: positive = leaves the cell
+            const scalarField divPhiDt(dt*fvc::div(phi_)().primitiveField());
+            const scalarField divFGasDt(dt*fvc::div(FGas)().primitiveField());
+            const scalarField divFCondDt(dt*fvc::div(FCond)().primitiveField());
+
+            auto trace = [&](const word& tag, const label celli)
             {
-                scalarField kPc(mesh_.nCells(), 0.0);
+                scalar betaRec = 0, suGasDt = 0, suCondDt = 0;
                 label i = 0;
                 for (const phaseModel& ph : phases_)
                 {
-                    const volScalarField rhoPh
-                    (
-                        max(ph.thermo().rho(), rhoMinRec)
-                    );
-                    const scalarField& rI   = rhoPh.primitiveField();
-                    const scalarField& psiI =
-                        ph.thermo().psi().primitiveField();
-                    const scalarField& cI   = c_[i].primitiveField();
-
-                    forAll(kPc, celli)
-                    {
-                        kPc[celli] +=
-                            Foam::max(cI[celli], scalar(0))*psiI[celli]
-                           /Foam::sqr(rI[celli]);
-                    }
+                    if (isGas[i]) suGasDt += dt*SuMass[i][celli];
+                    else { betaRec += ph[celli]; suCondDt += dt*SuMass[i][celli]; }
                     ++i;
                 }
 
-                vDotPptr->primitiveFieldRef() +=
-                    closureRelax*rDeltaT*kPc*unclampedC;
-            }
+                Pout<< "closure trace [" << tag << "] cell " << celli
+                    << " at " << mesh_.C()[celli]
+                    << " s=" << sI[celli]
+                    << " vCond=" << vCond[celli] << " vGas=" << vGas[celli]
+                    << " beta0=" << condensate[celli] << " betaRec=" << betaRec
+                    << " gInt=" << gInt[celli]
+                    << " T=" << T_[celli] << " p=" << p_[celli]
+                    << " closureSrc*dt=" << dt*closureSrcI[celli] << nl
+                    << "    per step, per cell volume, +ve = out:"
+                    << " dt*div(phi)=" << divPhiDt[celli]
+                    << " dt*div(FGas)=" << divFGasDt[celli]
+                    << " dt*div(FCond)=" << divFCondDt[celli]
+                    << " dt*Su(gas)=" << suGasDt
+                    << " dt*Su(cond)=" << suCondDt << endl;
 
-            reduce(nClampC, sumOp<label>());
-            reduce(nMasked, sumOp<label>());
-            Info<< "closure feedback: relax = " << closureRelax
-                << ", capped cells = " << nClampC
-                << ", boundary-masked cells = " << nMasked << endl;
+                i = 0;
+                for (const phaseModel& ph : phases_)
+                {
+                    const scalar rhoEOS = ph.thermo().rho()()[celli];
+                    const scalar cI = c_[i][celli];
+                    Pout<< "    " << ph.name()
+                        << ": c=" << cI
+                        << " alphaRec=" << ph[celli]
+                        << " rhoEOS=" << rhoEOS
+                        << " c/alpha=" << cI/Foam::max(ph[celli], scalar(1e-12))
+                        << " v=c/rho=" << cI/Foam::max(rhoEOS, rhoMinRec.value())
+                        << " dt*Su=" << dt*SuMass[i][celli] << endl;
+                    ++i;
+                }
+            };
+
+            if (traceMin && iMin >= 0 && sMin == gsMin) trace("under-full", iMin);
+            if (traceMax && iMax >= 0 && sMax == gsMax) trace("over-full", iMax);
         }
     }
 

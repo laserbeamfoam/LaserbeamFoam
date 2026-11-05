@@ -124,6 +124,9 @@ private:
 
         surfaceScalarField rhoPhi_;
 
+        //- Species-resolved capacity flux sum_i F_i*Cv_i for TEqn.H
+        surfaceScalarField rhoCvPhi_;
+
         volScalarField alphas_;
 
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
@@ -186,7 +189,8 @@ private:
         tmp<volScalarField> solveAlphas
         (
             volScalarField* massdotterm,
-            volScalarField* vDotPptr = nullptr
+            volScalarField* vDotPptr = nullptr,
+            volScalarField* closureSrcPtr = nullptr
         );
 
         tmp<surfaceVectorField> nHatfv
@@ -270,6 +274,26 @@ public:
         {
             return rhoPhi_;
         }
+
+        //- sum_i F_i*Cv_i, the capacity the mass flux actually carries
+        const surfaceScalarField& rhoCvPhi() const
+        {
+            return rhoCvPhi_;
+        }
+
+
+        //- Conserved partial masses c_i = alpha_i*rho_i, phases() order
+        const PtrList<volScalarField>& c() const
+        {
+            return c_;
+        }
+
+        //- Partial mass of a named phase
+        const volScalarField& c(const word& phaseName) const;
+
+        //- Transported density sum_i c_i: ddt(rhoM) + div(rhoPhi) = 0 exactly
+        tmp<volScalarField> rhoM() const;
+
 
         //- Update properties
         virtual void correct();
@@ -508,10 +532,14 @@ public:
 
         //- Solve for the mixture phase-fractions.
         //  vDotPptr (optional): see solveAlphas.
+        //  closureSrcPtr (optional): receives the ledger-closure volume source
+        //  [1/s] that solveAlphas adds to the returned rate, so the time-step
+        //  control can leave it out of the phase-change fraction.
         tmp<volScalarField> solve
         (
             volScalarField* massdotterm,
-            volScalarField* vDotPptr = nullptr
+            volScalarField* vDotPptr = nullptr,
+            volScalarField* closureSrcPtr = nullptr
         );
 };
 

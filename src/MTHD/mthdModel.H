@@ -114,6 +114,20 @@ public:
 
         void finaliseTransportProperties();
 
+        // mixture conductivity and permeability fields evaluated by the solver
+        // (temperature dependant), used as is: the H equation is already in
+        // divergence form with a spatialy varying 1/sigma
+        void setTransportProperties
+        (
+            const volScalarField& electricalConductivity,
+            const volScalarField& magneticPermeability
+        );
+
+        const volScalarField& electricalConductivity() const
+        {
+            return eleccond_;
+        }
+
         void updateLorentzForce();
 
         void solve

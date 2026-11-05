@@ -31,18 +31,28 @@ const volScalarField c
     }
 
 
-    scalar phaseChangeNum = gMax(mag(vDot.primitiveField()))*deltaT0;
+    // phase change only: the closure demand is already bounded per step (closureCoFraction)
+    scalar phaseChangeNum =
+        gMax(mag(vDot.primitiveField() - closureSrc.primitiveField())())*deltaT0;
 
     scalar deltaTKnum = 0.0;
     {
-        const volScalarField gradPbyRho
+        // EOS capacity sum_i alpha_i*rho_i*Cv_i: a drained ledger cell (rhoCv at its floor) must not pin dt
+        volScalarField rhoCvEOS
         (
-            mag(fvc::grad(p))/max(mixture.rho(), dimensionedScalar(dimDensity, smallT))
+            IOobject("rhoCvEOS", runTime.timeName(), mesh),
+            mesh,
+            dimensionedScalar(rhoCv.dimensions(), Zero)
         );
-        // ΔT_K per unit dt:  |U| * (|∇p|/rho) * rCv   [K/s]
+        for (const phaseModel& ph : mixture.phases())
+        {
+            rhoCvEOS += ph*ph.thermo().rho()*ph.thermo().Cv();
+        }
+
+        // ΔT_K per unit dt:  |U|*|∇p|/max(ledger, EOS capacity)   [K/s]
         const volScalarField dTKdt
         (
-            mag(U)*gradPbyRho*mixture.rCv()
+            mag(U)*mag(fvc::grad(p))/max(rhoCv, rhoCvEOS)
         );
         deltaTKnum = gMax(dTKdt.primitiveField())*deltaT0;
     }
