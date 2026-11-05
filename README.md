@@ -10,7 +10,7 @@ Presented here is a growing suite of solvers that describe the laser-substrate
  interaction. This repository begins with the `laserbeamFoam` solver. Additional
  solvers are being added incrementally.
 
-Currently, this repository contains two solvers:
+Currently, this repository contains four solvers:
 
 ### `laserbeamFoam`
 
@@ -44,6 +44,21 @@ with the diffusivity specified through 'diffusion pairs', and the interface
 compression is again specified pair-wise. The miscible phases in the simulation
 should have diffusivity specified between them, and immiscible phase pairs
 should have an interface compression term specified between them (typically 1).
+
+### `microstructureFoam`
+A fully coupled thermofluid–phase-field solver for simulating
+microstructure evolution during solidification processes relevant to
+welding and additive manufacturing. The solver extends the
+laserbeamFoam framework by incorporating a multi-order-parameter
+phase-field formulation for grain evolution together with a
+heterogeneous nucleation model. This enables two-way coupling between
+thermal-fluid behaviour and microstructure development, including
+latent heat feedback during solidification.
+
+Detailed solver documentation is available in:
+
+`applications/solvers/microstructureFoam/README.md`
+
 
 Target applications for the solvers included in this repository include:
 
@@ -159,6 +174,22 @@ Cases can be cleaned and reset using the included `Allclean` scripts, i.e.
 ./Allclean
 ```
 
+### microstructureFoam Tutorials
+The `microstructureFoam` solver extends the thermofluid formulation of
+`laserbeamFoam` through the addition of heterogeneous nucleation and
+phase-field microstructure evolution.
+ 
+Tutorial cases are provided demonstrating:
+ 
+* Nucleation-controlled grain refinement
+* Columnar solidification
+* Laser melting and resolidification
+ 
+These cases can be executed using the supplied `Allrun` scripts. In
+addition to the standard mesh generation and field initialisation
+steps, some cases may utilise the optional `TesselateFoam` utility to
+generate an initial polycrystalline microstructure before running
+`microstructureFoam`.
 
 ## Algorithm
 
@@ -221,6 +252,20 @@ The main solver loop iterates until program termination. A summary of the
 
 There are no constraints on how the computational domain is discretised.
 
+### microstructureFoam Algorithm
+
+The `microstructureFoam` solver extends the `laserbeamFoam` framework by
+incorporating heterogeneous nucleation and phase-field microstructure
+evolution. Following the thermofluid solution procedure, new grain order
+parameters may be activated when the local undercooling criterion is
+satisfied. The grain order parameters and solid-liquid phase field are
+then evolved using a multi-order-parameter phase-field formulation.
+
+These additional steps enable fully coupled simulations of heat transfer,
+fluid flow, latent heat release, nucleation, and microstructure evolution
+within a single OpenFOAM-based framework.
+
+
 ## Visualising the rays in ParaView
 
 `laserbeamFoam` writes the individual ray beams to `VTK/rays_<LASER_NAME>_<TIME>.vtk`,
@@ -274,6 +319,9 @@ laserbeamFoam: Laser ray-tracing and thermally induced state transition
 simulation toolkit. TF Flint, JD Robson, G Parivendhan, P Cardiff - SoftwareX,
 2023 - https://doi.org/10.1016/j.softx.2022.101299
 ```
+
+If you use one of the other solvers in this repository, please cite the relevant
+publication.
 
 ## References
 
