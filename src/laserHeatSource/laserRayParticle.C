@@ -209,8 +209,9 @@ bool Foam::laserRayParticle::move
                     {
                         n = -n;
                     }
+                    const vector incident = direction_;
                     direction_ = direction_ - 2.0*(direction_ & n)*n;
-                    direction_ /= mag(direction_) + VSMALL;
+                    tiltOffMeshPlanes(incident);
                     ++escapeRedirects_;
                     recordPathPoint(td);
                 }
@@ -284,8 +285,9 @@ bool Foam::laserRayParticle::move
                 n = -n;
             }
 
+            const vector incident = direction_;
             direction_ = direction_ - 2.0*(direction_ & n)*n;
-            direction_ /= mag(direction_) + VSMALL;
+            tiltOffMeshPlanes(incident);
 
             bounceCount_++;
             td.maxObservedBounces_ =
@@ -399,6 +401,59 @@ bool Foam::laserRayParticle::move
     }
 
     return td.keepParticle;
+}
+
+
+void Foam::laserRayParticle::tiltOffMeshPlanes(const vector& incident)
+{
+    // A ray reflects on a cell face, and when the interface normal is aligned
+    // with the mesh, as it often is on a Cartesian mesh, the reflected ray can
+    // lie exactly in the plane of a face, or hit an edge exactly (from a seed
+    // point at a cell centre, a direction such as (-2, -1, 2)/3 reaches two
+    // face planes at once). Which cell it is then tracked through is decided
+    // by round-off and by the local numbering of the mesh, so it differs
+    // between decompositions, and the tracking can get stuck. A tilt, with a
+    // component along every direction perpendicular to the ray, takes the ray
+    // off such directions, like the perturbation of the seed points of the
+    // rays. The angle is far below the resolution of the interface normal on a
+    // mesh, and well above round-off (a ray on an edge tilted by sqrt(SMALL)
+    // rad was still tracked differently on different decompositions).
+    direction_ /= mag(direction_) + VSMALL;
+
+    const vector a =
+        (mag(direction_ & vector(1, 0, 0)) < 0.9)
+      ? vector(1, 0, 0)
+      : vector(0, 0, 1);
+
+    vector t = direction_ ^ a;
+    t /= mag(t) + VSMALL;
+
+    const vector u = direction_ ^ t;
+
+    direction_ += tiltAngle*(t + u);
+    direction_ /= mag(direction_) + VSMALL;
+
+    // The ray is on the face it has just crossed into the cell. A reflection
+    // on a surface at 45 degrees to the mesh can turn the tilt of an earlier
+    // reflection into the opposite of this one, and leave the ray in the
+    // plane of that face. Such a ray is turned back across the face, to the
+    // side it came from, by tiltAngle.
+    const label facei = face();
+
+    if (facei >= 0)
+    {
+        const vector& Sf = mesh().faceAreas()[facei];
+        const vector nf = Sf/mag(Sf);
+        const scalar dn = direction_ & nf;
+
+        if (mag(dn) < tiltAngle)
+        {
+            const scalar back = ((incident & nf) > 0) ? -tiltAngle : tiltAngle;
+
+            direction_ += (back - dn)*nf;
+            direction_ /= mag(direction_) + VSMALL;
+        }
+    }
 }
 
 

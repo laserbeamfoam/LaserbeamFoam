@@ -255,6 +255,10 @@ public:
         //- Runtime type information
         TypeName("laserRayParticle");
 
+        //- Tilt of the direction after a reflection [rad], see
+        //  tiltOffMeshPlanes()
+        static constexpr scalar tiltAngle = 1e-4;
+
 
     // Constructors
 
@@ -318,6 +322,12 @@ public:
         //  This is the main ray-tracing logic: track face-to-face,
         //  check for interfaces, deposit energy, reflect.
         bool move(Cloud<laserRayParticle>& cloud, trackingData& td, const scalar trackTime);
+
+        //- Tilt the direction by tiltAngle after a reflection, and turn a
+        //  ray left in the plane of the face it is on back across it: a ray
+        //  in the plane of a cell face or on an edge is tracked through a
+        //  cell chosen by round-off
+        void tiltOffMeshPlanes(const vector& incident);
 
         //- Overridable function to handle the particle hitting a patch
         //  Return true if handled (skip specific patch handler), false
