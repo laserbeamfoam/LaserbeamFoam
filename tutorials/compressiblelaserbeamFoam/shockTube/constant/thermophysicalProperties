@@ -1,0 +1,57 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+phases (air);
+
+pMin                    1000;
+
+P0                      1e5;
+interface_thickness     1e-5;
+
+
+sigmas
+(
+    // n/a
+);
+
+dsigmadT
+(
+    // n/a
+);
+
+boils
+(
+    // n/a
+);
+
+LatentHeatGas
+(
+    // n/a
+);
+
+interfaceCompression
+(
+    // n/a
+);
+
+interfaceDiffusion
+(
+    // n/a
+);
+
+
+// ************************************************************************* //
