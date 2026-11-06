@@ -14,7 +14,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-phaseState      gaseous;  // or: gaseous, solid
+phaseState      gaseous;  // or: liquid, solid
 
 thermoType
 {
@@ -27,11 +27,11 @@ thermoType
     energy          sensibleInternalEnergy;
 }
 
-TSolidus	            1.0;
-TLiquidus	            2.0;
-LatentHeat	            1.0;
-elec_conductivity	    1.0;
-magnetic_permeability	1.256e-6;
+TSolidus                1.0;
+TLiquidus               2.0;
+LatentHeat              1.0;
+elec_conductivity       1.0;
+magnetic_permeability   1.256e-6;
 
 mixture
 {
@@ -41,16 +41,15 @@ mixture
     }
     thermodynamics
     {
-        // Commented values are from rhoCentralFoam
+        // Commented values are from rhoCentralFoam's version of the tutorial
         Cp              1005; // 1004.5;
         Hf              0;    // 2.544e+06;
-        /*
-        Cv is apparently calculated by
-            Cp - Cv = R_universal / W_molar
-            => Cv = Cp - 8314.46/28.9
-                  = 717.3
-        Hence, gamma Cp/Cv would be ~ 1.4.
-        */
+        // Note:
+        // Cv is apparently calculated by
+        //     Cp - Cv = R_universal / W_molar
+        //     => Cv = Cp - 8314.46/28.9
+        //           = 717.3
+        // Hence, gamma(=Cp/Cv) would be ~ 1.4.
     }
     transport
     {

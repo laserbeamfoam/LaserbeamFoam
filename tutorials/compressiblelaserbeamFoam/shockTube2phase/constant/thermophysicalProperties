@@ -36,18 +36,12 @@ dsigmadT
 
 boils
 (
-    (metal1vapour metal1) 3134.0   // Fe
-    (metal2vapour metal2) 2944.0   // Cr
-    (metal3vapour metal3) 3003.0   // Ni
-    (metal4vapour metal4) 4912.0   // Mo
+    // n/a
 );
 
 LatentHeatGas
 (
-    (metal1vapour metal1) 6.09e6   // Fe
-    (metal2vapour metal2) 6.62e6   // Cr
-    (metal3vapour metal3) 6.48e6   // Ni
-    (metal4vapour metal4) 6.20e6   // Mo
+    // n/a
 );
 
 interfaceCompression

@@ -42,18 +42,13 @@ mixture
     }
     equationOfState
     {
+        // (Zenz et al.: https://doi.org/10.1016/j.compfluid.2023.106109)
+        //
         // Tait model (adiabaticPerfectFluid), Zenz et al. table 3, & pp3
         rho0        998.2061;
         p0          1e5;
         gamma       7.15;
         B           #eval "2.178e9 / 7.15"; // "K_bulk / gamma", pp3 Zenz et al.
-
-        // constant density
-        // rho         998.2061; // kg/m^3
-
-        // // Perfect fluid
-        // rho0        998.2061; // kg/m^3
-        // R           1e6;      // Artificial value to prevent stiffness
     }
     thermodynamics
     {
@@ -63,8 +58,11 @@ mixture
     transport
     {
         mu              #eval "3.645e-7 * 998.2061";
+
+        // Similarly to `thermophysicalProperties.air` we let Pr -> infinity
+        // such that kappa -> 0.
         Pr              1e15; // 0.7;
-        kappa           0;
+        kappa           0;    // <- intent: is *not* being read in!
     }
 }
 
