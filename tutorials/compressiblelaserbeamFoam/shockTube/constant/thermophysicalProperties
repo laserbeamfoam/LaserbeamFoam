@@ -17,10 +17,10 @@ FoamFile
 
 phases (air);
 
-pMin            1000;
+pMin                    1000;
 
-P0    1e5;
-interface_thickness    1e-5;
+P0                      1e5;
+interface_thickness     1e-5;
 
 
 sigmas

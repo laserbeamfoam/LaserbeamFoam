@@ -16,7 +16,6 @@ FoamFile
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 phases (air water);
-// (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal4vapour air);
 
 pMin                    1000;
 
