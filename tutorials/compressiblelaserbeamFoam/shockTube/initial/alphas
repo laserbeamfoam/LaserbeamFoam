@@ -23,10 +23,10 @@ boundaryField
 {
     sides
     {
-		type			zeroGradient;
+        type            zeroGradient;
     }
 
-	empty
+    empty
     {
         type            empty;
     }

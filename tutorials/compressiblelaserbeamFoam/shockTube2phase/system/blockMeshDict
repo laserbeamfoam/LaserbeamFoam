@@ -16,14 +16,15 @@ FoamFile
 
 scale   1;
 
-xmin -1.5e-3;
-xmax  1.5e-3;
-ymin  0;
-ymax  1e-3;
-zmin  0;
-zmax  1e-3;
+xmin   -1.5e-3;
+xmax    1.5e-3;
+ymin    0;
+ymax    1e-3;
+zmin    0;
+zmax    1e-3;
 
-dx 2e-6; // Zenz et al. table 3, coarse; use 2e-7 for fine, 2e-6 for coarse
+dx      2e-6; // Zenz et al. table 3, coarse; use 2e-7 for fine, 2e-6 for coarse
+// (Zenz et al.: https://doi.org/10.1016/j.compfluid.2023.106109)
 
 nx #eval "($xmax - $xmin) / $dx";
 

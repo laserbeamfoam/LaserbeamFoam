@@ -20,7 +20,7 @@ solvers
     "alpha.*"
     {
         nAlphaSubCycles 1;
-        cAlpha	0.1;
+        cAlpha          1.0; // (Does not seem to impact solution much / at all)
     }
 
     "pcorr.*"
