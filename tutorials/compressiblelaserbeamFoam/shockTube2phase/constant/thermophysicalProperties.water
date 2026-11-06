@@ -14,7 +14,7 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-phaseState      gaseous;  // or: gaseous, solid
+phaseState      gaseous;  // or: liquid, solid
 
 thermoType
 {
@@ -22,7 +22,7 @@ thermoType
     mixture         pureMixture;
     transport       const;
     thermo          hConst;
-    equationOfState adiabaticPerfectFluid; // perfectGas;
+    equationOfState adiabaticPerfectFluid;
     specie          specie;
     energy          sensibleInternalEnergy;
 }

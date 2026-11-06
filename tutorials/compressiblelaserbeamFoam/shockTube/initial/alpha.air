@@ -16,7 +16,7 @@ FoamFile
 
 dimensions      [0 0 0 0 0 0 0];
 
-internalField   uniform 1; // Single phase flow
+internalField   uniform 1;
 
 boundaryField
 {

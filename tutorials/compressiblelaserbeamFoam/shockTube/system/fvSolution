@@ -88,9 +88,9 @@ MELTING
     minTempCorrector    1;
     maxTempCorrector    25;
     epsilonTolerance    1e-15;
-    epsilonRelaxation   1; // 0.9;
+    epsilonRelaxation   1;
 
-    damperSwitch        false; // true;
+    damperSwitch        false;
 
     thermalTotalDerivativeCorrection false;
 }

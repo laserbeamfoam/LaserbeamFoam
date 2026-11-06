@@ -24,9 +24,9 @@ stopAt          noWriteNow; // endTime;
 
 endTime         0.007;
 
-deltaT          1e-12; //6;
+deltaT          1e-12;
 
-writeControl    adjustableRunTime; // runTime;
+writeControl    adjustableRunTime;
 
 writeInterval   0.001;
 
@@ -51,7 +51,7 @@ functions
 
 adjustTimeStep  yes;
 
-maxCo           0.125; // 125;
+maxCo           0.125;
 maxAlphaCo      0.125;
 maxDeltaT       2.5e-5;
 
