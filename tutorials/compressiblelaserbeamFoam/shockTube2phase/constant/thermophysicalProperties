@@ -1,0 +1,64 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      thermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+phases (air water);
+// (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal4vapour air);
+
+pMin                    1000;
+
+P0                      1e5;
+interface_thickness     1e-5;
+
+
+sigmas
+(
+    (air water) 0.0
+);
+
+dsigmadT
+(
+    (air water) 0.0
+);
+
+boils
+(
+    (metal1vapour metal1) 3134.0   // Fe
+    (metal2vapour metal2) 2944.0   // Cr
+    (metal3vapour metal3) 3003.0   // Ni
+    (metal4vapour metal4) 4912.0   // Mo
+);
+
+LatentHeatGas
+(
+    (metal1vapour metal1) 6.09e6   // Fe
+    (metal2vapour metal2) 6.62e6   // Cr
+    (metal3vapour metal3) 6.48e6   // Ni
+    (metal4vapour metal4) 6.20e6   // Mo
+);
+
+interfaceCompression
+(
+    (air water) 0.0
+);
+
+interfaceDiffusion
+(
+    (air water) 0.0
+);
+
+
+// ************************************************************************* //

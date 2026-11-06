@@ -1,0 +1,68 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSchemes;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+ddtSchemes
+{
+    default         Euler;
+}
+
+gradSchemes
+{
+    default         leastSquares;
+}
+
+divSchemes
+{
+    default         none;
+
+    // div(phi,U)      Gauss upwind;
+
+    // div(phid,p)     Gauss limitedLinear 1;
+    // div(phi,e)      Gauss limitedLinear 1;
+    // div(phi,K)      Gauss limitedLinear 1;
+    // div(phiv,p)     Gauss limitedLinear 1;
+
+    div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
+
+    // Compressible Laserbeam Foam solver:
+    div(rhoPhi,U)           Gauss upwind; // no diff on limitedLinear
+    div(phi,alpha)          Gauss vanLeer;
+    div(phirb,alpha)        Gauss linear;
+    "div\(phi,.*rho.*\)"    Gauss upwind;
+    div(rhoPhi,T)           Gauss limitedLinear 1;
+    div(rhoPhi,K)           Gauss limitedLinear 1;
+    div(phi,p)              Gauss limitedLinear 1;
+
+    div(rhoPhi,epsilon1)	Gauss linear;
+}
+
+laplacianSchemes
+{
+    default         Gauss linear orthogonal;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         orthogonal;
+}
+
+
+// ************************************************************************* //

@@ -1,0 +1,72 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      thermophysicalProperties.water;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+phaseState      gaseous;  // or: gaseous, solid
+
+thermoType
+{
+    type            heRhoThermo;
+    mixture         pureMixture;
+    transport       const;
+    thermo          hConst;
+    equationOfState adiabaticPerfectFluid; // perfectGas;
+    specie          specie;
+    energy          sensibleInternalEnergy;
+}
+
+TSolidus                1.0;
+TLiquidus               2.0;
+LatentHeat              1.0;
+elec_conductivity       1.0;
+magnetic_permeability   1.256e-6;
+
+mixture
+{
+    specie
+    {
+        molWeight       18.015;
+        // https://pubchem.ncbi.nlm.nih.gov/compound/Water
+    }
+    equationOfState
+    {
+        // Tait model (adiabaticPerfectFluid), Zenz et al. table 3, & pp3
+        rho0        998.2061;
+        p0          1e5;
+        gamma       7.15;
+        B           #eval "2.178e9 / 7.15"; // "K_bulk / gamma", pp3 Zenz et al.
+
+        // constant density
+        // rho         998.2061; // kg/m^3
+
+        // // Perfect fluid
+        // rho0        998.2061; // kg/m^3
+        // R           1e6;      // Artificial value to prevent stiffness
+    }
+    thermodynamics
+    {
+        Cp              4184;
+        Hf              0;
+    }
+    transport
+    {
+        mu              #eval "3.645e-7 * 998.2061";
+        Pr              1e15; // 0.7;
+        kappa           0;
+    }
+}
+
+
+// ************************************************************************* //
