@@ -321,6 +321,10 @@ void laserHeatSource::seedRayCloud
     boundBox localBb(mesh.points(), false);
     localBb.inflate(1e-6);
 
+    // The cell of each seed found on this processor
+    DynamicList<label> foundRays;
+    DynamicList<label> foundCells;
+
     forAll(rayCoords, i)
     {
         if (!localBb.contains(rayCoords[i]))
@@ -342,20 +346,51 @@ void laserHeatSource::seedRayCloud
             // Update seed for next iteration - nearby rays benefit
             seedCellI = cellI;
 
-            // This processor owns this ray's starting cell
-            laserRayParticle* pPtr = new laserRayParticle
-                (
-                    mesh,
-                    rayCoords[i],
-                    cellI,
-                    V_incident,
-                    rayPowers[i],
-                    0.0,        // dA
-                    i           // globalRayIndex
-                );
-
-            cloud.addParticle(pPtr);
+            foundRays.append(i);
+            foundCells.append(cellI);
         }
+    }
+
+    // A seed on a face between two processors is found by both, and each
+    // would create the ray, so that its power would be counted twice. Each
+    // seed is given to the lowest-numbered processor that found it, with one
+    // reduction of the list of the owners of all the seeds.
+    labelList rayOwner;
+
+    if (Pstream::parRun())
+    {
+        rayOwner.resize(nTotalRays, labelMax);
+
+        for (const label i : foundRays)
+        {
+            rayOwner[i] = Pstream::myProcNo();
+        }
+
+        Pstream::listCombineReduce(rayOwner, minEqOp<label>());
+    }
+
+    forAll(foundRays, k)
+    {
+        const label i = foundRays[k];
+
+        if (Pstream::parRun() && rayOwner[i] != Pstream::myProcNo())
+        {
+            continue;
+        }
+
+        // This processor owns this ray's starting cell
+        laserRayParticle* pPtr = new laserRayParticle
+            (
+                mesh,
+                rayCoords[i],
+                foundCells[k],
+                V_incident,
+                rayPowers[i],
+                0.0,        // dA
+                i           // globalRayIndex
+            );
+
+        cloud.addParticle(pPtr);
     }
 
     Info<< "    Total rays: " << nTotalRays
