@@ -17,6 +17,9 @@
     // sum_i F_i*Cv_i from solveAlphas: the capacity each species flux carries, not interpolate(CvMass)*rhoPhi
     const surfaceScalarField& rhoCvPhi = mixture.rhoCvPhi();
 
+    // sum_i F_i*(Cv_i*T^n)_donor: the energy the ledger fluxes carried (explicit, same donors as c_i)
+    const surfaceScalarField& rhoCvTPhi = mixture.rhoCvTPhi();
+
 
     const volScalarField kappaEff
     (
@@ -192,19 +195,17 @@
           ? mthd->Joulesource()
           : zeroJoulesource;
 
-        // every term in W/m^3; the K terms are rhoM*DK/Dt exactly (K*contErrRho removes the residue)
+        // every term in W/m^3. Advection explicit with the ledger's own fluxes and donors, so
+        // the new T is the mass-weighted mix the EOS recovery assumes; Sp(contErrCv) keeps
+        // phase-changed mass at its temperature. Work = p*dV of the volume the ledger moved
+        // (closure dilatation included: it is real expansion; LvapE + p*dv = Lvap)
         fvScalarMatrix TEqn
         (
             fvm::ddt(rhoCv, T)
-          + fvm::div(rhoCvPhi, T)
+          + fvc::div(rhoCvTPhi)
           - fvm::Sp(contErrCv, T)
           - fvm::laplacian(kappaEff, T)
-          + (
-                fvc::div(fvc::absolute(phi, U), p)
-              - p*closureSrc    // closure volume is bookkeeping, not p*dV work (phase-change dV stays: LvapE + p*dv = Lvap)
-              + fvc::ddt(rhoM, K) + fvc::div(mixture.rhoPhi(), K)
-              - K*contErrRho
-            )
+          + p*mixture.divPhiLedger()
          ==
             laser.deposition()
           + Joulesource

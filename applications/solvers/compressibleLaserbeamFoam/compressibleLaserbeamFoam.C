@@ -205,6 +205,7 @@ int main(int argc, char *argv[])
                 mthd->solve(phi, U);
             }
             #include "TEqn.H"
+            #include "volumeClosure.H"
 
             // --- Pressure corrector loop
             while (pimple.correct())

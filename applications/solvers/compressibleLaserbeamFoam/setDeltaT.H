@@ -31,9 +31,15 @@ const volScalarField c
     }
 
 
-    // phase change only: the closure demand is already bounded per step (closureCoFraction)
+    // phase change only: vDot is PCR from mixture.solve(), the closure is no longer in it
     scalar phaseChangeNum =
-        gMax(mag(vDot.primitiveField() - closureSrc.primitiveField())())*deltaT0;
+        gMax(mag(vDot.primitiveField())())*deltaT0;
+
+    // volume the closure asks the next step to move, per cell volume (keeps the lagged correction linear)
+    const scalar maxClosureFraction =
+        runTime.controlDict().getOrDefault<scalar>("maxClosureFraction", 0.125);
+    const scalar closureNum =
+        gMax(mag(closureSrc.primitiveField())())*deltaT0;
 
     scalar deltaTKnum = 0.0;
     {
@@ -63,8 +69,10 @@ const volScalarField c
     const scalar rAcoustic  = maxAcousticCo    /(acousticCoNum + smallT);
     const scalar rPhase     = maxPhaseChangeFraction/(phaseChangeNum + smallT);
     const scalar rDeltaTK   = maxDeltaTK       /(deltaTKnum    + smallT);
+    const scalar rClosure   = maxClosureFraction/(closureNum   + smallT);
 
-    const scalar limiter = min(min(min(rCo, rAlpha), min(rAcoustic, rPhase)), rDeltaTK);
+    const scalar limiter =
+        min(min(min(rCo, rAlpha), min(rAcoustic, rPhase)), min(rDeltaTK, rClosure));
 
     scalar deltaTFact = min(min(limiter, dampFactor*1.0), 1.2);
 

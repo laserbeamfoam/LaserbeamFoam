@@ -95,7 +95,7 @@ dimensionedScalar rhoMMin
 );
 
 // inertia and heat capacity never below the EOS values the pressure equation assumes (ledgerFloorEOS false = pure ledger)
-const bool ledgerFloorEOS(mixture.getOrDefault<bool>("ledgerFloorEOS", true));
+const bool ledgerFloorEOS(mixture.getOrDefault<bool>("ledgerFloorEOS", false));
 Info<< "ledgerFloorEOS = "
     << (
            ledgerFloorEOS
@@ -145,7 +145,7 @@ autoPtr<compressible::turbulenceModel> turbulence
 );
 
 
-       volScalarField vDot //kg per m^3 per s
+       volScalarField vDot // phase-change dilatation [1/s], dt control only (the pEqn sees it through closureSrc)
     (
         IOobject
         (
@@ -183,8 +183,7 @@ autoPtr<compressible::turbulenceModel> turbulence
     );
 
 
-        // ledger-closure volume source [1/s] that mixture.solve() adds into vDot;
-        // kept separately so setDeltaT_.H can leave it out of maxPhaseChangeFraction
+        // volume closure chi*(s - 1)/dt [1/s], set after TEqn by volumeClosure.H; the pEqn's volume source
         volScalarField closureSrc
     (
         IOobject

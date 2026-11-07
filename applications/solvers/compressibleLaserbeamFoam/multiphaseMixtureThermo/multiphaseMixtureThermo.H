@@ -127,6 +127,12 @@ private:
         //- Species-resolved capacity flux sum_i F_i*Cv_i for TEqn.H
         surfaceScalarField rhoCvPhi_;
 
+        //- Sensible-energy flux sum_i F_i*(Cv_i*T)_donor, T at the transport level
+        surfaceScalarField rhoCvTPhi_;
+
+        //- div(phi) of the volume flux the ledger moved with this step
+        volScalarField divPhiLedger_;
+
         volScalarField alphas_;
 
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
@@ -279,6 +285,18 @@ public:
         const surfaceScalarField& rhoCvPhi() const
         {
             return rhoCvPhi_;
+        }
+
+        //- sum_i F_i*(Cv_i*T)_donor: TEqn advection with the ledger's donors
+        const surfaceScalarField& rhoCvTPhi() const
+        {
+            return rhoCvTPhi_;
+        }
+
+        //- div(phi) the ledger moved with, for the p*dV work in TEqn.H
+        const volScalarField& divPhiLedger() const
+        {
+            return divPhiLedger_;
         }
 
 
@@ -530,17 +548,21 @@ public:
         //  Field values are 1 near and 0 away for the interface.
         tmp<volScalarField> nearInterface() const;
 
-        //- Solve for the mixture phase-fractions.
+        //- Solve for the mixture phase-fractions; returns the phase-change dilatation (dt control only).
         //  vDotPptr (optional): see solveAlphas.
-        //  closureSrcPtr (optional): receives the ledger-closure volume source
-        //  [1/s] that solveAlphas adds to the returned rate, so the time-step
-        //  control can leave it out of the phase-change fraction.
+        //  closureSrcPtr: unused, kept for the call signature; the closure is volumeClosure() after TEqn
         tmp<volScalarField> solve
         (
             volScalarField* massdotterm,
             volScalarField* vDotPptr = nullptr,
             volScalarField* closureSrcPtr = nullptr
         );
+
+        //- Volume closure on the post-TEqn state, the pEqn's only volume source.
+        //  Returns chi*(s - 1)/dt, s = sum_i c_i/rho_i(p,T); fills chi with
+        //  rhoCv/(rhoCv + p*ds/dT), the share of an excess the outflow must carry
+        //  once its p*dV cooling is counted (1/gamma in a gas, 1 in a liquid)
+        tmp<volScalarField> volumeClosure(volScalarField& chi) const;
 };
 
 

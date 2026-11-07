@@ -34,6 +34,7 @@
     // Update the pressure BCs to ensure flux consistency
     constrainPressure(p_rgh, U, phiHbyA, rAUf);
 
+    // per-phase (1/rho_i)*D(rho_i)/Dt: only feeds phase.dgdt() for the beta transport now
     PtrList<fvScalarMatrix> p_rghEqnComps(mixture.phases().size());
 
     label phasei = 0;
@@ -55,43 +56,44 @@
         ++phasei;
     }
 
+    // adiabatic compressibility at fixed composition, chi*sum_i alpha_i*psi_i/rho_i [1/Pa]
+    volScalarField psiBar
+    (
+        IOobject("psiBar", runTime.timeName(), mesh),
+        mesh,
+        dimensionedScalar(dimless/dimPressure, Zero)
+    );
+    for (const phaseModel& phase : mixture.phases())
+    {
+        psiBar += max(phase, scalar(0))*phase.thermo().psi()/phase.thermo().rho();
+    }
+    psiBar *= chiClosure;
+
+    const dimensionedScalar rDeltaTp(1.0/runTime.deltaT());
+
     // Cache p_rgh prior to solve for density update
     volScalarField p_rgh_0(p_rgh);
 
     while (pimple.correctNonOrthogonal())
     {
-        // Phase change, backward-Euler in pressure.
+        // closure source (heating, phase change, transport residual) plus the
+        // backward-Euler pressure coupling of the phase-change rate
         fvScalarMatrix p_rghEqnIncomp
         (
             fvc::div(phiHbyA)
           - fvm::laplacian(rAUf, p_rgh)
-          - vDot
+          - closureSrc
           + fvm::Sp(vDotP, p_rgh)
           - vDotP*p_rgh.oldTime()
         );
 
-        tmp<fvScalarMatrix> p_rghEqnComp;
-
-        phasei = 0;
-        forAllConstIters(mixture.phases(), phase)
-        {
-            tmp<fvScalarMatrix> hmm
-            (
-                (max(phase(), scalar(0))/phase().thermo().rho())
-               *p_rghEqnComps[phasei]
-            );
-
-            if (phasei == 0)
-            {
-                p_rghEqnComp = hmm;
-            }
-            else
-            {
-                p_rghEqnComp.ref() += hmm;
-            }
-
-            ++phasei;
-        }
+        // the volume constraint linearised about the closure state:
+        // chi*psi*(p - p_S)/dt + div(phi) = chi*(s - 1)/dt   (Zenz: Psi*(p - p*))
+        fvScalarMatrix p_rghEqnComp
+        (
+            fvm::Sp(psiBar*rDeltaTp, p_rgh)
+          - psiBar*rDeltaTp*p_rghS
+        );
 
         solve
         (
@@ -139,7 +141,8 @@
     Info<< "min,max(p_rgh) " << min(p_rgh).value()
         << " " << max(p_rgh).value() << endl;
     Info<< "min(T) " << min(T).value() << endl;
-    Info<< "max|vDot|*dt " << max(mag(vDot)).value()*mesh.time().deltaTValue()
+    Info<< "max|vDot|*dt (phase change) " << max(mag(vDot)).value()*mesh.time().deltaTValue()
+        << ", max|closureSrc|*dt " << max(mag(closureSrc)).value()*mesh.time().deltaTValue()
         << endl;
 
     if (!correctPhi)
