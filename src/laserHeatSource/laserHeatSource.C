@@ -71,7 +71,8 @@ void laserHeatSource::seedRayCloud
     // exactly on a face
     // The magnitude of the perturbation is calculated as a small fraction of
     // the smallest cell dimension, as opposed to an absolute value, and we take
-    // care to perturb in the ray direction and transverse to the ray direction
+    // care to perturb in the ray direction and in both directions transverse
+    // to it
 
     // Ray direction
     const vector d = V_incident/(mag(V_incident) + VSMALL);
@@ -88,8 +89,14 @@ void laserHeatSource::seedRayCloud
     const scalar lCell = cbrt(gMin(mesh.V()));
     const scalar eps = sqrt(SMALL)*lCell;
 
-    // Safe perturbation in the ray direction and transverse ray direction
-    const vector perturbation = eps*(d + t);
+    // Second transverse direction: with t alone, a seed on a mesh plane that
+    // contains d and t (x = const for a vertical beam along a z-scan) stayed
+    // on it, and its ray travelled along the faces of that plane, depositing
+    // on one side or the other depending on the decomposition
+    const vector s = d ^ t;
+
+    // Safe perturbation in the ray direction and both transverse directions
+    const vector perturbation = eps*(d + t + s);
     Info<< "    Perturbation vector for ray seed points = " << perturbation
         << endl;
 
