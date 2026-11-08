@@ -59,6 +59,9 @@ Foam::laserRayParticle::laserRayParticle
     nearZeroAbsorptivityCount_(0),
     globalRayIndex_(globalRayIndex),
     active_(true),
+    escapingInterface_(false),
+    escapeHops_(0),
+    escapeRedirects_(0),
     path_()
 {
     path_.append(position);
@@ -83,6 +86,9 @@ Foam::laserRayParticle::laserRayParticle
     nearZeroAbsorptivityCount_(0),
     globalRayIndex_(-1),
     active_(true),
+    escapingInterface_(false),
+    escapeHops_(0),
+    escapeRedirects_(0),
     path_()
 {
     if (readFields)
@@ -95,7 +101,10 @@ Foam::laserRayParticle::laserRayParticle
             >> minAbsorptivity_
             >> nearZeroAbsorptivityCount_
             >> globalRayIndex_
-            >> active_;
+            >> active_
+            >> escapingInterface_
+            >> escapeHops_
+            >> escapeRedirects_;
     }
 
     is.check(FUNCTION_NAME);
@@ -146,10 +155,8 @@ bool Foam::laserRayParticle::move
     // One smeared interface crossing = one Fresnel event.  After an event
     // the ray is still inside the alpha >= depCutoff band (which spans
     // 2-3 cells), and at grazing incidence the reflected leg traverses
-    // several band cells laterally 
-    bool escapingInterface = false;
-    label escapeHops = 0;
-    label escapeRedirects = 0;
+    // several band cells laterally. The escape state is a member of the ray,
+    // so that it survives a transfer to another processor inside the band.
 
     while (td.keepParticle && !td.switchProcessor && active_)
     {
@@ -179,14 +186,14 @@ bool Foam::laserRayParticle::move
 
         // ---- Physics: check for interface or bulk metal ----
 
-        if (escapingInterface)
+        if (escapingInterface_)
         {
             if (alphaI[cellI] < td.depCutoff_)
             {
                 // Clear of the band: resume normal physics next cell
-                escapingInterface = false;
-                escapeHops = 0;
-                escapeRedirects = 0;
+                escapingInterface_ = false;
+                escapeHops_ = 0;
+                escapeRedirects_ = 0;
             }
             else if
             (
@@ -194,7 +201,7 @@ bool Foam::laserRayParticle::move
             )
             {
                 // The reflected bit is heading into the metal
-                if (escapeRedirects < 3 && mag(nI[cellI]) > 0.5)
+                if (escapeRedirects_ < 3 && mag(nI[cellI]) > 0.5)
                 {
                     vector n = nI[cellI];
                     n /= mag(n);
@@ -202,9 +209,10 @@ bool Foam::laserRayParticle::move
                     {
                         n = -n;
                     }
+                    const vector incident = direction_;
                     direction_ = direction_ - 2.0*(direction_ & n)*n;
-                    direction_ /= mag(direction_) + VSMALL;
-                    ++escapeRedirects;
+                    tiltOffMeshPlanes(incident);
+                    ++escapeRedirects_;
                     recordPathPoint(td);
                 }
                 else
@@ -218,7 +226,7 @@ bool Foam::laserRayParticle::move
                     break;
                 }
             }
-            else if (++escapeHops > 200)
+            else if (++escapeHops_ > 200)
             {
                 // Stuck skimming the band: absorb the remainder and die.
                 td.deposition_[cellI] += power_ / VI[cellI];
@@ -277,8 +285,9 @@ bool Foam::laserRayParticle::move
                 n = -n;
             }
 
+            const vector incident = direction_;
             direction_ = direction_ - 2.0*(direction_ & n)*n;
-            direction_ /= mag(direction_) + VSMALL;
+            tiltOffMeshPlanes(incident);
 
             bounceCount_++;
             td.maxObservedBounces_ =
@@ -286,8 +295,8 @@ bool Foam::laserRayParticle::move
             recordPathPoint(td);
 
             // Suppress further events until the ray exits this band
-            escapingInterface = true;
-            escapeHops = 0;
+            escapingInterface_ = true;
+            escapeHops_ = 0;
 
             if (td.maxRayBounces_ > 0 && bounceCount_ >= td.maxRayBounces_)
             {
@@ -392,6 +401,59 @@ bool Foam::laserRayParticle::move
     }
 
     return td.keepParticle;
+}
+
+
+void Foam::laserRayParticle::tiltOffMeshPlanes(const vector& incident)
+{
+    // A ray reflects on a cell face, and when the interface normal is aligned
+    // with the mesh, as it often is on a Cartesian mesh, the reflected ray can
+    // lie exactly in the plane of a face, or hit an edge exactly (from a seed
+    // point at a cell centre, a direction such as (-2, -1, 2)/3 reaches two
+    // face planes at once). Which cell it is then tracked through is decided
+    // by round-off and by the local numbering of the mesh, so it differs
+    // between decompositions, and the tracking can get stuck. A tilt, with a
+    // component along every direction perpendicular to the ray, takes the ray
+    // off such directions, like the perturbation of the seed points of the
+    // rays. The angle is far below the resolution of the interface normal on a
+    // mesh, and well above round-off (a ray on an edge tilted by sqrt(SMALL)
+    // rad was still tracked differently on different decompositions).
+    direction_ /= mag(direction_) + VSMALL;
+
+    const vector a =
+        (mag(direction_ & vector(1, 0, 0)) < 0.9)
+      ? vector(1, 0, 0)
+      : vector(0, 0, 1);
+
+    vector t = direction_ ^ a;
+    t /= mag(t) + VSMALL;
+
+    const vector u = direction_ ^ t;
+
+    direction_ += tiltAngle*(t + u);
+    direction_ /= mag(direction_) + VSMALL;
+
+    // The ray is on the face it has just crossed into the cell. A reflection
+    // on a surface at 45 degrees to the mesh can turn the tilt of an earlier
+    // reflection into the opposite of this one, and leave the ray in the
+    // plane of that face. Such a ray is turned back across the face, to the
+    // side it came from, by tiltAngle.
+    const label facei = face();
+
+    if (facei >= 0)
+    {
+        const vector& Sf = mesh().faceAreas()[facei];
+        const vector nf = Sf/mag(Sf);
+        const scalar dn = direction_ & nf;
+
+        if (mag(dn) < tiltAngle)
+        {
+            const scalar back = ((incident & nf) > 0) ? -tiltAngle : tiltAngle;
+
+            direction_ += (back - dn)*nf;
+            direction_ /= mag(direction_) + VSMALL;
+        }
+    }
 }
 
 
@@ -779,7 +841,10 @@ Foam::Ostream& Foam::operator<<
         << token::SPACE << p.minAbsorptivity_
         << token::SPACE << p.nearZeroAbsorptivityCount_
         << token::SPACE << p.globalRayIndex_
-        << token::SPACE << p.active_;
+        << token::SPACE << p.active_
+        << token::SPACE << p.escapingInterface_
+        << token::SPACE << p.escapeHops_
+        << token::SPACE << p.escapeRedirects_;
 
     os.check(FUNCTION_NAME);
     return os;
