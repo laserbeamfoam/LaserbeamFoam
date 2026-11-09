@@ -95,6 +95,7 @@ MELTING
 
 PIMPLE
 {
+    momentumPredictor           yes;
     nOuterCorrectors            5;
     nCorrectors                 2;
     nNonOrthogonalCorrectors    0;
