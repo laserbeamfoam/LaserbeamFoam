@@ -1,0 +1,70 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2506                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      thermophysicalProperties.air;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+phaseState      gaseous;  // or: liquid, solid
+
+thermoType
+{
+    type            heRhoThermo;
+    mixture         pureMixture;
+    transport       const;
+    thermo          hConst;
+    equationOfState perfectGas;
+    specie          specie;
+    energy          sensibleInternalEnergy;
+}
+
+TSolidus                1.0;
+TLiquidus               2.0;
+LatentHeat              1.0;
+elec_conductivity       1.0;
+magnetic_permeability   1.256e-6;
+
+mixture
+{
+    specie
+    {
+        molWeight       28.9;
+    }
+    thermodynamics
+    {
+        // Commented values are from rhoCentralFoam's version of the tutorial
+        Cp              1004.5;
+        Hf              0;    // 2.544e+06;
+        // Note:
+        // Cv is apparently calculated by
+        //     Cp - Cv = R_universal / W_molar
+        //     => Cv = Cp - 8314.46/28.9
+        //           = 717.3
+        // Hence, gamma(=Cp/Cv) would be ~ 1.4.
+    }
+    transport
+    {
+        mu              0;
+        Pr              1e15; // 0.7;
+        //
+        //     Pr := nu / alpha
+        //         = (mu / rho) * (rho * cp / kappa)
+        // =>  kappa = mu * cp / Pr
+        // Therefore for Kappa->0, we let Pr -> infinity.
+        //
+        // Note, kappa below does not get read in, hence large Pr value
+        kappa           0; // <- intent: is *not* being read!
+    }
+}
+
+
+// ************************************************************************* //

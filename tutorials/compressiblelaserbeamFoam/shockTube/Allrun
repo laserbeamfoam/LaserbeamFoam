@@ -1,0 +1,22 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+# restore0Dir
+cp -r initial 0
+
+runApplication blockMesh
+
+runApplication setFields
+
+touch open.foam
+
+runApplication $(getApplication)
+
+runApplication -s sample postProcess -func sample -noZero
+
+#------------------------------------------------------------------------------
+
+printf "For full run, change \`./system/controlDict.stopTime\` to \`endTime\`."
+echo ;
