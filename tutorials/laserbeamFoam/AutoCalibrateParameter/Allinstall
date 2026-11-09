@@ -1,0 +1,59 @@
+#!/bin/bash
+# Allinstall — one-shot installation for the AutoCalibrateParameter tutorial
+#
+# What this script does:
+#   1. Installs the AutoCalibrateParameter Python package (editable install)
+#   2. Installs required Python dependencies
+#   3. Copies the postProcessing scripts to $FOAM_USER_APPBIN
+#   4. Verifies the installation
+
+set -e
+
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+SCRIPTS_DIR="${REPO_ROOT}/applications/scripts"
+
+echo "========================================"
+echo "  AutoCalibrateParameter — Allinstall"
+echo "========================================"
+echo
+
+# ── 1. Install the Python package ────────────────────────────────────────────
+echo "[1/3] Installing AutoCalibrateParameter package..."
+pip install -e "${SCRIPTS_DIR}[bayes]" --quiet
+echo "      Done."
+echo
+
+# ── 2. Install postProcessing scripts ────────────────────────────────────────
+echo "[2/3] Installing postProcessing scripts to \$FOAM_USER_APPBIN..."
+if [ -z "${FOAM_USER_APPBIN}" ]; then
+    echo "      WARNING: \$FOAM_USER_APPBIN is not set."
+    echo "      Skipping postProcessing install — source your OpenFOAM environment first:"
+    echo "        of2506  (or: source \$WM_PROJECT_DIR/etc/bashrc)"
+else
+    cp -r "${SCRIPTS_DIR}/postProcessing" "${FOAM_USER_APPBIN}/"
+    echo "      Done: ${FOAM_USER_APPBIN}/postProcessing"
+fi
+echo
+
+# ── 3. Verify ─────────────────────────────────────────────────────────────────
+echo "[3/3] Verifying installation..."
+python - <<'EOF'
+import importlib, sys
+
+ok = True
+for pkg in ["AutoCalibrateParameter", "numpy", "pandas", "scipy", "matplotlib", "yaml", "joblib", "openpyxl", "skopt"]:
+    try:
+        importlib.import_module(pkg)
+        print(f"      [OK] {pkg}")
+    except ImportError:
+        print(f"      [MISSING] {pkg}")
+        ok = False
+
+sys.exit(0 if ok else 1)
+EOF
+
+echo
+echo "========================================"
+echo "  Installation complete."
+echo "  Run the calibration with: python main.py"
+echo "========================================"

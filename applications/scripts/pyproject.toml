@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "AutoCalibrateParameter"
+version = "1.0.0"
+description = "Melt pool simulation parameter calibration framework for laserbeamFoam"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scipy",
+    "pyyaml",
+    "joblib",
+    "openpyxl",
+]
+
+[project.optional-dependencies]
+bayes = ["scikit-optimize"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["AutoCalibrateParameter*"]
