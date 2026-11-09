@@ -2,8 +2,6 @@
     alphasum *= 0.0;
     condensate = 1.0;
 
-    // refine_test*= 0.0;
-
     TSolidus *= 0.0;
     TLiquidus *= 0.0;
     LatentHeat *= 0.0;
@@ -96,10 +94,8 @@
             TLiquidus  += alpha1*phaseTLiquidus;
             LatentHeat += alpha1*phaseLH;
 
-            // L is per unit mass, so the volume-additive latent heat is
-            // c_i*L with the ledger mass (mass-fraction weighting). This is the field the
-            // energy equation uses; LatentHeat above is kept as the
-            // volume-weighted average for output/restart compatibility only.
+            // L is per unit mass, so the volume-additive latent heat is c_i*L with the ledger mass: the
+            // field the energy equation uses (LatentHeat above is the volume average, output only)
             volScalarField cLH(max(mixture.c()[phaseiLH], cZeroLH));
             if (ledgerFloorEOS)
             {
@@ -117,18 +113,6 @@
                 phasepermeability
             );
         }
-
-        // std::string str2("vapour");
-
-        // std::string phasename(phase1.name());
-
-        // const unsigned long res = phasename.find(str2);
-
-        // if (res != string::npos || phase1.name() == "air")
-        // {
-        //     condensate -= alpha1;
-        //     electrical_resistivity += alpha1/phaseconductivity;
-        // }
 
         if (phase1.isGaseous())
         {
@@ -182,10 +166,6 @@
 
     forAll(CI, celli)
     {
-        // vector XYZ = mesh.C()[celli];
-        // xcoord[celli]=XYZ.x();
-        // zcoord[celli]=XYZ.z();
-
         const cell& cc = mesh.cells()[celli];
         labelList pLabels(cc.labels(ff));
         pointField pLocal(pLabels.size(), vector::zero);
@@ -248,9 +228,6 @@
 
 
 
-
-    // laser.refineFlag() *= 0.0;
-    // laser.refineFlag() += metalaverage;
 
     const volVectorField gradcondensate(fvc::grad(condensateFiltered));
 

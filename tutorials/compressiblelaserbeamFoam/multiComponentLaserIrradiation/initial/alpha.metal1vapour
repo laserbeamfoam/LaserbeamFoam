@@ -50,7 +50,9 @@ boundaryField
     
     back
     {
-type            zeroGradient;
+        type            inletOutlet;   // nothing but air flows back in
+        inletValue      uniform 0;
+        value           uniform 0;
     }
    
 }

@@ -36,13 +36,13 @@ divSchemes
     div(phi,p)      Gauss upwind;
     div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
 
-    div(rhoPhi,epsilon1)	Gauss linear;//Gauss vanLeer01;
-    div(rhoCvPhi,T)  Gauss upwind;
+    div(rhoPhi,epsilon1)	Gauss upwind;   // latent heat of fusion carried with the mass: bounded, same donor as the ledger
 }
 
 laplacianSchemes
 {
     default         Gauss linear corrected;
+    laplacian(kappaEff,T) Gauss harmonic corrected;   // series conduction across metal|gas faces, gas-limited
 }
 
 interpolationSchemes

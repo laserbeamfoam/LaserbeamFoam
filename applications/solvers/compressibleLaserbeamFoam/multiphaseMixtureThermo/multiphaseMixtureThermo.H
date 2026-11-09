@@ -28,6 +28,7 @@ Class
     Foam::multiphaseMixtureThermo
 
 Description
+    N-phase compressible mixture: partial-mass ledger, Hertz-Knudsen phase change, volume closure.
 
 SourceFiles
     multiphaseMixtureThermo.C
@@ -133,6 +134,15 @@ private:
         //- div(phi) of the volume flux the ledger moved with this step
         volScalarField divPhiLedger_;
 
+        //- Momentum the phase-change mass carries between cells [N/m3], for UEqn.H
+        volVectorField pcMomentum_;
+
+        //- Phase-change dilatation of the gas species [1/s], for stefanFlow.H
+        volScalarField pcGasDil_;
+
+        //- Phase-change dilatation of the condensed species [1/s], for stefanFlow.H
+        volScalarField pcCondDil_;
+
         volScalarField alphas_;
 
         typedef HashTable<scalar, interfacePair, interfacePair::hash>
@@ -195,7 +205,7 @@ private:
         tmp<volScalarField> solveAlphas
         (
             volScalarField* massdotterm,
-            volScalarField* vDotPptr = nullptr,
+            volScalarField* vDotDtPtr = nullptr,
             volScalarField* closureSrcPtr = nullptr
         );
 
@@ -297,6 +307,24 @@ public:
         const volScalarField& divPhiLedger() const
         {
             return divPhiLedger_;
+        }
+
+        //- Momentum source of the phase-change transfer [N/m3], for UEqn.H
+        const volVectorField& phaseChangeMomentum() const
+        {
+            return pcMomentum_;
+        }
+
+        //- Gas-side dilatation [1/s]: > 0 where vapour is laid down, < 0 where it condenses from
+        const volScalarField& phaseChangeGasDilatation() const
+        {
+            return pcGasDil_;
+        }
+
+        //- Condensed-side dilatation [1/s]: < 0 where liquid evaporates, > 0 where condensate forms
+        const volScalarField& phaseChangeCondensedDilatation() const
+        {
+            return pcCondDil_;
         }
 
 
@@ -548,20 +576,19 @@ public:
         //  Field values are 1 near and 0 away for the interface.
         tmp<volScalarField> nearInterface() const;
 
-        //- Solve for the mixture phase-fractions; returns the phase-change dilatation (dt control only).
-        //  vDotPptr (optional): see solveAlphas.
-        //  closureSrcPtr: unused, kept for the call signature; the closure is volumeClosure() after TEqn
+        //- Solve for the phase fractions; returns the phase-change dilatation the ledger applied. vDotDtPtr:
+        //  the same before the per-step volume cap (dt control); closureSrcPtr: unused (the closure is
+        //  volumeClosure() after TEqn), kept for the call signature
         tmp<volScalarField> solve
         (
             volScalarField* massdotterm,
-            volScalarField* vDotPptr = nullptr,
+            volScalarField* vDotDtPtr = nullptr,
             volScalarField* closureSrcPtr = nullptr
         );
 
-        //- Volume closure on the post-TEqn state, the pEqn's only volume source.
-        //  Returns chi*(s - 1)/dt, s = sum_i c_i/rho_i(p,T); fills chi with
-        //  rhoCv/(rhoCv + p*ds/dT), the share of an excess the outflow must carry
-        //  once its p*dV cooling is counted (1/gamma in a gas, 1 in a liquid)
+        //- Volume closure after TEqn, the pEqn's only volume source: returns chi*(s - 1)/dt with
+        //  s = sum_i c_i/rho_i(p,T), and fills chi = rhoCv/(rhoCv + p*ds/dT), the adiabatic share
+        //  (1/gamma in a gas, 1 in a liquid)
         tmp<volScalarField> volumeClosure(volScalarField& chi) const;
 };
 

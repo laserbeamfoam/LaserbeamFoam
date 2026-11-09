@@ -44,7 +44,8 @@
         << gMax(mag(contErrRho.primitiveField())())
         << " kg/m3/s" << endl;
 
-    // ---- melting / solidification -----------------------------------------
+    // ---- melting / solidification: source-based latent heat with a T-linearised update of epsilon1,
+    // Voller & Swaminathan 1991, https://doi.org/10.1080/10407799108944962
 
     const dimensionedScalar cMinMelt   ("cMinMelt",    dimless, 1e-4); // div guard
     const dimensionedScalar cThreshMelt("cThreshMelt", dimless, 1e-2); // mask ramp
@@ -195,10 +196,9 @@
           ? mthd->Joulesource()
           : zeroJoulesource;
 
-        // every term in W/m^3. Advection explicit with the ledger's own fluxes and donors, so
-        // the new T is the mass-weighted mix the EOS recovery assumes; Sp(contErrCv) keeps
-        // phase-changed mass at its temperature. Work = p*dV of the volume the ledger moved
-        // (closure dilatation included: it is real expansion; LvapE + p*dv = Lvap)
+        // W/m^3. Advection explicit with the ledger's fluxes and donors (T is the mass-weighted mix the EOS
+        // recovery assumes); Sp(contErrCv) keeps phase-changed mass at its T; work = p*dV of the volume
+        // the ledger moved, closure dilatation included (LvapE + p*dv = Lvap)
         fvScalarMatrix TEqn
         (
             fvm::ddt(rhoCv, T)
@@ -225,7 +225,9 @@
 
 
         {
-            const dimensionedScalar Tfloor("Tfloor", dimTemperature, 250.0);
+            // safety net only: 250 K clipped real expansions (a Sod rarefaction stopped at
+            // 250 K instead of 184 K); 1 K never binds on a physical state
+            const dimensionedScalar Tfloor("Tfloor", dimTemperature, 1.0);
 
             const scalar Tceil = pimple.dict().getOrDefault<scalar>("TMax", 1e6);
             scalarField& TI = T.primitiveFieldRef();

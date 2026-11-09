@@ -4,7 +4,7 @@ CorrectPhi
     phi,
     p_rgh,
     surfaceScalarField("rAUf", fvc::interpolate(rAU())),
-    vDot, // geometricZeroField(),
+    closureSrc,   // the dilatation the pEqn gives phi; vDot is phase change only
     pimple
 );
 

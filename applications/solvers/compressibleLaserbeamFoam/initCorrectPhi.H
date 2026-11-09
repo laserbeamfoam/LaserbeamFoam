@@ -29,11 +29,9 @@ else if (!bRestartFirstLoop)
         phi,
         p_rgh,
         dimensionedScalar("rAUf", dimTime/rho.dimensions(), 1),
-        vDot, // geometricZeroField(),//deallocation error if mDot here?!?!
+        closureSrc,   // zero at a fresh start
         pimple
     );
-
-// Info<<"! Corrected PHI for MDot !"<<endl;
 
     #include "continuityErrs.H"
 }

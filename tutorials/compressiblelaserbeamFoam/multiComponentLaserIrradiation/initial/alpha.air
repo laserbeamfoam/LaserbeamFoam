@@ -284,11 +284,9 @@ boundaryField
     
     back
     {
-    
-        type            fixedValue;
+        type            inletOutlet;   // backflow is air; outflow zeroGradient
+        inletValue      uniform 1;
         value           uniform 1;
-        
-        
     }
     
 }

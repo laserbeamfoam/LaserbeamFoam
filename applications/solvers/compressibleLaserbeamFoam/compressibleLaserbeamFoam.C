@@ -46,6 +46,7 @@ Authors
 #include "pimpleControl.H"
 #include "fvOptions.H"
 #include "CorrectPhi.H"
+#include "cyclicAMIFvPatch.H"
 
 #include "laserHeatSource.H"
 #include "mthdModel.H"
@@ -117,6 +118,13 @@ int main(int argc, char *argv[])
 
             if (pimple.firstIter() || moveMeshOuterCorrectors)
             {
+                // AMR merges cells by volume-averaging every field: right for c_i,
+                // rhoCv*T, rhoM*U and rhoM*epsilon1, wrong for T, U and epsilon1.
+                // Carry energy, momentum and latent heat through it
+                volScalarField rhoCvTAmr("rhoCvT.amr", rhoCv*T);
+                volVectorField rhoMUAmr("rhoMU.amr", rhoM*U);
+                volScalarField rhoMEps1Amr("rhoMEps1.amr", rhoM*epsilon1);
+
                 scalar timeBeforeMeshUpdate = runTime.elapsedCpuTime();
 
                 mesh.update();
@@ -147,7 +155,8 @@ int main(int argc, char *argv[])
                         fvc::makeRelative(phi, U);
                     }
 
-                    
+                    #include "remapConserved.H"
+
                     mixture.correct();
 
                     if (checkMeshCourantNo)
@@ -166,10 +175,9 @@ int main(int argc, char *argv[])
                 rho.oldTime() = rho;   // set once per time step
                 rhoM.oldTime() = rhoM; // ledger density, likewise
 
-                vDot = mixture.solve(&mass_dot, &vDotP, &closureSrc);
+                vDot = mixture.solve(&mass_dot, &vDotDt, &closureSrc);
                 vDot.correctBoundaryConditions();
                 mass_dot.correctBoundaryConditions();
-                vDotP.correctBoundaryConditions();
 
 
                 #include "update.H"

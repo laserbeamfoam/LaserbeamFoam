@@ -10,15 +10,73 @@
     }
 
 
-    // volScalarField rAU("rAU", 1.0/UEqn.A());
     // ddtCorr weight and gravity split use rhoM to match UEqn.H; compressibility below stays EOS
     surfaceScalarField rAUf("rAUf", fvc::interpolate(rAU()));
     volVectorField HbyA(constrainHbyA(rAU()*UEqn.H(), U, p_rgh));
+    // ddtCorr of Choi 1999 (https://doi.org/10.1080/104077899274679) written out: OpenFOAM's empirical
+    // weight 1 - |phi0 - flux(U0)|/|phi0| (https://www.tfd.chalmers.se/~hani/kurser/OS_CFD_2022/lectureNotes/ddtCorr.pdf)
+    // reads a phase-change flux jump as an error (odd-even p, test 09): phase-change faces keep weight 1
+    tmp<surfaceScalarField> tphi0
+    (
+        mesh.dynamic()
+      ? (mesh.Sf() & Uf().oldTime())        // as ddtCorr(U, phi, Uf): AMR maps phi_0 face by face (test 12)
+      : tmp<surfaceScalarField>(phi.oldTime())
+    );
+    const surfaceScalarField& phi0 = tphi0();
+    // memory of the smooth part: the Stefan jump the old interpolation missed (the old step's
+    // phiJump) is not memory, it is put back for this step below (stefanFlow.H)
+    surfaceScalarField phiCorrDdt
+    (
+        "phiCorrDdt",
+        phi0 - fvc::flux(U.oldTime()) - uJump.oldTime()*mesh.magSf()
+    );
+    surfaceScalarField ddtCoeff
+    (
+        "ddtCoeff",
+        scalar(1)
+      - min
+        (
+            mag(phiCorrDdt)
+           /(mag(phi0) + dimensionedScalar("small", phi.dimensions(), SMALL)),
+            scalar(1)
+        )
+    );
+    {
+        const labelUList& own = mesh.owner();
+        const labelUList& nei = mesh.neighbour();
+        const scalarField& vI = vDot.primitiveField();
+        scalarField& cI = ddtCoeff.primitiveFieldRef();
+        forAll(own, facei)
+        {
+            if (vI[own[facei]] != 0 || vI[nei[facei]] != 0) cI[facei] = 1.0;
+        }
+
+        surfaceScalarField::Boundary& cBf = ddtCoeff.boundaryFieldRef();
+        forAll(U.boundaryField(), patchi)
+        {
+            const fvPatch& fvp = mesh.boundary()[patchi];
+            if (U.boundaryField()[patchi].fixesValue() || isA<cyclicAMIFvPatch>(fvp))
+            {
+                cBf[patchi] = 0.0;
+            }
+            else if (fvp.coupled())
+            {
+                const scalarField vNb(vDot.boundaryField()[patchi].patchNeighbourField());
+                const labelUList& fc = fvp.faceCells();
+                forAll(fc, i)
+                {
+                    if (vI[fc[i]] != 0 || vNb[i] != 0) cBf[patchi][i] = 1.0;
+                }
+            }
+        }
+    }
+
     surfaceScalarField phiHbyA
     (
         "phiHbyA",
         fvc::flux(HbyA)
-      + fvc::interpolate(rhoM*rAU())*fvc::ddtCorr(U, phi)
+      + phiJump                     // the Stefan jump, which the interpolation of HbyA misses
+      + fvc::interpolate(rhoM*rAU())*ddtCoeff*phiCorrDdt/runTime.deltaT()
     );
 
     surfaceScalarField phig
@@ -76,15 +134,12 @@
 
     while (pimple.correctNonOrthogonal())
     {
-        // closure source (heating, phase change, transport residual) plus the
-        // backward-Euler pressure coupling of the phase-change rate
+        // closure source: heating, phase change, transport residual
         fvScalarMatrix p_rghEqnIncomp
         (
             fvc::div(phiHbyA)
           - fvm::laplacian(rAUf, p_rgh)
           - closureSrc
-          + fvm::Sp(vDotP, p_rgh)
-          - vDotP*p_rgh.oldTime()
         );
 
         // the volume constraint linearised about the closure state:
@@ -141,6 +196,7 @@
     Info<< "min,max(p_rgh) " << min(p_rgh).value()
         << " " << max(p_rgh).value() << endl;
     Info<< "min(T) " << min(T).value() << endl;
+
     Info<< "max|vDot|*dt (phase change) " << max(mag(vDot)).value()*mesh.time().deltaTValue()
         << ", max|closureSrc|*dt " << max(mag(closureSrc)).value()*mesh.time().deltaTValue()
         << endl;

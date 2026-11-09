@@ -1,7 +1,6 @@
-// Volume closure on the post-TEqn state, every outer corrector: the pEqn's only volume source.
-// s = sum_i c_i/rho_i(p, T): heating, phase change and transport all show up here once.
-// chi*(s - 1)/dt with chi = rhoCv/(rhoCv + p*ds/dT): an outflow of chi*(s - 1) plus its own
-// p*dV cooling removes the excess exactly (chi = 1/gamma in a gas, 1 in the liquid).
+// Volume closure after TEqn, the pEqn's only volume source: s = sum_i c_i/rho_i(p, T) must stay 1 (the
+// phase-norming of Zenz et al. 2024, Eqs. 53-62, https://doi.org/10.1016/j.compfluid.2023.106109).
+// chi*(s - 1)/dt with chi = rhoCv/(rhoCv + p*ds/dT), the adiabatic share: 1/gamma in a gas, 1 in a liquid
 volScalarField chiClosure
 (
     IOobject

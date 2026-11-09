@@ -52,7 +52,9 @@ boundaryField
     
     back
     {
-       type            zeroGradient;
+        type            inletOutlet;   // backflow is ambient air
+        inletValue      uniform 300;
+        value           uniform 300;
     }
     
 }

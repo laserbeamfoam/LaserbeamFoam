@@ -145,7 +145,7 @@ autoPtr<compressible::turbulenceModel> turbulence
 );
 
 
-       volScalarField vDot // phase-change dilatation [1/s], dt control only (the pEqn sees it through closureSrc)
+       volScalarField vDot // phase-change dilatation the ledger applied [1/s]; its cells get full ddtCorr memory (pEqn.H)
     (
         IOobject
         (
@@ -161,13 +161,9 @@ autoPtr<compressible::turbulenceModel> turbulence
 
 
 
-        // Latent heat of vaporisation/condensation sink for TEqn.H:
-        //   mass_dot = sum_pairs Lvap*r   [W/m^3]   (r > 0 evaporates)
-        // Rebuilt from scratch by mixture.solve() every time step, so it is
-        // NO_READ: the energy equation is now in rho*Cv form and this term
-        // enters it directly in W/m^3 (it used to be rCv*Lvap*r in
-        // [K kg/m^3/s]); a restart that read an old-dimension mass_dot file
-        // would otherwise die on a dimension check in solveAlphas.
+        // latent heat of vaporisation for TEqn.H [W/m^3]: Lvap*r at the anchors plus the p*dV and sensible
+        // heat of the vapour moved (r > 0 evaporates). Rebuilt each step by mixture.solve(), so NO_READ
+        // (a restart would otherwise read an old-dimension mass_dot and fail the dimension check)
         volScalarField mass_dot
     (
         IOobject
@@ -199,20 +195,21 @@ autoPtr<compressible::turbulenceModel> turbulence
     );
 
 
-        volScalarField vDotP // -d(vDot)/dp >= 0: implicit phase-change pressure-coupling coefficient for pEqn,  [1/(s.Pa)] = dimensionSet(-1,1,1,0,0).  Filled by mixture.solve() once per time step;
-                            
+        // phase-change dilatation before the per-step volume cap [1/s], dt control only
+        volScalarField vDotDt
     (
         IOobject
         (
-            "vDotP",
+            "vDotDt",
             runTime.timeName(),
             mesh,
             IOobject::NO_READ,
-            IOobject::AUTO_WRITE
+            IOobject::NO_WRITE
         ),
         mesh,
-        dimensionedScalar("vDotP", dimensionSet(-1, 1, 1, 0, 0), 0.0)
+        dimensionedScalar("vDotDt", dimensionSet(0, 0, -1, 0, 0), 0.0)
     );
+
 
 
      volScalarField alphasum
@@ -259,21 +256,6 @@ autoPtr<compressible::turbulenceModel> turbulence
     condensateFiltered = max(min(condensate, scalar(1)), scalar(0));
     condensateFiltered.correctBoundaryConditions();
 
-    //         volScalarField condensatesmooth
-    // (
-    //     IOobject
-    //     (
-    //         "condensatesmooth",
-    //         runTime.timeName(),
-    //         mesh,
-    //         IOobject::NO_READ,
-    //         IOobject::AUTO_WRITE
-    //     ),
-    //     mesh,
-    //     dimensionedScalar("condensatesmooth",dimless,0.0)
-    // );
-    // condensatesmooth=fvc::average(condensate);
-
 
     volScalarField metalaverage
 (
@@ -310,19 +292,6 @@ volScalarField refineIndicator
 
 
 
-    // volScalarField refine_test //kg per m^3 per s
-    // (
-    //     IOobject
-    //     (
-    //         "refine_test",
-    //         runTime.timeName(),
-    //         mesh,
-    //         IOobject::READ_IF_PRESENT,
-    //         IOobject::AUTO_WRITE
-    //     ),
-    //     mesh,
-    //    dimensionedScalar("refine_test",dimensionSet(0,0,0,0,0),0.0)
-    // );
 
 volVectorField n_filtered
 (
@@ -392,14 +361,9 @@ volScalarField TSolidus
 
 // ---- mass-weighted energy mixing (see updateRhoCv.H / update.H / TEqn.H) --
 
-// Latent heat of fusion per unit VOLUME of the cell:
-//   rhoLatentHeat = sum_{i condensed} c_i*L_i   [J/m^3]   (c_i = ledger mass, mixture.c())
-// This is the volume-additive quantity (the compressible analogue of
-// laserbeamFoam's massFraction-weighted LatentHeat: rho*L_mass). The old
-// product LatentHeat*rho = (sum_cond alpha_i L_i)*(sum_all alpha_j rho_j)
-// under-counts the fusion latent heat of an interface cell by ~a factor
-// condensate (10x in a 10% metal cell). Filled in update.H once per step
-// (c_i are fixed for the step).
+// latent heat of fusion per volume, rhoLatentHeat = sum_{i condensed} c_i*L_i [J/m^3]: the volume-additive
+// form of laserbeamFoam's rho*L_mass (LatentHeat*rho under-counted an interface cell by about the factor
+// condensate). Filled in update.H once per step
 volScalarField rhoLatentHeat
 (
     IOobject
@@ -448,10 +412,8 @@ volScalarField rhoCvCond
     dimensionedScalar("rhoCvCond", dimEnergy/dimVolume/dimTemperature, 0.0)
 );
 
-// CvMass = rhoCv/rhoM = sum_i Y_i Cv_i [J/kg/K], the mass-weighted mixture
-// Cv (Y_i = c_i/rhoM). Written so you can eyeball it: ~Cv_metal in metal,
-// ~Cv_gas in gas. Its face interpolate times rhoPhi is the Cv-weighted mass
-// flux of TEqn.H.
+// CvMass = rhoCv/rhoM = sum_i Y_i*Cv_i [J/kg/K], the mass-weighted mixture Cv (Y_i = c_i/rhoM);
+// written so it can be checked: ~Cv_metal in metal, ~Cv_gas in gas
 volScalarField CvMass
 (
     IOobject
@@ -495,14 +457,18 @@ if (mthdModel::electromagneticsEnabled(mesh, "thermophysicalProperties"))
 }
 
 
+// mushy-zone constant C [kg/m^3/s] and guard b of the Darcy drag (UEqn.H), optional in fvSolution
+// MELTING. Carman-Kozeny: C = 180*mu/lambda2^2 for dendrite arm spacing lambda2 (REVIEW.md)
 const dimensionedScalar DarcyConstantlarge
 (
-    "DarcyConstantlarge", dimensionSet(1,-3,-1,0,0), 1.0e6
+    "DarcyConstantlarge", dimensionSet(1,-3,-1,0,0),
+    mesh.solutionDict().subDict("MELTING").getOrDefault<scalar>("DarcyConstant", 1.0e6)
 );
 
 const dimensionedScalar DarcyConstantsmall
 (
-    "DarcyConstantsmall", dimless, 1.0e-12
+    "DarcyConstantsmall", dimless,
+    mesh.solutionDict().subDict("MELTING").getOrDefault<scalar>("DarcyConstantSmall", 1.0e-12)
 );
 
 
@@ -525,47 +491,10 @@ CvMass.oldTime();
 
 
 
-// TSolidus*=0.0;
-// TLiquidus*=0.0;
-// LatentHeat*=0.0;
-
-// forAllConstIter(PtrDictionary<phaseModel>, mixture.phases(), iter)
-//     {
-//         const phaseModel& phase1 = iter();
-//         const volScalarField& alpha1 = phase1;
-
-//         // mesh.setFluxRequired(phase1.name());
-
-//         IOdictionary phasedictionary
-//         (
-//             IOobject
-//             (
-//             "thermophysicalProperties." + phase1.name(),
-//             mesh.time().constant(),
-//             mesh,
-//             IOobject::MUST_READ_IF_MODIFIED
-//             )
-//         );
-
-//         // dimensionedScalar molweight("molweight",dimless,specieDict.lookup("molWeight"));
-//         // phasedictionary.lookup("TSolidus");
-//         // dimensionedScalar phaseTSolidus("phaseTSolidus",dimensionSet(0, 0, 0, 1, 0),phasedictionary.lookup("TSolidus"));
-//         dimensionedScalar phaseTSolidus("phaseTSolidus",dimensionSet(0, 0, 0, 1, 0),readScalar(phasedictionary.lookup("TSolidus")));
-//         dimensionedScalar phaseTLiquidus("phaseTLiquidus",dimensionSet(0, 0, 0, 1, 0),readScalar(phasedictionary.lookup("TLiquidus")));
-//         dimensionedScalar phaseLH("phaseLH",dimensionSet(0, 2, -2, 0, 0),readScalar(phasedictionary.lookup("LatentHeat")));
-
-//         TSolidus+=alpha1*phaseTSolidus;
-//         TLiquidus+=alpha1*phaseTLiquidus;
-//         LatentHeat+=alpha1*phaseLH;
-
-//     }
 
 
 
 
-
-//     TSolidus=mixture.Tsolidus();
-// TLiquidus=mixture.Tliquidus();
 
         volScalarField DC
     (
@@ -863,29 +792,88 @@ if (bRestartFirstLoop)
             << endl;
     }
 }
-// ----------------------------------------------------------------------------
-// Debug fields related
-
-// Disabled temporarily:
-// if (debugFlag)
-// {
-//     rhoCopyPreUpdatePtr.reset
-//     (
-//         new volScalarField
-//         (
-//             IOobject
-//             (
-//                 "rhoCopyPreUpdate",
-//                 runTime.timeName(),
-//                 mesh,
-//                 IOobject::NO_READ,
-//                 IOobject::AUTO_WRITE
-//             ),
-//             (rho)
-//         )
-//     );
-// }
-// ----------------------------------------------------------------------------
-
 #include "createMRF.H"
 #include "createK.H"
+
+// ---- Stefan flow of each step's condensation (stefanFlow.H, UEqn.H, pEqn.H) ----------------------
+// psiStefan: its potential; fixed (0) where p_rgh is fixed, so the flow leaves through the open
+// boundaries, zero gradient elsewhere (constraint patches keep their type)
+wordList psiStefanTypes(p_rgh.boundaryField().types());
+forAll(psiStefanTypes, patchi)
+{
+    if (p_rgh.boundaryField()[patchi].fixesValue())
+    {
+        psiStefanTypes[patchi] = fixedValueFvPatchScalarField::typeName;
+    }
+    else
+    {
+        psiStefanTypes[patchi] = zeroGradientFvPatchScalarField::typeName;
+    }
+}
+
+volScalarField psiStefan
+(
+    IOobject
+    (
+        "psiStefan",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimArea/dimTime, Zero),
+    psiStefanTypes
+);
+mesh.setFluxRequired(psiStefan.name());
+
+// its cell velocity (a donor carries its gas side's), weighted by rho_gas/rho for the viscous term
+volVectorField Upc
+(
+    IOobject
+    (
+        "Upc",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedVector(dimVelocity, Zero),
+    zeroGradientFvPatchVectorField::typeName
+);
+
+// the Stefan flux the linear interpolation of Upc misses, on the donors' faces
+surfaceScalarField phiJump
+(
+    IOobject
+    (
+        "phiJump",
+        runTime.timeName(),
+        mesh,
+        IOobject::NO_READ,
+        IOobject::NO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimVolume/dimTime, Zero)
+);
+phiJump.setOriented();
+
+// the same per unit face area, kept one step for the ddtCorr memory (pEqn.H); AMR maps it face by
+// face, so a split face keeps the velocity, not the parent's whole flux. Written, so a restart
+// continues with the jump the old flux carries
+surfaceScalarField uJump
+(
+    IOobject
+    (
+        "uJump",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar(dimVelocity, Zero)
+);
+uJump.setOriented();               // a normal velocity: its sign follows the face (AMR flips)
+uJump.oldTime().setOriented();

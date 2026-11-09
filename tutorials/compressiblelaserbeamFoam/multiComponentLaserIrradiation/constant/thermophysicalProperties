@@ -20,13 +20,15 @@ phases (metal1 metal1vapour metal2 metal2vapour metal3 metal3vapour metal4 metal
 pMin            1000;
 
 P0	1e5;
-interface_thickness	0.00375;//2-3 cells thick to integrate to proper flux
+interface_thickness	0.00375;   // unused with localInterfaceThickness
+localInterfaceThickness true;     // delta = 2.5 x local cell size: evaporation integrates to ~the Hertz-Knudsen flux at every AMR level
 
 accommodationCoeffEvap   1.0;    // clean liquid metal
 accommodationCoeffCond   0.05;   // stand-in for non-condensable diffusion resistance
 
 
-closureMaskPatches (back);//in cells touching patch back, don't let the numerical volume-closure correction inject or remove volume — let the boundary condition itself absorb any ledger-vs-EOS mismatch there.
+// closureMaskPatches (back);   // ignored now: the closure runs everywhere, the BCs keep the inflow consistent
+////in cells touching patch back, don't let the numerical volume-closure correction inject or remove volume — let the boundary condition itself absorb any ledger-vs-EOS mismatch there.
 
 sigmas
 (
