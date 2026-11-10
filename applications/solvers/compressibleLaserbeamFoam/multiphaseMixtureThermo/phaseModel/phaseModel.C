@@ -109,7 +109,21 @@ Foam::phaseModel::phaseModel
     state_(phaseState::CONDENSED)
 {
     {
-        volScalarField Tp(IOobject::groupName("T", phaseName), T);
+        // A phase's thermo only evaluates properties at the mixture T, so its T takes calculated patches (constraint ones stay).
+        // Energy conditions copied from T's would look up "the" thermo, i.e. the mixture, unbuilt while its phases are (v2512 segfault, case 19)
+        volScalarField Tp
+        (
+            IOobject
+            (
+                IOobject::groupName("T", phaseName),
+                T.mesh().time().timeName(),
+                T.mesh(),
+                IOobject::NO_READ,
+                IOobject::NO_WRITE
+            ),
+            T,
+            wordList(T.boundaryField().size(), calculatedFvPatchScalarField::typeName)
+        );
         Tp.write();
     }
 

@@ -3,8 +3,9 @@ if (adjustTimeStep)
     // --- user limits (optional; sensible defaults) -----------------------
     const scalar maxAcousticCo =
         runTime.controlDict().getOrDefault<scalar>("maxAcousticCo", 50.0);
+    // vapour volume made per step over the cell's: with the implicit update a Courant number, not a stability limit
     const scalar maxPhaseChangeFraction =
-        runTime.controlDict().getOrDefault<scalar>("maxPhaseChangeFraction", 0.05);
+        runTime.controlDict().getOrDefault<scalar>("maxPhaseChangeFraction", 0.25);
     const scalar dampFactor =
         runTime.controlDict().getOrDefault<scalar>("deltaTDampFactor", 1.15);
 

@@ -41,6 +41,8 @@ License
 #include "fvcMeshPhi.H"
 #include "surfaceInterpolate.H"
 #include "unitConversion.H"
+#include "regionSplit.H"
+#include <cmath>
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -1551,10 +1553,14 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     // (interface_thickness, localInterfaceThickness and interfaceCellFactor are no
     // longer read: the surface flux is placed by the interface area density below)
 
-    // per step cap on how much volume phase change can make/remove 
+    // per-step cap on the volume phase change makes or removes: twice the dt control's target (setDeltaT.H)
     const scalar etaVol
     (
-        phasedictionary.getOrDefault<scalar>("phaseChangeVolLimit", 0.1)
+        phasedictionary.getOrDefault<scalar>
+        (
+            "phaseChangeVolLimit",
+            2*runTime.controlDict().getOrDefault<scalar>("maxPhaseChangeFraction", 0.25)
+        )
     );
 
     // old symmetric Hertz-Knudsen accomodation coefficient, kept as the falback
@@ -2275,6 +2281,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     //  group. built straight from teh mass-balance
 
     PtrList<volScalarField> moleFrac(nPhases);
+    scalarField nGasI(mesh_.nCells(), 0.0);
     {
         const dimensionedScalar nSmall
             ("nSmall", dimMoles/dimVolume, VSMALL);
@@ -2313,6 +2320,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                 ++i;
             }
         }
+        nGasI = nGas.primitiveField();
 
         label i = 0;
         for (const phaseModel& ph : phases_)
@@ -2349,6 +2357,81 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                 dimensionedScalar("0", dimensionSet(1, -3, -1, 0, 0), 0.0)
             )
         );
+    }
+
+    // implicit limit: each cell's gas region (connected cells with beta < 0.5; condensed-side cells join their largest
+    // gas neighbour's, two layers deep) and the region's gas [kmol]
+    labelList gasRegion(mesh_.nCells(), -1);
+    scalarField regN;
+    {
+        const scalarField& bI = condensate.primitiveField();
+        const scalarField& Vc = mesh_.V().field();
+        const labelUList& own = mesh_.owner();
+        const labelUList& nei = mesh_.neighbour();
+        boolList blocked(mesh_.nFaces(), false);
+        forAll(nei, facei)
+        {
+            blocked[facei] = ((bI[own[facei]] < 0.5) != (bI[nei[facei]] < 0.5));
+        }
+        forAll(mesh_.boundary(), patchi)
+        {
+            const fvPatch& fvp = mesh_.boundary()[patchi];
+            if (!fvp.coupled()) continue;
+            const scalarField bNb(condensate.boundaryField()[patchi].patchNeighbourField());
+            const labelUList& fc = fvp.faceCells();
+            forAll(fc, i)
+            {
+                blocked[fvp.start() + i] = ((bI[fc[i]] < 0.5) != (bNb[i] < 0.5));
+            }
+        }
+        const regionSplit rs(mesh_, blocked);
+        regN.setSize(rs.nRegions(), 0.0);
+        forAll(bI, celli)
+        {
+            if (bI[celli] < 0.5)
+            {
+                gasRegion[celli] = rs[celli];
+                regN[rs[celli]] += nGasI[celli]*Vc[celli];
+            }
+        }
+        if (Pstream::parRun()) reduce(regN, sumOp<scalarField>());
+
+        volScalarField gR
+        (
+            IOobject("phaseChangeGasRegion", runTime.timeName(), mesh_),
+            mesh_,
+            dimensionedScalar(dimless, -1)
+        );
+        for (label pass = 0; pass < 2; ++pass)
+        {
+            forAll(gasRegion, celli)
+            {
+                gR.primitiveFieldRef()[celli] = gasRegion[celli];
+            }
+            gR.correctBoundaryConditions();
+            labelList adopt(gasRegion);
+            auto offer = [&](const label c, const label g)
+            {
+                if (bI[c] < 0.5 || g < 0) return;
+                if (adopt[c] < 0 || regN[g] > regN[adopt[c]]) adopt[c] = g;
+            };
+            forAll(nei, facei)
+            {
+                offer(own[facei], gasRegion[nei[facei]]);
+                offer(nei[facei], gasRegion[own[facei]]);
+            }
+            forAll(mesh_.boundary(), patchi)
+            {
+                if (!mesh_.boundary()[patchi].coupled()) continue;
+                const scalarField gNb(gR.boundaryField()[patchi].patchNeighbourField());
+                const labelUList& fc = mesh_.boundary()[patchi].faceCells();
+                forAll(fc, i)
+                {
+                    offer(fc[i], label(std::round(gNb[i])));
+                }
+            }
+            gasRegion = adopt;
+        }
     }
 
     Info<< "Phase-change pairs:" << endl;
@@ -2424,11 +2507,13 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             IOobject("pVapI." + liq.name(), runTime.timeName(), mesh_),
                             interfaceState(yVap*p_, scalar(1) - condensate)
                         );
+                        scalarField X0;
                         {
                             List<scalarField> b(2);
                             b[0] = kPC.primitiveField();
                             b[1] = kPC.primitiveField()*(yVap*p_)().primitiveField();
                             const List<scalarField> X(pcSweepUp(b));
+                            X0 = X[0];
                             const scalarField& WI = WPC.primitiveField();
                             scalarField& pI = pVapI.primitiveFieldRef();
                             forAll(pI, celli)
@@ -2483,6 +2568,59 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                     << " cell(s)" << endl;
                             }
                         }
+
+                        // implicit limit (Zenz et al. 2024, Eq. 67, https://doi.org/10.1016/j.compfluid.2023.106109, with the vapour's volume): s = this step's rise
+                        // in the receivers' y*p (own gas for y, gas region at fixed volume for p) over x*Psat - pVapI; r /= s where s > 1, so no step overshoots
+                        scalar minFac = 1;
+                        label nImp = 0;
+                        {
+                            const scalarField& Vc = mesh_.V().field();
+                            const scalarField& kk = kPC.primitiveField();
+                            const scalarField& yI = yVap.primitiveField();
+                            const scalarField& pI = p_.primitiveField();
+                            const volScalarField Wvap(vap.thermo().W());
+                            const scalarField& WvI = Wvap.primitiveField();
+
+                            const scalarField rV0(r.primitiveField()*Vc);
+                            const List<scalarField> Yd(pcSweepDown(List<scalarField>(1, rV0)));
+                            const scalarField dm(kk*Yd[0]*dt);
+
+                            volScalarField dpV
+                            (
+                                IOobject("dpV." + liq.name(), runTime.timeName(), mesh_),
+                                mesh_,
+                                dimensionedScalar(dimPressure, Zero)
+                            );
+                            scalarField& dI = dpV.primitiveFieldRef();
+                            forAll(dI, j)
+                            {
+                                if (dm[j] == 0) continue;
+                                const scalar Nown = Foam::max(nGasI[j]*Vc[j], VSMALL);
+                                const scalar Nreg =
+                                    (gasRegion[j] >= 0) ? Foam::max(regN[gasRegion[j]], Nown) : Nown;
+                                dI[j] = dm[j]/WvI[j]*pI[j]*((1 - yI[j])/Nown + yI[j]/Nreg);
+                            }
+                            dpV.correctBoundaryConditions();
+                            const scalarField kdp(kk*dI);
+                            const List<scalarField> Xd(pcSweepUp(List<scalarField>(1, kdp)));
+
+                            const scalarField& xI = xLiqI.primitiveField();
+                            const scalarField& PsI = Psat.primitiveField();
+                            const scalarField& pVI = pVapI.primitiveField();
+                            scalarField& rI = r.primitiveFieldRef();
+                            forAll(rI, a)
+                            {
+                                const scalar drive = xI[a]*PsI[a] - pVI[a];
+                                if (rI[a] == 0 || drive == 0 || !(X0[a] > VSMALL)) continue;
+                                const scalar s = Xd[0][a]/(X0[a]*drive);
+                                if (s <= 1) continue;
+                                rI[a] /= s;
+                                minFac = Foam::min(minFac, 1/s);
+                                ++nImp;
+                            }
+                        }
+                        reduce(minFac, minOp<scalar>());
+                        reduce(nImp, sumOp<label>());
 
                         
                         // saturation temperature consistent with the composition, x*Psat(T) = y*p (zero driving force), so the
@@ -2882,6 +3020,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             << " kg/s, cond = " << condKgPerS
                             << " kg/s (cond is <= 0), pairing " << pairErr << " kg/s"
                             << endl;
+                        Info<< "        implicit limit: " << nImp << " cell(s), smallest factor " << minFac << endl;
                     }
                 }
             }
