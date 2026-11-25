@@ -1,0 +1,5 @@
+# Melt-pool width and depth of single tracks of Ti-6Al-4V, read off Fig. 6 of
+# Dilip et al. (2017), Prog. Addit. Manuf. 2, 157-167 (about +-3 um).
+power_W,scan_speed_m_s,width_um,depth_um
+195,1.2,122,65
+195,1.0,130,81

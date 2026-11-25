@@ -1,0 +1,18 @@
+#!/bin/bash
+
+## Notes:
+# Cleans one of the cases: ./Allclean_long v1200_5um
+
+caseName=${1:?usage: ./Allclean_long <case>, a folder of cases/}
+cd "$(dirname "$0")/cases/$caseName" || exit 1
+
+# Source tutorial clean functions
+. ${WM_PROJECT_DIR:?load the OpenFOAM environment first}/bin/tools/CleanFunctions
+
+cleanCase
+
+echo "Removing 0 and VTKs"
+rm -rf 0 VTKs
+
+# The solver rewrites system/controlDict during a run (maxDeltaTByPhase)
+cp system/controlDict.laserOn system/controlDict
