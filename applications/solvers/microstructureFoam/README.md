@@ -260,9 +260,13 @@ OpenFOAM, and by extension the microstructureFoam solver, is licensed free and o
 
 ## Citing This Work
 
-If you use microstructureFoam in your research, please consider citing the following:
+If you use `microstructureFoam` in your research, please cite:
 
-ADD microstructureFoam SoftwareX paper here!
+M. S. Yankova, D. Dreelan, G. Parivendhan, J. D. Robson, P. Ćosić,
+S. A. Rodriguez, P. Cardiff, P. Shanthraj and T. F. Flint,
+“microstructureFoam: A phase-field framework for thermofluid dynamics and
+microstructural evolution,” *SoftwareX*, **36**, 103164 (2026).
+[https://doi.org/10.1016/j.softx.2026.103164](https://doi.org/10.1016/j.softx.2026.103164)
 
 The phase-field model implementation is based on:
 
