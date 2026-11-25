@@ -10,7 +10,7 @@ Presented here is a growing suite of solvers that describe the laser-substrate
  interaction. This repository begins with the `laserbeamFoam` solver. Additional
  solvers are being added incrementally.
 
-Currently, this repository contains two solvers:
+Currently, this repository contains the following solvers:
 
 ### `laserbeamFoam`
 
@@ -44,6 +44,20 @@ with the diffusivity specified through 'diffusion pairs', and the interface
 compression is again specified pair-wise. The miscible phases in the simulation
 should have diffusivity specified between them, and immiscible phase pairs
 should have an interface compression term specified between them (typically 1).
+
+### `microstructureFoam`
+
+A fully coupled thermofluid–phase-field solver for simulating
+microstructure evolution during solidification processes relevant to
+welding and additive manufacturing. The solver extends the
+laserbeamFoam framework by incorporating a multi-order-parameter
+phase-field formulation for grain evolution together with a
+heterogeneous nucleation model. This enables two-way coupling between
+thermal-fluid behaviour and microstructure development, including
+latent heat feedback during solidification.
+
+Detailed solver documentation is available in the
+[`microstructureFoam` README](applications/solvers/microstructureFoam/README.md).
 
 Target applications for the solvers included in this repository include:
 
@@ -159,6 +173,26 @@ Cases can be cleaned and reset using the included `Allclean` scripts, i.e.
 ./Allclean
 ```
 
+### `microstructureFoam` tutorials
+
+The `microstructureFoam` tutorial cases are available under
+`tutorials/microstructureFoam`. Each case can be run using its supplied
+`Allrun` script.
+
+Some cases use the optional `TesselateFoam` utility to generate an initial
+polycrystalline microstructure before running `microstructureFoam`.
+
+* `nucleationCase` demonstrates heterogeneous nucleation and grain evolution
+  during solidification. The initial grains develop through the nucleation
+  model, so this case does not use `TesselateFoam`.
+  
+* `anisoSolidification` demonstrates competitive columnar grain growth under an
+  imposed thermal gradient. Its `Allrun` script uses `TesselateFoam` to generate
+  the initial polycrystalline microstructure.
+
+* `staticPlate2D` demonstrates laser heating, melting and resolidification of an
+  initially tessellated substrate. Its `Allrun` script uses `TesselateFoam` to
+  generate the initial polycrystalline microstructure.
 
 ## Algorithm
 
@@ -221,6 +255,19 @@ The main solver loop iterates until program termination. A summary of the
 
 There are no constraints on how the computational domain is discretised.
 
+### `microstructureFoam` Algorithm
+
+Within each PIMPLE outer corrector, the momentum and energy equations are solved,
+followed by the pressure-correction equations. The nucleation criterion is then
+checked, and new grain order parameters are activated where the local
+undercooling criterion is satisfied. The grain order parameters and the
+solid-liquid phase field, `xi`, are then evolved, and the liquid fraction is
+updated as `epsilon1 = 1 - xi`.
+
+The updated liquid fraction feeds back into the latent-heat source and Darcy
+damping during the next outer corrector, enabling two-way coupling between the
+thermofluid and microstructure calculations.
+
 ## Visualising the rays in ParaView
 
 `laserbeamFoam` writes the individual ray beams to `VTK/rays_<LASER_NAME>_<TIME>.vtk`,
@@ -274,6 +321,11 @@ laserbeamFoam: Laser ray-tracing and thermally induced state transition
 simulation toolkit. TF Flint, JD Robson, G Parivendhan, P Cardiff - SoftwareX,
 2023 - https://doi.org/10.1016/j.softx.2022.101299
 ```
+If you use `microstructureFoam`, please see the
+[Citing This Work section of the solver documentation](applications/solvers/microstructureFoam/README.md#citing-this-work).
+
+If you use one of the other solvers in this repository, please cite the relevant
+publication.
 
 ## References
 
