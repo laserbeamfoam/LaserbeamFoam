@@ -1,0 +1,49 @@
+#!/bin/bash
+# Run the verification cases, then check them.
+#   ./Allrun                      every case: 1D 01-10, 3D 11-16, then 1D 17-18 and 2D 19
+#   ./Allrun 07 13 14             only the cases whose names start with these numbers
+#   NPROCS=8 ./Allrun 11 12 13    3D cases decomposed on 8 cores (the 1D cases always run serial)
+#   SOLVER=/path/to/compressibleLaserbeamFoam ./Allrun
+# Verdicts: cases/vv_results.md (1D) and cases/vv_results3d.md (3D), plots in each case; all of
+# them are also gathered in results/. A case that fails prints the end of its newest log.
+# ./Allclean strips the output again.
+cd "${0%/*}" || exit 1
+# an older gen_cases3d.py would take --setup for an output folder name
+grep -q -- '"--setup"' gen_cases3d.py || { echo "gen_cases3d.py is older than this Allrun: copy the new one next to it"; exit 1; }
+sel=("$@")
+for c in cases/[0-9][0-9]_*/; do
+    c=${c%/}; n=$(basename "$c")
+    if [ ${#sel[@]} -gt 0 ]; then
+        keep=0; for s in "${sel[@]}"; do [[ $n == $s* ]] && keep=1; done
+        [ $keep = 1 ] || continue
+    fi
+    SECONDS=0
+    # a 3D case that lost 0.orig, or was written by an older gen_cases3d.py: rewrite its set-up first
+    if grep -qs '"dim": 3' "$c/case.json" || grep -qs 'gen_cases3d' "$c/Allrun"; then
+        if [ ! -d "$c/0.orig" ] || ! grep -qs -- '--orig' "$c/Allrun"; then
+            if python3 gen_cases3d.py --setup "$c" > "$c/log.setup" 2>&1; then
+                echo "$n: set-up rewritten from gen_cases3d.py (0.orig or a current Allrun was missing)"
+            else
+                echo "$n: could not rewrite its set-up:"; tail -n 5 "$c/log.setup" | sed 's/^/        /'
+            fi
+        fi
+    fi
+    if ! ( cd "$c" && GEN="$PWD/../../gen_cases3d.py" ./Allrun ); then
+        last=$(ls -t "$c"/log.* 2>/dev/null | head -1)
+        echo "$n: failed to run; the end of ${last:-its log}:"
+        [ -n "$last" ] && tail -n 15 "$last" | sed 's/^/        /'
+    fi
+    echo "    ($SECONDS s)"
+done
+python3 tools/check_all.py cases
+python3 tools/check3d.py cases
+
+# gather the plots and verdict tables in results/ (results_local/ is the reference set, left alone)
+mkdir -p results
+for f in cases/vv_results.md cases/vv_results3d.md; do
+    if [ -f "$f" ]; then cp "$f" results/; fi
+done
+for f in cases/[0-9][0-9]_*/vv_*.png; do
+    if [ -f "$f" ]; then cp "$f" "results/$(basename "$(dirname "$f")")_$(basename "$f")"; fi
+done
+echo "plots and verdicts in results/"

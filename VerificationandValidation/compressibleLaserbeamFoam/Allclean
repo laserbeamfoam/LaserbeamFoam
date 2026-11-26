@@ -1,0 +1,36 @@
+#!/bin/bash
+# Strip run output so that ./Allrun starts clean. The generated set-up stays: system/, constant/
+# (less constant/polyMesh, which blockMesh rebuilds), case.json, Allrun, the 1D cases' 0/ and the
+# 3D cases' 0.orig. results_local/ (the reference set run when the suite was made) is left alone.
+#   ./Allclean            every case, plus the verdict tables and results/
+#   ./Allclean 07 13 14   only the cases whose names start with these numbers
+cd "${0%/*}" || exit 1
+sel=("$@")
+isTime() { [[ $1 =~ ^[0-9]+(\.[0-9]*)?([eE][-+]?[0-9]+)?$ ]] && [ "$1" != 0 ]; }
+n=0
+for c in cases/[0-9][0-9]_*/; do
+    c=${c%/}; name=$(basename "$c")
+    if [ ${#sel[@]} -gt 0 ]; then
+        keep=0; for s in "${sel[@]}"; do [[ $name == $s* ]] && keep=1; done
+        [ $keep = 1 ] || continue
+    fi
+    for d in "$c"/*/; do
+        d=${d%/}
+        if isTime "$(basename "$d")"; then rm -rf "$d"; fi
+    done
+    rm -rf "$c"/processor* "$c"/postProcessing "$c"/constant/polyMesh
+    rm -f "$c"/log.* "$c"/vv_*.png
+    # an interrupted 3D run leaves the refining-step controlDict in place
+    if [ -f "$c"/system/controlDict.run ]; then mv "$c"/system/controlDict.run "$c"/system/controlDict; fi
+    if grep -q '"dim": 3' "$c"/case.json 2>/dev/null; then
+        rm -rf "$c"/0                       # 3D: Allrun rebuilds it from 0.orig
+    else
+        rm -f "$c"/0/T.* "$c"/0/alphas      # 1D: the solver's start-up copies; 0/ is the initial state
+    fi
+    n=$((n + 1))
+done
+if [ ${#sel[@]} -eq 0 ]; then
+    rm -f cases/vv_results.md cases/vv_results3d.md
+    rm -rf results cases/.scratch1d
+fi
+echo "cleaned $n case(s)"
