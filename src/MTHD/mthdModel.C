@@ -293,40 +293,6 @@ mthdModel::mthdModel(fvMesh& mesh, const word& propertiesDictName)
 }
 
 
-void mthdModel::correctIncompressibleProperties
-(
-    const volScalarField& alpha1,
-    const dictionary& transportPropertiesMetal,
-    const dictionary& transportPropertiesGas
-)
-{
-    const dimensionedScalar eleccond1 =
-        lookupElectricalConductivity(transportPropertiesMetal);
-    const dimensionedScalar eleccond2 =
-        lookupElectricalConductivity(transportPropertiesGas);
-
-    const dimensionedScalar magperm1
-    (
-        "Mag_permitivity",
-        dimensionSet(1, 1, -2, 0, 0),
-        transportPropertiesMetal
-    );
-
-    const dimensionedScalar magperm2
-    (
-        "Mag_permitivity",
-        dimensionSet(1, 1, -2, 0, 0),
-        transportPropertiesGas
-    );
-
-    eleccond_ = alpha1*eleccond1 + (1.0 - alpha1)*eleccond2;
-    magperm_ = alpha1*magperm1 + (1.0 - alpha1)*magperm2;
-
-    eleccond_.correctBoundaryConditions();
-    magperm_.correctBoundaryConditions();
-}
-
-
 void mthdModel::resetTransportProperties()
 {
     eleccond_ *= 0.0;
@@ -348,6 +314,21 @@ void mthdModel::accumulateTransportProperties
 
 void mthdModel::finaliseTransportProperties()
 {
+    eleccond_.correctBoundaryConditions();
+    magperm_.correctBoundaryConditions();
+}
+
+
+void mthdModel::setTransportProperties
+(
+    const volScalarField& electricalConductivity,
+    const volScalarField& magneticPermeability
+)
+{
+    // dimension checked assignment, patch types stay zeroGradient
+    eleccond_ = electricalConductivity;
+    magperm_ = magneticPermeability;
+
     eleccond_.correctBoundaryConditions();
     magperm_.correctBoundaryConditions();
 }

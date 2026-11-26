@@ -2,16 +2,6 @@
     TSolidus = alpha1*Tsolidus1 + (1.0 - alpha1)*Tsolidus2;
     TLiquidus = alpha1*Tliquidus1 + (1.0 - alpha1)*Tliquidus2;
 
-    if (mthd.valid())
-    {
-        mthd->correctIncompressibleProperties
-        (
-            alpha1,
-            transportPropertiesMetal,
-            transportPropertiesGas
-        );
-    }
-
     beta = alpha1*beta1 + (1.0 - alpha1)*beta2;
     rhok = (1.0 - max(epsilon1*(beta)*(T - TSolidus), 0.0));
 
@@ -43,6 +33,15 @@
     }
 
     #include "updateKappaCp.H"
+
+    if (mthd.valid())
+    {
+        mthd->setTransportProperties
+        (
+            electrical_conductivity,
+            magnetic_permeability
+        );
+    }
 
     const vectorField& CI = mesh.C();
     metalaverage = fvc::average(alpha1);

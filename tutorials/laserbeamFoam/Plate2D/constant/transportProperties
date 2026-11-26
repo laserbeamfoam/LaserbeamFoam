@@ -21,20 +21,42 @@ electromagnetics true;
 
 phases          (metal gas);
 
+// Optional: range and spacing of the temperature grid onto which the
+// temperature dependent properties are sampled (default 0-10000 K every 1 K)
+propertyTables
+{
+    Tmin    0;
+    Tmax    5000;
+    deltaT  1;
+}
+
+// The metal properties are temperature dependent: cp, kappa, nu and
+// Elec_conductivity can be any Function1 of T (constant, table, tableFile,
+// polynomial, ...), clamped outside the given range. The values are
+// illustrative, roughly those of a 316L stainless steel.
+// The gas uses the legacy constant/polynomial inputs (poly_kappa, poly_cp),
+// which are still accepted.
 metal
 {
-    transportModel      Newtonian;
-    nu                  5e-07;
+    transportModel      temperatureTable;
+    temperatureTableCoeffs
+    {
+        // kinematic viscosity [m2/s]
+        nu      table ((1723 8.0e-07) (2500 4.0e-07));
+    }
     rho                 8000;
 	Tsolidus            1658;
 	Tliquidus           1723;
     LatentHeat          2.7e5;
     beta                5.0e-6;
-    poly_kappa          (25 0.0 0 0 0 0 0 0);
-    poly_cp             (700 0.0 0 0 0 0 0 0);
-    // elec_resistivity	1.0e-6; //deprecated - reading in conductivity
-    Elec_conductivity	1.0e6;
-    Mag_permitivity	1.256e-6;
+    // specific heat capacity [J/kg/K]
+    cp                  table ((300 500) (1658 720) (1723 790) (3500 790));
+    // thermal conductivity [W/m/K]
+    kappa               table ((300 14) (1658 33) (1723 29) (3500 35));
+    // electrical conductivity [S/m]
+    Elec_conductivity   table ((300 1.35e6) (1658 0.80e6) (1723 0.77e6));
+    // a constant can also be given with its units
+    Mag_permitivity     [1 1 -2 0 0] 1.256e-6;
 }
 
 gas

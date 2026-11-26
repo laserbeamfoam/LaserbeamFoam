@@ -1,6 +1,7 @@
 EXE_INC = \
     -I../../../src/MTHD/lnInclude \
     -I../../../src/laserHeatSource/lnInclude \
+    -I../../../src/temperatureDependentProperties/lnInclude \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/incompressibleInterPhaseTransportModel/lnInclude \
     -I$(LIB_SRC)/phaseSystemModels/twoPhaseInter/VoFphaseIncompressibleTurbulenceModels/lnInclude \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
@@ -25,6 +26,7 @@ EXE_LIBS = \
     -L$(FOAM_USER_LIBBIN) \
     -lMTHD \
     -llaserHeatSource \
+    -ltemperatureDependentProperties \
     -lfvOptions \
     -lsurfMesh \
     -lmeshTools \

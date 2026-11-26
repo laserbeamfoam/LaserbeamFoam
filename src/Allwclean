@@ -3,6 +3,7 @@ cd "${0%/*}" || exit  # Run from this directory
 
 wclean geometricVoF
 wclean laserHeatSource
+wclean temperatureDependentProperties
 wclean transportModels/incompressible
 wclean turbulenceModel
 

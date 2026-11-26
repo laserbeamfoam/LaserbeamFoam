@@ -1,0 +1,4 @@
+temperatureTable/temperatureTable.C
+viscosityModels/temperatureTableViscosity/temperatureTableViscosity.C
+
+LIB = $(FOAM_USER_LIBBIN)/libtemperatureDependentProperties
