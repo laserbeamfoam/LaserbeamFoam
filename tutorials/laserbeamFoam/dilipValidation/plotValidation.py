@@ -6,7 +6,7 @@
     python3 plotValidation.py
 
 Cases are grouped by laser power and scan speed. Within a group, an arrow
-joins each mesh to the next finer one, and the finest mesh has a filled
+joins each mesh to the next finer one, and the finest mesh (or the only one) has a filled
 marker. A case whose name ends in "_baseResistivity" is the case of the same
 name before the calibration.
 """
@@ -63,7 +63,7 @@ for n, key in enumerate(groups):
         ax.annotate("", (fine["width"], fine["depth"]), (coarse["width"], coarse["depth"]),
                     arrowprops=dict(arrowstyle="->", color=col, lw=1.3, shrinkA=6, shrinkB=6))
     for c in meshes:
-        finest = c is meshes[-1] and len(meshes) > 1
+        finest = c is meshes[-1]
         ax.errorbar(c["width"], c["depth"], xerr=c["widthSd"], yerr=c["depthSd"], fmt="o", ms=8,
                     color=col, mfc=col if finest else "white", mec=col, mew=1.6, elinewidth=1,
                     capsize=2.5, zorder=3)

@@ -90,13 +90,19 @@ def describe(case):
         uncommented(case / "constant" / "timeVsLaserPosition"))]
     power = [tuple(map(float, m)) for m in re.findall(
         rf"\(\s*({NUMBER})\s+({NUMBER})\s*\)", uncommented(case / "constant" / "timeVsLaserPower"))]
-    tOff = max(t for t, p in power if p > 0)
-    (t0, _, _, z0), (t1, _, _, z1) = pos[0], pos[1]
+    # The laser must be on from the first to the last point of its path, which must be one straight
+    # segment along z: the speed and the length of the track are those of that segment
+    tOn, tOff = min(t for t, p in power if p > 0), max(t for t, p in power if p > 0)
+    if len(pos) != 2 or pos[0][0] != tOn or pos[1][0] != tOff or pos[0][1:3] != pos[1][1:3] or pos[0][3] == pos[1][3]:
+        sys.exit(f"{case.name}: the laser path must be a single straight segment along z, from the time the "
+                 f"laser is switched on ({tOn:g} s) to the time it is switched off ({tOff:g} s); "
+                 "constant/timeVsLaserPosition and constant/timeVsLaserPower do not say so")
+    (t0, _, _, z0), (t1, _, _, z1) = pos
     speed = abs(z1 - z0) / (t1 - t0)
     radius = float(re.search(rf"laserRadius\s+({NUMBER})", uncommented(case / "constant" / "LaserProperties")).group(1))
     plate = uncommented(case / "system" / "bedPlateDict")
     value = lambda key: float(re.search(rf"\b{key}\s+({NUMBER})", plate).group(1))
-    return dict(speed=round(speed, 6), power=max(p for _, p in power), spot=2 * radius, track=speed * tOff,
+    return dict(speed=round(speed, 6), power=max(p for _, p in power), spot=2 * radius, track=speed * (tOff - tOn),
                 plateTop=value("ymax"), xMin=value("xmin"), xMax=value("xmax"))
 
 
@@ -127,6 +133,8 @@ def simtopc(names, info, mode, begin, end):
             sys.exit(f"SimToPC failed on {', '.join(names)}:\n" + "".join(log.read_text().splitlines(True)[-15:]))
         with open(work / "metallographic_summary.csv") as f:
             rows = list(csv.DictReader(f))
+        if len(rows) != len(names):
+            sys.exit(f"SimToPC gave {len(rows)} rows for the {len(names)} cases {', '.join(names)}")
         profiles = []
         for i, (n, row) in enumerate(zip(names, rows), 1):
             row["case"] = n
@@ -157,6 +165,8 @@ def main():
             if len({info[n][a] for n in group}) > 1:
                 sys.exit(f"the cases {', '.join(group)} do not have the same {a}")
         search = min(info[n]["track"] for n in group)
+        # SimToPC itself leaves out of the choice of the window the cases with cells larger than
+        # steady_tolerance (5 um): they are measured in the window that the other cases set
         rows, profiles = simtopc(group, info, "steady_stretch", 0, search)
         window = (float(rows[0]["window_begin"]), float(rows[0]["window_end"]))
         same = [r for r in kept if (float(r["power"]), float(r["scan_speed"])) == key]
@@ -164,11 +174,18 @@ def main():
             existing = (float(same[0]["window_begin"]), float(same[0]["window_end"]))
             if max(abs(existing[0] - window[0]), abs(existing[1] - window[1])) > 1e-9:
                 stretches = {r["case"]: (r["steady_stretch_begin"], r["steady_stretch_end"]) for r in rows}
-                steady = [[line.rsplit(",", 1)[1] for line in p.splitlines()] for p in profiles]
+                first = profiles
                 rows, profiles = simtopc(group, info, "fixed", existing[0], existing[1])
-                # the profile of a fixed window has no steady_stretch column: it is taken from the first run
-                profiles = ["".join(f"{line},{flag}\n" for line, flag in zip(p.splitlines(), column))
-                            for p, column in zip(profiles, steady)]
+                # the profile of a fixed window has no steady_stretch column: it is taken from the first run,
+                # which must have the same sections
+                joined = []
+                for n, p, q in zip(group, profiles, first):
+                    lines, before = p.splitlines(), q.splitlines()
+                    if [l.split(",", 2)[:2] for l in lines] != [l.split(",", 2)[:2] for l in before]:
+                        sys.exit(f"{n}: the profiles of the two SimToPC runs do not have the same sections "
+                                 f"({len(before) - 1} and {len(lines) - 1}); nothing was written")
+                    joined.append("".join(f"{l},{b.rsplit(',', 1)[1]}\n" for l, b in zip(lines, before)))
+                profiles = joined
                 for r in rows:
                     r["steady_stretch_begin"], r["steady_stretch_end"] = stretches[r["case"]]
                     if not (float(stretches[r["case"]][0]) <= existing[0] + 1e-9
@@ -185,10 +202,16 @@ def main():
     order = [r["case"] for r in old] + [n for n in names if n not in {r["case"] for r in old}]
     byName = {r["case"]: r for r in kept}
     byName.update(newRows)
-    with open(SUMMARY, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns, lineterminator="\n")
+    # a column that only a newer SimToPC writes is added (empty in the rows kept); the file is replaced
+    # only once it has been written completely
+    columns = columns + [k for r in newRows.values() for k in r if k not in columns and k is not None]
+    columns = list(dict.fromkeys(columns))
+    partial = SUMMARY.with_suffix(".csv.partial")
+    with open(partial, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=columns, restval="", lineterminator="\n")
         writer.writeheader()
         writer.writerows(byName[n] for n in order)
+    os.replace(partial, SUMMARY)
     for n, text in newProfiles.items():
         (HERE / "results" / n).mkdir(exist_ok=True)
         (HERE / "results" / n / "metallographic_profile.csv").write_text(text)

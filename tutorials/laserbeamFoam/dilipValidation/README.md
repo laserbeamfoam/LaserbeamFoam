@@ -444,6 +444,12 @@ The case files use options of two of the pull requests:
 
 ## Running a case
 
+The files of `results/` were produced with the solver of "Solver version",
+and reproducing them needs that solver. `OpenFoam_com_main` does not have
+`longPause` ([#151][pr151]) nor the other changes under review yet: there
+the cooling would be solved in the slower full mode and the numbers may
+differ. The cases have not been run on `OpenFoam_com_main`.
+
 ```bash
 ./Allrun_long v1200_5um
 ```
@@ -452,7 +458,8 @@ The case files use options of two of the pull requests:
 `setSolidFraction`, `decomposePar`), runs `laserbeamFoam` on the number of
 cores of `system/decomposeParDict` and reconstructs the last time. It calls
 `mpirun` directly: on a cluster, call it from a job script. It does not
-start on a case that has already been run. `./Allclean_long v1200_5um`
+start on a case that holds anything a run writes (`0`, time directories,
+`processor*` or `log.*`). `./Allclean_long v1200_5um`
 removes what the run wrote and restores `system/controlDict`, which the
 solver rewrites during a run.
 
@@ -521,7 +528,13 @@ How the window of a new case is set:
 - **A new power or scan speed.** SimToPC finds the window from the steady
   stretches of the cases given, as described in "How the measurement window
   is found". Give all the meshes of that speed in the same command. Only
-  the cases with cells of 5 µm or smaller set the window.
+  the cases with cells of 5 µm or smaller set the window: SimToPC leaves
+  the coarser ones out of that choice (cells larger than its
+  `steady_tolerance`) and measures them in the window that the others set.
+
+The laser path of a case must be a single straight segment along z, from
+the time the laser is switched on to the time it is switched off; the
+script stops otherwise.
 
 `addResults.py` was checked on the five cases of this folder: measured all
 together, one at a time, or as a speed not yet in the results, it gives the

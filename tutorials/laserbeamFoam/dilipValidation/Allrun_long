@@ -11,9 +11,11 @@ set -e
 caseName=${1:?usage: ./Allrun_long <case>, a folder of cases/}
 cd "$(dirname "$0")/cases/$caseName"
 
-if ls -d 0 processor* > /dev/null 2>&1
+# Anything that a run writes: 0 and the time directories, processor*, log.*
+if compgen -G "[0-9]*" > /dev/null || compgen -G "processor*" > /dev/null \
+    || compgen -G "log.*" > /dev/null
 then
-    echo "$caseName has already been run: ./Allclean_long $caseName first"
+    echo "$caseName holds files of a run: ./Allclean_long $caseName first"
     exit 1
 fi
 
