@@ -21,7 +21,7 @@ inline Foam::scalar Foam::temperatureTable::value(const scalar T) const
 {
     const scalar x = (T - Tmin_)*rDeltaT_;
 
-    // below the table (also catches a NaN temperture)
+    // below the table (also catches a NaN temperature)
     if (!(x > 0))
     {
         return values_[0];

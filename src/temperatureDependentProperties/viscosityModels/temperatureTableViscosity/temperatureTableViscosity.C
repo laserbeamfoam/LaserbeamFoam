@@ -88,7 +88,7 @@ void Foam::viscosityModels::temperatureTableViscosity::calcNu()
 
     nuTable_.values(T.primitiveField(), nu_.primitiveFieldRef());
 
-    // boundry values follow the patch temperature
+    // boundary values follow the patch temperature
     volScalarField::Boundary& nuBf = nu_.boundaryFieldRef();
     const volScalarField::Boundary& TBf = T.boundaryField();
 
@@ -113,7 +113,13 @@ Foam::viscosityModels::temperatureTableViscosity::temperatureTableViscosity
     coeffs_(viscosityProperties.optionalSubDict(typeName + "Coeffs")),
     TName_(coeffs_.getOrDefault<word>("field", "T")),
     Tinit_(coeffs_.getOrDefault<scalar>("Tinit", 300.0)),
-    nuTable_("nu", coeffs_, tableControls(viscosityProperties, coeffs_)),
+    nuTable_
+    (
+        "nu",
+        coeffs_,
+        dimViscosity,
+        tableControls(viscosityProperties, coeffs_)
+    ),
     nu_
     (
         IOobject
@@ -153,6 +159,7 @@ bool Foam::viscosityModels::temperatureTableViscosity::read
     (
         "nu",
         coeffs_,
+        dimViscosity,
         tableControls(viscosityProperties, coeffs_)
     );
 

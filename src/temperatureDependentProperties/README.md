@@ -34,8 +34,13 @@ gas
 Fallbacks so existing cases run unchanged: `poly_cp` / `poly_kappa`
 (`Polynomial<8>`, a0 + a1 T + …) when `cp` / `kappa` are absent; the
 deprecated constant `elec_resistivity` when `Elec_conductivity` is absent.
-A bare number is a constant Function1. Tables narrower than the cache are
-extended by the Function1 `outOfBounds` (default clamp).
+A bare number is a constant Function1, and a constant with units, e.g.
+`Elec_conductivity [-1 -3 3 0 0] 1e6;`, is still accepted and its dimensions
+are checked. Giving both `Elec_conductivity` and `elec_resistivity` is an
+error unless they are the same constant. Tables narrower than the cache are
+extended by the Function1 `outOfBounds` (default clamp), and temperatures
+outside `Tmin`–`Tmax` are clamped to the end values (the old `Polynomial<8>`
+extrapolated).
 
 ## Where each property goes
 
@@ -48,7 +53,8 @@ extended by the Function1 `outOfBounds` (default clamp).
 
 The H equation needs no change for σ(T): −∇·(η∇H) + ∇·(η(∇H)ᵀ) is
 identically ∇×(η∇×H) for a spatially varying η = 1/σ, and the Joule source
-is already (1/σ)|J|². `mthdModel` only gains the setter; the old
+is already (1/σ)|J|². `mthdModel` gains the setter and loses the unused
+`correctIncompressibleProperties`; the
 dictionary/accumulate interface used by compressibleLaserbeamFoam is intact.
 
 The energy equation is already in the advective form, so a variable cp
@@ -57,23 +63,11 @@ enters exactly as ρ cp(T) DT/Dt. One deliberate fix rides along: `cp` and
 every boundary adiabatic and enthalpy-flux-free whatever the T condition
 said; they are now `zeroGradient`.
 
+`tutorials/laserbeamFoam/Plate2D` uses temperature dependent metal properties.
+
 The solver prints every table at start-up ("Temperature dependent
 properties of metal: cp: Function1 table, cached … values: 300K:546 …").
 
-## Files
-
-```
-src/temperatureDependentProperties/   new library (sibling of src/MTHD, built by src/Allwmake)
-src/MTHD/mthdModel.{H,C}              + setTransportProperties(), electricalConductivity()
-src/Allwmake, src/Allwclean           + one line each
-applications/solvers/laserbeamFoam/
-    createFields.H   tables, electrical fields, mthd created earlier, zeroGradient cp/kappa
-    updateKappaCp.H  table evaluation, resistivity and MHD fields
-    updateProps.H    mthd->setTransportProperties after updateKappaCp.H
-    TEqn.H           thermalDamper uses the tables
-    laserbeamFoam.C  #include "temperatureTable.H"
-    Make/options     include path + -ltemperatureDependentProperties
-```
 compressibleLaserbeamFoam is untouched; when its turn comes, the thermo
 side goes through its rhoThermo (`hPolynomial`/`hTabulated`,
 `polynomial`/`tabulated` transport) and the MHD side through

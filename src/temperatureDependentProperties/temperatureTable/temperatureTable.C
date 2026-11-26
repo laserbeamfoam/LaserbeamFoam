@@ -19,12 +19,43 @@ License
 
 #include "temperatureTable.H"
 #include "messageStream.H"
+#include "dimensionedScalar.H"
+
+// * * * * * * * * * * * * * * * Local Functions * * * * * * * * * * * * * * //
+
+namespace Foam
+{
+
+// true for a primitive entry with a dimension set, e.g. 'key [0 2 -2 -1 0] 500'
+// or 'key key [0 2 -2 -1 0] 500', which Function1 cannot read
+static bool isDimensionedEntry(const dictionary& dict, const word& keyword)
+{
+    const entry* eptr = dict.findEntry(keyword);
+
+    if (!eptr || !eptr->isStream())
+    {
+        return false;
+    }
+
+    for (const token& tok : eptr->stream())
+    {
+        if (tok.isPunctuation(token::BEGIN_SQR))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+}
+
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
 void Foam::temperatureTable::readControls(const dictionary& controls)
 {
-    // defualts cover anything a laser case can reach
+    // defaults cover anything a laser case can reach
     Tmin_ = controls.getOrDefault<scalar>("Tmin", 0.0);
     Tmax_ = controls.getOrDefault<scalar>("Tmax", 1.0e4);
     deltaT_ = controls.getOrDefault<scalar>("deltaT", 1.0);
@@ -85,6 +116,7 @@ Foam::temperatureTable::temperatureTable
 (
     const word& keyword,
     const dictionary& dict,
+    const dimensionSet& dims,
     const dictionary& controls,
     const word& legacyPolynomialKeyword
 )
@@ -112,11 +144,27 @@ Foam::temperatureTable::temperatureTable
                 << ": using " << keyword << endl;
         }
 
-        autoPtr<Function1<scalar>> f(Function1<scalar>::New(keyword, dict));
+        if (isDimensionedEntry(dict, keyword))
+        {
+            // constant with units, as read before the Function1 support;
+            // the dimensions are checked
+            const dimensionedScalar value(keyword, dims, dict);
 
-        description_ = string("Function1 ") + (*f).type();
+            description_ = "dimensioned constant";
 
-        sample(*f);
+            values_.setSize(nSamples(), value.value());
+        }
+        else
+        {
+            autoPtr<Function1<scalar>> f
+            (
+                Function1<scalar>::New(keyword, dict)
+            );
+
+            description_ = string("Function1 ") + (*f).type();
+
+            sample(*f);
+        }
     }
     else if
     (
@@ -124,7 +172,7 @@ Foam::temperatureTable::temperatureTable
      && dict.found(legacyPolynomialKeyword)
     )
     {
-        // old style a0 + a1 T + a2 T^2 ... coeficients
+        // old style a0 + a1 T + a2 T^2 ... coefficients
         const Polynomial<8> p(dict.lookup(legacyPolynomialKeyword));
 
         description_ = string("polynomial ") + legacyPolynomialKeyword;

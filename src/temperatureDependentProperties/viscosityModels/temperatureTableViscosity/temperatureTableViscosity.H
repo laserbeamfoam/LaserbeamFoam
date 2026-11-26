@@ -47,10 +47,10 @@ class temperatureTableViscosity
 
         dictionary coeffs_;
 
-        // name of the temperture field
+        // name of the temperature field
         word TName_;
 
-        // used if the temperature field isnt registered yet
+        // used if the temperature field is not registered yet
         scalar Tinit_;
 
         Foam::temperatureTable nuTable_;

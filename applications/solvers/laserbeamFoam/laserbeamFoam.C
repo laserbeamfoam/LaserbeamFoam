@@ -172,7 +172,9 @@ int main(int argc, char *argv[])
             // boundary conditions used by laserbeamFoam, but not strictly with
             // contact-angle boundary conditions (the alpha boundary gradient
             // is updated at each call) or with a viscosity model whose
-            // correction is not idempotent
+            // correction is not idempotent. The temperatureTable viscosity
+            // model is idempotent: it only depends on T, which does not
+            // change between the alpha transport and the first corrector
             if
             (
                 interfaceTrackingScheme != "isoAdvector"

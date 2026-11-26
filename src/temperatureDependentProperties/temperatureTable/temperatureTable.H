@@ -19,9 +19,9 @@ Class
     Foam::temperatureTable
 
 Description
-    Temperature dependant material property: any Function1 of T (constant,
+    Temperature dependent material property: any Function1 of T (constant,
     table, tableFile, polynomial, ...) sampled once onto a uniform T grid so
-    the per cell evalution is a single interpolation.
+    the per cell evaluation is a single interpolation.
 
 \*---------------------------------------------------------------------------*/
 
@@ -31,6 +31,7 @@ Description
 #include "scalarField.H"
 #include "string.H"
 #include "dictionary.H"
+#include "dimensionSet.H"
 #include "Function1.H"
 #include "Polynomial.H"
 
@@ -73,11 +74,13 @@ public:
     // Constructors
 
         // Function1 entry 'keyword' of dict, or the legacy Polynomial<8> entry
-        // if the keyword is absent
+        // if the keyword is absent. A constant given with units, e.g.
+        // 'keyword [dims] value', is also accepted and checked against dims
         temperatureTable
         (
             const word& keyword,
             const dictionary& dict,
+            const dimensionSet& dims,
             const dictionary& controls,
             const word& legacyPolynomialKeyword = word::null
         );
@@ -114,7 +117,7 @@ public:
 
         tmp<scalarField> values(const UList<scalar>& T) const;
 
-        // print the specifcation and the values at Tsample to Info
+        // print the specification and the values at Tsample to Info
         void printInfo(const UList<scalar>& Tsample) const;
 };
 

@@ -252,7 +252,7 @@ if (mthdModel::electromagneticsEnabled(mesh, "transportProperties"))
     mthd.reset(new mthdModel(mesh, "transportProperties"));
 }
 
-// Temperature dependant properties: Function1 entries (table, polynomial,
+// Temperature dependent properties: Function1 entries (table, polynomial,
 // constant, ...) cached on a uniform T grid, see src/temperatureDependentProperties.
 // poly_cp/poly_kappa still work as the fallback so old cases are unchanged.
 const dictionary propertyTableControls
@@ -260,54 +260,79 @@ const dictionary propertyTableControls
     transportProperties.subOrEmptyDict("propertyTables")
 );
 
+const dimensionSet cpDims(0, 2, -2, -1, 0);
+const dimensionSet kappaDims(1, 1, -3, -1, 0);
+const dimensionSet conductivityDims(-1, -3, 3, 0, 0);
+const dimensionSet permeabilityDims(1, 1, -2, 0, 0);
+
 const temperatureTable cpTable_m
 (
-    "cp", transportPropertiesMetal, propertyTableControls, "poly_cp"
+    "cp", transportPropertiesMetal, cpDims, propertyTableControls, "poly_cp"
 );
 const temperatureTable cpTable_g
 (
-    "cp", transportPropertiesGas, propertyTableControls, "poly_cp"
+    "cp", transportPropertiesGas, cpDims, propertyTableControls, "poly_cp"
 );
 
 const temperatureTable kappaTable_m
 (
-    "kappa", transportPropertiesMetal, propertyTableControls, "poly_kappa"
+    "kappa",
+    transportPropertiesMetal,
+    kappaDims,
+    propertyTableControls,
+    "poly_kappa"
 );
 const temperatureTable kappaTable_g
 (
-    "kappa", transportPropertiesGas, propertyTableControls, "poly_kappa"
+    "kappa",
+    transportPropertiesGas,
+    kappaDims,
+    propertyTableControls,
+    "poly_kappa"
 );
 
 // Elec_conductivity [S/m] as a Function1 of T; the deprecated constant
 // elec_resistivity is still accepted
 auto conductivityTable = [&](const dictionary& dict) -> temperatureTable*
 {
-    if (dict.found("Elec_conductivity"))
-    {
-        return new temperatureTable
-        (
-            "Elec_conductivity", dict, propertyTableControls
-        );
-    }
-
     if (dict.found("elec_resistivity"))
     {
-        Info<< "Warning: using deprecated keyword elec_resistivity in "
-            << dict.dictName() << ", please use Elec_conductivity" << endl;
+        // elec_resistivity is a constant, so Elec_conductivity can only be
+        // given alongside it as the same constant
+        if (dict.found("Elec_conductivity"))
+        {
+            const temperatureTable sigma
+            (
+                "Elec_conductivity",
+                dict,
+                conductivityDims,
+                propertyTableControls
+            );
 
+            if (!sigma.isConstant())
+            {
+                FatalIOErrorInFunction(dict)
+                    << "The deprecated elec_resistivity cannot be combined "
+                    << "with a temperature dependent Elec_conductivity in "
+                    << dict.dictName() << ": remove elec_resistivity"
+                    << exit(FatalIOError);
+            }
+        }
+
+        // warns about the deprecated keyword and checks that the two values
+        // agree if both are given
         return new temperatureTable
         (
             "Elec_conductivity",
-            1.0/dict.get<scalar>("elec_resistivity"),
+            mthdModel::readElectricalConductivity(dict).value(),
             propertyTableControls
         );
     }
 
-    FatalIOErrorInFunction(dict)
-        << "Elec_conductivity not found in dictionary " << dict.dictName()
-        << exit(FatalIOError);
-
-    return nullptr;
+    return new temperatureTable
+    (
+        "Elec_conductivity", dict, conductivityDims, propertyTableControls
+    );
 };
 
 // the metal conductivity is always needed (laser absorptivity), the gas one
@@ -327,14 +352,20 @@ if (mthd.valid())
     (
         new temperatureTable
         (
-            "Mag_permitivity", transportPropertiesMetal, propertyTableControls
+            "Mag_permitivity",
+            transportPropertiesMetal,
+            permeabilityDims,
+            propertyTableControls
         )
     );
     magpermTable_gPtr.reset
     (
         new temperatureTable
         (
-            "Mag_permitivity", transportPropertiesGas, propertyTableControls
+            "Mag_permitivity",
+            transportPropertiesGas,
+            permeabilityDims,
+            propertyTableControls
         )
     );
 }
@@ -375,7 +406,7 @@ if (mthd.valid())
 }
 
 // zeroGradient so the patch values follow the cells, otherwise the calculated
-// patches stay at zero and every boundry is adiabatic whatever T says
+// patches stay at zero and every boundary is adiabatic whatever T says
 volScalarField cp
 (
     IOobject
@@ -428,7 +459,7 @@ volScalarField electrical_resistivity
 );
 
 // alpha blended mixture conductivity and permeability for the MHD (dimension
-// sets as in mthdModel so the fields can be assigned accross)
+// sets as in mthdModel so the fields can be assigned across)
 volScalarField electrical_conductivity
 (
     IOobject
@@ -443,7 +474,7 @@ volScalarField electrical_conductivity
     dimensionedScalar
     (
         "electrical_conductivity",
-        dimensionSet(-1, -3, 3, 0, 0),
+        conductivityDims,
         condTable_m.value(300.0)
     ),
     zeroGradientFvPatchScalarField::typeName
@@ -463,7 +494,7 @@ volScalarField magnetic_permeability
     dimensionedScalar
     (
         "magnetic_permeability",
-        dimensionSet(1, 1, -2, 0, 0),
+        permeabilityDims,
         mthd.valid() ? magpermTable_mPtr->value(300.0) : 0.0
     ),
     zeroGradientFvPatchScalarField::typeName

@@ -96,13 +96,6 @@ public:
             return JcrossB_;
         }
 
-        void correctIncompressibleProperties
-        (
-            const volScalarField& alpha1,
-            const dictionary& transportPropertiesMetal,
-            const dictionary& transportPropertiesGas
-        );
-
         void resetTransportProperties();
 
         void accumulateTransportProperties
@@ -115,8 +108,8 @@ public:
         void finaliseTransportProperties();
 
         // mixture conductivity and permeability fields evaluated by the solver
-        // (temperature dependant), used as is: the H equation is already in
-        // divergence form with a spatialy varying 1/sigma
+        // (temperature dependent), used as is: the H equation is already in
+        // divergence form with a spatially varying 1/sigma
         void setTransportProperties
         (
             const volScalarField& electricalConductivity,
