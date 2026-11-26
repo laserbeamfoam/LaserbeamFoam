@@ -256,12 +256,6 @@ public:
 
     // Member Functions
 
-        //- Restore fields required for consistent restart time derivatives
-        void restoreOldTimeValues();
-
-        //- Write fields required for consistent restart time derivatives
-        void writeOldTimeValues();
-
         //- Return the phases
         const PtrDictionary<phaseModel>& phases() const
         {
@@ -328,6 +322,11 @@ public:
         }
 
 
+        //- Largest Fickian diffusivity [m2/s] among the interfaceDiffusion pairs that are used (two
+        //  phases of the same group): the species' diffusive fluxes are explicit, so the time-step
+        //  control needs it (setDeltaT.H)
+        scalar maxInterfaceDiffusivity() const;
+
         //- Conserved partial masses c_i = alpha_i*rho_i, phases() order
         const PtrList<volScalarField>& c() const
         {
@@ -337,7 +336,8 @@ public:
         //- Partial mass of a named phase
         const volScalarField& c(const word& phaseName) const;
 
-        //- Transported density sum_i c_i: ddt(rhoM) + div(rhoPhi) = 0 exactly
+        //- Transported density sum_i c_i: ddt(rhoM) + div(rhoPhi) = sum_i Su_i, the phase-change mass
+        //  moved between cells (zero in every cell without phase change, and summed over the domain)
         tmp<volScalarField> rhoM() const;
 
 

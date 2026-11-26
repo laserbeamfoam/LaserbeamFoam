@@ -18,6 +18,9 @@ if (correctPhi)
 
     if (!bRestartFirstLoop)
     {
+        // a fresh start begins from a divergence-free flux (closureSrc is zero here)
+        const volScalarField& divUCorrectPhi = closureSrc;
+
         #include "correctPhi.esi.H"
     }
 }

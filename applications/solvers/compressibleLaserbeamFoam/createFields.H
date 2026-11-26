@@ -1,37 +1,8 @@
-// Check for restarting solver
-// bRestartFirstLoop is used within `main()` also!
-bool bRestartFirstLoop = (runTime.timeIndex() > 0);
+// A restart needs no old-time files: every old-time value is the field itself at the restart time
+// (Euler), and the ledger (c.*), the phase fractions, p, T, U, phi, epsilon1 and uJump are all read back.
+// bRestartFirstLoop only keeps initCorrectPhi.H from making the restart flux divergence-free
+const bool bRestartFirstLoop = (runTime.timeIndex() > 0);
 Info<< "Runtime timeIndex = " << runTime.timeIndex() << endl;
-if (bRestartFirstLoop)
-{
-    // solver was restarted!
-    Info<< "\nSolver restart detected. Preventing correctPhi\'s on the first "
-        << "pass/loop, and restoring `.oldTime()` values as required by "
-        << "`fvc::ddt` methods (does not support fvc backwards scheme!).\n"
-        << endl;
-}
-
-// Local debugging ------------------------------------------------------------
-// Add debug entry for the solver (mainly to enable verbose fields)
-Switch debugFlag
-(
-    IOdictionary
-    (
-        IOobject
-        (
-            "controlDict",
-            mesh.time().system(),
-            mesh,
-            IOobject::MUST_READ_IF_MODIFIED,
-            IOobject::NO_WRITE
-        )
-    ).lookupOrDefault<Switch>("debugCompressibleLaserbeamFoam", false)
-);
-
-// Disabled temporarily:
-// autoPtr<volScalarField> rhoCopyPreUpdatePtr; // reset after rho is constructed
-
-// ----------------------------------------------------------------------------
 
 dimensionedScalar deltaN=1e-8/pow(average(mesh.V()), 1.0/3.0);
 
@@ -479,12 +450,10 @@ const dimensionedScalar DarcyConstantsmall
 // Create laser heat source
 laserHeatSource laser(mesh);
 
+// the laser's cell sizes are rebuilt by update.H when the mesh has changed
+bool cellSizeStale = true;
 
 #include "update.H"
-
-// seed rhoCv/CvMass and enable their oldTime storage (first assignment in
-// a new time step then shifts the end-of-previous-step values into
-// .oldTime(), exactly as laserbeamFoam does with rhoCp.oldTime())
 #include "updateRhoCv.H"
 rhoCv.oldTime();
 CvMass.oldTime();
@@ -529,17 +498,38 @@ CvMass.oldTime();
         Info<< "\nepsilon1: assuming fresh start, calculating the field...\n"
             << endl;
 
-        // TSolidus/TLiquidus are condensed-only 
-        epsilon1 = max
+        // TSolidus/TLiquidus are sums over the condensed phases only, so the metal's own solidus and
+        // liquidus are those over the condensed fraction, as TEqn.H takes them. Without that a cell
+        // holding 10 % cold solid starts molten and gives up its latent heat in the first step
+        const dimensionedScalar cMinMelt0("cMinMelt0", dimless, 1e-4);
+        const dimensionedScalar cThreshMelt0("cThreshMelt0", dimless, 1e-2);
+        const volScalarField rCond0(1.0/max(condensate, cMinMelt0));
+        const volScalarField TSolidusCond0(TSolidus*rCond0);
+        const volScalarField TLiquidusCond0(TLiquidus*rCond0);
+
+        // 1 where metal is present, ramps to 0 in the gas (which counts as fluid: epsilon1 = 1)
+        const volScalarField meltMask0
         (
-            min
-            (
-                (mixture.T() - TSolidus)
-               /max(TLiquidus - TSolidus, dimensionedScalar("dTfloor", dimTemperature, SMALL)),
-                scalar(1)
-            ),
-            scalar(0)
+            min(max(condensate/cThreshMelt0, scalar(0)), scalar(1))
         );
+
+        epsilon1 =
+            meltMask0
+           *max
+            (
+                min
+                (
+                    (mixture.T() - TSolidusCond0)
+                   /max
+                    (
+                        TLiquidusCond0 - TSolidusCond0,
+                        dimensionedScalar("dTfloor", dimTemperature, SMALL)
+                    ),
+                    scalar(1)
+                ),
+                scalar(0)
+            )
+          + (scalar(1) - meltMask0);
     }
 
 
@@ -590,22 +580,6 @@ volScalarField Tcorr
         dimensionedScalar("Tcorr",dimensionSet(0, 0, 0, 1, 0),0.0)
     );
 
-                volScalarField DilationError
-    (
-        IOobject
-        (
-            "DilationError",
-            runTime.timeName(),
-            mesh,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        mesh,
-        dimensionedScalar("DilationError",dimensionSet(0,0,-1,0,0),0.0)
-    );
-
-
-
 volVectorField Marangoni
 (
     IOobject
@@ -648,150 +622,6 @@ const volScalarField zeroJoulesource
     dimensionedScalar("zeroJoulesource", dimensionSet(1, -1, -3, 0, 0), 0.0)
 );
 
-// --- Perform oldTime restoration --------------------------------------------
-if (bRestartFirstLoop)
-{
-    Info<< "Restoring oldTime values." << endl;
-    int errorCount = 0;
-
-    mixture.restoreOldTimeValues();
-
-    volVectorField UOldTime
-    (
-        IOobject
-        (
-            IOobject::groupName("U", "oldTime"),
-            runTime.timeName(),
-            mesh,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        U
-    );
-
-    if (UOldTime.headerOk())
-    {
-        U.oldTime() = UOldTime;
-    }
-    else
-    {
-        Info<<"Restart detected but U.oldTime not found!" << endl;
-        errorCount++;
-    }
-
-
-    surfaceScalarField phiOldTime
-    (
-        IOobject
-        (
-            IOobject::groupName("phi", "oldTime"),
-            runTime.timeName(),
-            mesh,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        fvc::flux(UOldTime)
-    );
-
-    if (phiOldTime.headerOk())
-    {
-        phi.oldTime() = phiOldTime;
-    }
-    else
-    {
-        Info<< "Restart detected but phi.oldTime not found; reconstructing "
-            << "it from U.oldTime." << endl;
-        phi.oldTime() = phiOldTime;
-        errorCount++;
-    }
-
-
-    volScalarField rhoOldTime
-    (
-        IOobject
-        (
-            IOobject::groupName("rho", "oldTime"),
-            runTime.timeName(),
-            mesh,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        rho
-    );
-
-    if (rhoOldTime.headerOk())
-    {
-        rho.oldTime() = rhoOldTime;
-    }
-    else
-    {
-        Info<<"Restart detected but rho.oldTime not found!" << endl;
-        errorCount++;
-    }
-
-
-    volScalarField LatentHeatOldTime
-    (
-        IOobject
-        (
-            IOobject::groupName("LatentHeat", "oldTime"),
-            runTime.timeName(),
-            mesh,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        LatentHeat
-    );
-
-    if (LatentHeatOldTime.headerOk())
-    {
-        LatentHeat.oldTime() = LatentHeatOldTime;
-    }
-    else
-    {
-        Info<<"Restart detected but LatentHeat.oldTime not found!" << endl;
-        errorCount++;
-    }
-
-
-    volScalarField epsilon1OldTime
-    (
-        IOobject
-        (
-            IOobject::groupName("epsilon1", "oldTime"),
-            runTime.timeName(),
-            mesh,
-            IOobject::READ_IF_PRESENT,
-            IOobject::AUTO_WRITE
-        ),
-        epsilon1
-    );
-
-    if (epsilon1OldTime.headerOk())
-    {
-        epsilon1.oldTime() = epsilon1OldTime;
-        epsilon1.correctBoundaryConditions();
-    }
-    else
-    {
-        Info<< "Restart detected but epsilon1.oldTime not found!" << endl;
-        errorCount++;
-    }
-
-    if (errorCount)
-    {
-        Info<< "WARNING: " << errorCount << " fields' oldTime values were not "
-            << "restored! This will cause issues within any fvc::ddt terms!"
-            << "RECOMMENDED: please inspect your latest time folder!"
-            << endl;
-    }
-    else
-    {
-        Info<< "Main: All relevant fields' oldTime values were restored using "
-            << "file reads. All good!"
-            << endl;
-    }
-}
 #include "createMRF.H"
 #include "createK.H"
 
@@ -826,6 +656,10 @@ volScalarField psiStefan
     psiStefanTypes
 );
 mesh.setFluxRequired(psiStefan.name());
+
+// false in a step in which nothing condenses: stefanFlow.H then has no flow to find and UEqn.H no
+// viscous force to remove
+bool stefanFlowActive = false;
 
 // its cell velocity (a donor carries its gas side's), weighted by rho_gas/rho for the viscous term
 volVectorField Upc
@@ -877,3 +711,11 @@ surfaceScalarField uJump
 );
 uJump.setOriented();               // a normal velocity: its sign follows the face (AMR flips)
 uJump.oldTime().setOriented();
+
+// surface tension force of the current step: set once the phase fractions are, cleared at the end of
+// the step (so no unregistered face field is carried over a mesh update)
+tmp<surfaceScalarField> tstf;
+
+// the volumetric flux the species were moved with this step (phi before the first pressure corrector),
+// for the kinetic-energy balance of the gas in TEqn.H
+tmp<surfaceScalarField> tphiLedger;

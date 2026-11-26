@@ -40,6 +40,7 @@ Authors
 \*---------------------------------------------------------------------------*/
 
 #include "fvCFD.H"
+#include "upwind.H"
 #include "dynamicFvMesh.H"
 #include "multiphaseMixtureThermo.H"
 #include "turbulentFluidThermoModel.H"
@@ -95,6 +96,13 @@ int main(int argc, char *argv[])
     #include "setInitialDeltaT.H"
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+    if (moveMeshOuterCorrectors)
+    {
+        WarningInFunction
+            << "moveMeshOuterCorrectors is ignored: the mesh is updated once per time step,"
+            << " before the species are transported" << endl;
+    }
+
     Info<< "\nStarting time loop\n" << endl;
 
     while (runTime.run())
@@ -116,14 +124,27 @@ int main(int argc, char *argv[])
         while (pimple.loop())
         {
 
-            if (pimple.firstIter() || moveMeshOuterCorrectors)
+            // The mesh changes at the start of the step only: the ledger, its fluxes and the old-time
+            // values are all set once per step, so a change between outer correctors has nothing to map to
+            if (pimple.firstIter())
             {
-                // AMR merges cells by volume-averaging every field: right for c_i,
-                // rhoCv*T, rhoM*U and rhoM*epsilon1, wrong for T, U and epsilon1.
-                // Carry energy, momentum and latent heat through it
-                volScalarField rhoCvTAmr("rhoCvT.amr", rhoCv*T);
-                volVectorField rhoMUAmr("rhoMU.amr", rhoM*U);
-                volScalarField rhoMEps1Amr("rhoMEps1.amr", rhoM*epsilon1);
+                // AMR merges cells by volume-averaging every field: right for c_i, rhoCv*T, rhoM*U and
+                // rhoM*epsilon1, wrong for T, U and epsilon1. 
+                autoPtr<volScalarField> rhoCvTAmrPtr;
+                autoPtr<volVectorField> rhoMUAmrPtr;
+                autoPtr<volScalarField> rhoMEps1AmrPtr;
+                autoPtr<volScalarField> divPhiAmrPtr;
+
+                if (mesh.dynamic())
+                {
+                    rhoCvTAmrPtr.reset(new volScalarField("rhoCvT.amr", rhoCv*T));
+                    rhoMUAmrPtr.reset(new volVectorField("rhoMU.amr", rhoM*U));
+                    rhoMEps1AmrPtr.reset(new volScalarField("rhoMEps1.amr", rhoM*epsilon1));
+                    divPhiAmrPtr.reset
+                    (
+                        new volScalarField("divPhi.amr", fvc::div(fvc::absolute(phi, U)))
+                    );
+                }
 
                 scalar timeBeforeMeshUpdate = runTime.elapsedCpuTime();
 
@@ -135,19 +156,24 @@ int main(int argc, char *argv[])
                         << runTime.elapsedCpuTime() - timeBeforeMeshUpdate
                         << " s" << endl;
 
+                    const volScalarField& rhoCvTAmr = rhoCvTAmrPtr();
+                    const volVectorField& rhoMUAmr = rhoMUAmrPtr();
+                    const volScalarField& rhoMEps1Amr = rhoMEps1AmrPtr();
+
                     gh = (g & mesh.C()) - ghRef;
                     ghf = (g & mesh.Cf()) - ghRef;
 
+                    cellSizeStale = true;   // update.H rebuilds the laser's cell sizes
+
                     MRF.update();
 
-                    if (correctPhi && !bRestartFirstLoop)
+                    if (correctPhi)
                     {
-                        // Prevent corrections on the first loop of a restarted
-                        // solver.
-
                         // Calculate absolute flux
                         // from the mapped surface velocity
                         phi = mesh.Sf() & Uf();
+
+                        const volScalarField& divUCorrectPhi = divPhiAmrPtr();
 
                         #include "correctPhi.esi.H"
 
@@ -166,9 +192,6 @@ int main(int argc, char *argv[])
                 }
             }
 
-            // Disable flag: this permits correctPhi on subsequent loops.
-            bRestartFirstLoop = false;
-
             // Semi-PIMPLE Implementation - Roman Bialek
             if (pimple.firstIter())
             {
@@ -182,9 +205,14 @@ int main(int argc, char *argv[])
 
                 #include "update.H"
 
+                // surface tension depends on the phase fractions alone, and those are now set for the step
+                tstf = mixture.surfaceTensionForce();
 
+                // phi is still the flux mixture.solve() moved the species with
+                tphiLedger = new surfaceScalarField("phiLedger", phi);
             }
 
+            const surfaceScalarField& stf = tstf();
 
             rho = mixture.rho();
 
@@ -227,8 +255,8 @@ int main(int argc, char *argv[])
             }
         }
 
-        mixture.writeOldTimeValues();
-        #include "writeOldTimeStorage.H"
+        tphiLedger.clear();
+        tstf.clear();   // nothing unregistered is carried over the next mesh update
 
         runTime.write();
 

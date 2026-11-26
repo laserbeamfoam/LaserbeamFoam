@@ -312,156 +312,19 @@ Foam::multiphaseMixtureThermo::multiphaseMixtureThermo
             beta0_ += phase;
         }
     }
+
+    // old-time storage of the phase densities from the start, so that fvc::ddt(rho_i) in the pressure
+    // corrector sees the true change over the first step, of a fresh start and of a restart alike
+    for (phaseModel& phase : phases_)
+    {
+        phase.thermo().rho().oldTime();
+    }
 }
 
 
 
 
 // * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * * //
-
-void Foam::multiphaseMixtureThermo::restoreOldTimeValues()
-{
-    // Any term used or involbed  in `fvc::ddt` needs to have their `.oldTime()`
-    // value reread from disk if solver restarted!
-
-    
-    rhoPhi_.oldTime();
-    for (phaseModel& alpha : phases_)
-    {
-        volScalarField& rhoK = alpha.thermo().rho();
-        rhoK.oldTime();
-    }
-
-    
-    if (!(mesh_.time().timeIndex() > 0))
-    {
-        
-        return;
-    }
-
-    label errorCount = 0;
-    // Restore values if solver restart detected
-    //- Restore rhoPhi oldTime
-    {
-        surfaceScalarField rhoPhi_oldTime
-        (
-            IOobject
-            (
-                IOobject::groupName("rhoPhi", "oldTime"),
-                mesh_.time().timeName(),
-                mesh_,
-                IOobject::READ_IF_PRESENT,
-                IOobject::NO_WRITE
-            ),
-            rhoPhi_
-        );
-
-        if (rhoPhi_oldTime.headerOk())
-        {
-            rhoPhi_.oldTime() = rhoPhi_oldTime;
-        }
-        else
-        {
-            Info<< "Mixture: WARNING could not find field `"
-                << "rhoPhi.oldTime`. "
-                << "This will cause issues in fvc::ddt terms!"
-                << "Please check your latest time directory (folder)!"
-                << endl;
-
-            errorCount++;
-        }
-    }
-
-
-    for (phaseModel& alpha : phases_)
-    {
-        volScalarField rhoKoldTime
-        (
-            IOobject
-            (
-                "rho." + alpha.name() + ".oldTime",
-                mesh_.time().timeName(),
-                mesh_,
-                IOobject::READ_IF_PRESENT,
-                IOobject::NO_WRITE
-            ),
-            alpha.thermo().rho()
-        );
-
-        if (rhoKoldTime.headerOk())
-        {
-            volScalarField& rhoK = alpha.thermo().rho();
-            rhoK.oldTime() = rhoKoldTime;
-        }
-        else
-        {
-            Info<< "Mixture: WARNING could not find field `"
-                << "rho." << alpha.name() << ".oldTime`. "
-                << "This will cause issues in fvc::ddt terms!"
-                << "Please check your latest time directory (folder)!"
-                << endl;
-
-            errorCount++;
-        }
-    }
-
-    if (errorCount)
-    {
-        Info<< "Mixture WARNING: " << errorCount << " fields' oldTime values were not "
-            << "restored! This will cause issues within any fvc::ddt terms!"
-            << "RECOMMENDED: please inspect your latest time folder!"
-            << endl;
-    }
-    else
-    {
-        Info<< "Mixture: All relevant fields' oldTime values were restored using "
-            << "file reads. All good!"
-            << endl;
-    }
-}
-
-
-void Foam::multiphaseMixtureThermo::writeOldTimeValues()
-{
-    if (mesh_.time().writeTime())
-    {
-        surfaceScalarField rhoPhi_oldTime
-        (
-            IOobject
-            (
-                IOobject::groupName("rhoPhi", "oldTime"),
-                mesh_.time().timeName(),
-                mesh_,
-                IOobject::NO_READ,
-                IOobject::NO_WRITE
-            ),
-            rhoPhi_.oldTime()
-        );
-
-        rhoPhi_oldTime.write();
-
-        for (phaseModel& alpha : phases_)
-        {
-            volScalarField& rhoK = alpha.thermo().rho();
-
-            volScalarField rhoKoldTime
-            (
-                IOobject
-                (
-                    "rho." + alpha.name() + ".oldTime",
-                    mesh_.time().timeName(),
-                    mesh_,
-                    IOobject::NO_READ,
-                    IOobject::AUTO_WRITE
-                ),
-                rhoK.oldTime()
-            );
-
-            rhoKoldTime.write();
-        }
-    }
-}
-
 
 void Foam::multiphaseMixtureThermo::correct()
 {
@@ -706,6 +569,35 @@ const Foam::volScalarField& Foam::multiphaseMixtureThermo::c
         << exit(FatalError);
 
     return c_[0];
+}
+
+
+Foam::scalar Foam::multiphaseMixtureThermo::maxInterfaceDiffusivity() const
+{
+    scalar Dmax = 0;
+
+    forAllConstIters(phases_, phase1)
+    {
+        auto phase2 = phase1;
+
+        for (++phase2; phase2 != phases_.cend(); ++phase2)
+        {
+            // only pairs within one group (two gases, two condensed phases) diffuse into each other
+            if (phase1().isGaseous() != phase2().isGaseous())
+            {
+                continue;
+            }
+
+            const auto dAlpha = dAlphas_.cfind(interfacePair(phase1(), phase2()));
+
+            if (dAlpha.good())
+            {
+                Dmax = Foam::max(Dmax, *dAlpha);
+            }
+        }
+    }
+
+    return Dmax;
 }
 
 
@@ -1138,32 +1030,46 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::rCv() const
 Foam::tmp<Foam::surfaceScalarField>
 Foam::multiphaseMixtureThermo::surfaceTensionForce() const
 {
-    tmp<surfaceScalarField> tstf
+    // not registered: the solver keeps this for the time step (the phase fractions it is made of are
+    // only changed by solve()), and an unregistered field is not offered to the mesh's flux mapping
+    auto tstf = surfaceScalarField::New
     (
-        new surfaceScalarField
-        (
-            IOobject
-            (
-                "surfaceTensionForce",
-                mesh_.time().timeName(),
-                mesh_
-            ),
-            mesh_,
-            dimensionedScalar(dimensionSet(1, -2, -2, 0, 0), Zero)
-        )
+        "surfaceTensionForce",
+        IOobject::NO_REGISTER,
+        mesh_,
+        dimensionedScalar(dimensionSet(1, -2, -2, 0, 0), Zero)
     );
 
     surfaceScalarField& stf = tstf.ref();
     stf.setOriented();
 
+    // face values, face gradients and normal gradients of the phases that take part, once each
+    const label nPhases = phases_.size();
+    PtrList<surfaceScalarField> alphaf(nPhases);
+    PtrList<surfaceVectorField> gradAlphaf(nPhases);
+    PtrList<surfaceScalarField> snGradAlpha(nPhases);
+
+    auto faceFields = [&](const label i, const phaseModel& alpha)
+    {
+        if (!alphaf.set(i))
+        {
+            alphaf.set(i, fvc::interpolate(alpha));
+            gradAlphaf.set(i, fvc::interpolate(fvc::grad(alpha)));
+            snGradAlpha.set(i, fvc::snGrad(alpha));
+        }
+    };
+
+    label i = 0;
     forAllConstIters(phases_, phase1)
     {
         const phaseModel& alpha1 = *phase1;
 
         auto phase2 = phase1;
+        label j = i;
 
         for (++phase2; phase2 != phases_.cend(); ++phase2)
         {
+            ++j;
             const phaseModel& alpha2 = *phase2;
 
             auto sigma = sigmas_.cfind(interfacePair(alpha1, alpha2));
@@ -1176,14 +1082,36 @@ Foam::multiphaseMixtureThermo::surfaceTensionForce() const
                     << exit(FatalError);
             }
 
+            // miscible pairs (two gases, two alloy elements) carry sigma = 0: nothing to add
+            if (*sigma == 0)
+            {
+                continue;
+            }
+
+            faceFields(i, alpha1);
+            faceFields(j, alpha2);
+
+            // unit normal of the pair's interface on the faces, with the contact angle on the walls
+            surfaceVectorField nHatfv
+            (
+                alphaf[j]*gradAlphaf[i] - alphaf[i]*gradAlphaf[j]
+            );
+            nHatfv /= (mag(nHatfv) + deltaN_);
+
+            correctContactAngle(alpha1, alpha2, nHatfv.boundaryFieldRef());
+
+            const volScalarField curvature(-fvc::div(nHatfv & mesh_.Sf()));
+
             // CSF, Brackbill et al. 1992, https://doi.org/10.1016/0021-9991(92)90240-Y (sigma constant)
             stf += dimensionedScalar("sigma", dimSigma_, *sigma)
-               *fvc::interpolate(K(alpha1, alpha2))*
+               *fvc::interpolate(curvature)*
                 (
-                    fvc::interpolate(alpha2)*fvc::snGrad(alpha1)
-                  - fvc::interpolate(alpha1)*fvc::snGrad(alpha2)
+                    alphaf[j]*snGradAlpha[i]
+                  - alphaf[i]*snGradAlpha[j]
                 );
         }
+
+        ++i;
     }
 
     return tstf;
@@ -1217,14 +1145,31 @@ const volScalarField& Temperature
 
     volVectorField& sMf = tsMf.ref();
 
+    // the temperature gradient and each phase's gradient are needed once, and only if some pair has
+    // a thermocapillary coefficient
+    const label nPhases = phases_.size();
+    PtrList<volVectorField> gradAlphas(nPhases);
+    autoPtr<volVectorField> gradTPtr;
+
+    auto cellGrad = [&](const label i, const phaseModel& alpha)
+    {
+        if (!gradAlphas.set(i))
+        {
+            gradAlphas.set(i, fvc::grad(alpha));
+        }
+    };
+
+    label i = 0;
     forAllConstIters(phases_, iter1)
     {
         const phaseModel& alpha1 = iter1();
 
         auto iter2 = iter1;
+        label j = i;
 
         for (++iter2; iter2 != phases_.cend(); ++iter2)
         {
+            ++j;
             const phaseModel& alpha2 = iter2();
 
             auto dsigmadT = dsigmadT_.cfind(interfacePair(alpha1, alpha2));
@@ -1237,23 +1182,35 @@ const volScalarField& Temperature
                     << exit(FatalError);
             }
 
-                // Cell gradient of alpha
-        const volVectorField gradAlpha
-        (
-            alpha2*fvc::grad(alpha1) - alpha1*fvc::grad(alpha2)
-        );
+            if (dsigmadT() == 0)
+            {
+                continue;
+            }
 
-        const volVectorField nHatM(gradAlpha/(mag(gradAlpha) + deltaN_));
+            cellGrad(i, alpha1);
+            cellGrad(j, alpha2);
 
-        const volVectorField gradT(fvc::grad(Temperature));
+            if (!gradTPtr)
+            {
+                gradTPtr.reset(new volVectorField(fvc::grad(Temperature)));
+            }
+            const volVectorField& gradT = gradTPtr();
 
+            // Cell gradient of alpha
+            const volVectorField gradAlpha
+            (
+                alpha2*gradAlphas[i] - alpha1*gradAlphas[j]
+            );
 
+            const volVectorField nHatM(gradAlpha/(mag(gradAlpha) + deltaN_));
 
-        sMf -=
-            dimensionedScalar("dsigmadT", dimdSigmadT_, dsigmadT())
-           *(gradT-(nHatM*(nHatM & gradT)))
-           *mag(gradAlpha);
+            sMf -=
+                dimensionedScalar("dsigmadT", dimdSigmadT_, dsigmadT())
+               *(gradT-(nHatM*(nHatM & gradT)))
+               *mag(gradAlpha);
         }
+
+        ++i;
     }
 
     return tsMf;
@@ -1311,8 +1268,6 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solve
     }
 
     PCR = solveAlphas(massdotterm, vDotDtPtr, closureSrcPtr);
-
-    writeOldTimeValues();
 
     return tPCR;
 }
@@ -1536,16 +1491,9 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
     const dimensionedScalar Tmin("Tmin", dimTemperature, 300.0);// T floor for the rate maths only, stops sqrt/exp FPEs
     const volScalarField Tsafe(max(T_, Tmin)); // safe tempreature for all teh kinetics below, doesnt touch the energy eqn
 
-    IOdictionary phasedictionary
-    (
-        IOobject
-        (
-            "thermophysicalProperties",
-            runTime.constant(),
-            mesh_,
-            IOobject::MUST_READ_IF_MODIFIED
-        )
-    );
+    // the mixture is this dictionary (thermophysicalProperties): nothing is read from disk here
+    const dictionary& phasedictionary = *this;
+
     const dimensionedScalar gasconstant
         ("gasconstant", dimensionSet(1, 2, -2, -1, -1), scalar(8.314));
     const dimensionedScalar P0
@@ -1591,6 +1539,17 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
 
     Info<< "Phase-change accommodation: sigmaEvap = " << sigmaEvap
         << ", sigmaCond = " << sigmaCond << endl;
+
+    // stefanSweep: flush the gas pocket on the condensed side of an evaporating surface with the vapour that
+    // passes through it (see before the species transport). Off by default
+    const bool stefanSweep
+    (
+        phasedictionary.getOrDefault<bool>("stefanSweep", false)
+    );
+    if (stefanSweep)
+    {
+        Info<< "Phase change: Stefan sweep of the anchors' gas pockets on" << endl;
+    }
 
     const label nPhases = phases_.size();
 
@@ -1652,17 +1611,8 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         {
             if (ph.isGaseous()) continue;
 
-            // same per-phase dicts update.H reads each step; scope-local
-            IOdictionary phdict
-            (
-                IOobject
-                (
-                    "thermophysicalProperties." + ph.name(),
-                    mesh_.time().constant(),
-                    mesh_,
-                    IOobject::MUST_READ_IF_MODIFIED
-                )
-            );
+            // the phase's thermo is its dictionary (thermophysicalProperties.<phase>)
+            const dictionary& phdict = ph.thermo();
 
             const dimensionedScalar Ts
             (
@@ -2434,6 +2384,43 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
+    // What the liquid-vapour pairs share in a cell. Each pair is limited on its own below, which is exact
+    // for one volatile species; with several, the anchor's heat and the cell's volume are common to all:
+    //   nPCPairs   the energy clamp gives each pair 1/nPCPairs of its own head, so together they cannot
+    //              drive an anchor past the furthest Tsat (their sum stays below the mean head)
+    //   volUsedPC  phase-change volume the pairs before this one made or removed in the cell this step,
+    //              as a fraction of the cell: the volume cap is on the total
+    label nPCPairs = 0;
+    {
+        label li = 0;
+        for (const phaseModel& liq : phases_)
+        {
+            const word vapName(liq.name() + "vapour");
+            if (!isGas[li] && name2idx.found(vapName))
+            {
+                const interfacePair pr(liq, phases_[vapName]);
+                if (boils_.found(pr) && LatentHeatGass_.found(pr)) ++nPCPairs;
+            }
+            ++li;
+        }
+    }
+    const scalar nEnergyShare = Foam::max(nPCPairs, label(1));
+    scalarField volUsedPC(mesh_.nCells(), 0.0);
+
+    // Kirchhoff: dLvap/dT = Cp_vapour - Cp_liquid, with LatentHeatGas the value at the pair's boiling
+    // point. A constant Lvap with unequal Cp makes the energy of a vapour depend on the temperature it
+    // was evaporated at (evaporate hot, condense cold: (Cp_l - Cp_v)*dT per kg unaccounted for)
+    const bool kirchhoffLvap
+    (
+        phasedictionary.getOrDefault<bool>("latentHeatKirchhoff", true)
+    );
+
+    // Stefan sweep (stefanSweep): per liquid-vapour pair, the vapour volume each anchor passes on through its
+    // shares [m3/s] and that vapour's phase index, filled in the pair loop
+    PtrList<volScalarField> swPass(stefanSweep ? nPCPairs : 0);
+    labelList swVap(swPass.size(), -1);
+    label swPair = 0;
+
     Info<< "Phase-change pairs:" << endl;
     {
         label li = 0;
@@ -2460,6 +2447,16 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             ("Tboil", dimBoil_, boilT());
                         const dimensionedScalar Lvap
                             ("Lvap", dimLatentHeatGas_, LHG());
+
+                        // latent heat at each cell's temperature [J/kg] (see kirchhoffLvap), floored far
+                        // from Tboil; the saturation curve keeps its constant-Lvap Clausius-Clapeyron form
+                        scalarField LvapT(mesh_.nCells(), Lvap.value());
+                        if (kirchhoffLvap)
+                        {
+                            const volScalarField dCp(vap.thermo().Cp() - liq.thermo().Cp());
+                            LvapT += dCp.primitiveField()*(T_.primitiveField() - Tboil.value());
+                            LvapT = max(LvapT, 0.1*Lvap.value());
+                        }
 
                         const volScalarField Wliq
                         (
@@ -2670,8 +2667,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             const scalarField& TI      = Tsafe.primitiveField();
                             const scalarField& TsatI   = Tsat.primitiveField();
                             const scalarField& rhoCvMixI = rhoCvMix.primitiveField();
-                            // clamp budget: the anchor's whole cooling per kg is Lvap
-                            const scalar       LvapV   = Lvap.value();
+                            // clamp budget: the anchor's whole cooling per kg is Lvap (at its temperature)
                             const scalarField& cLiqI = c_[li].primitiveField();
                             forAll(rI, celli)//LIMITING SO CODE DOESNT BLOW UP
                             {
@@ -2679,9 +2675,11 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                 const scalar rcKinetic = rc;
 
                                 //  energy limit: dont let latent heat drive
-                                //  T past Tsat this step (eFac = rhoCv/(dt*Lvap))
+                                //  T past Tsat this step (eFac = rhoCv/(dt*Lvap)), this pair's
+                                //  share of the anchor's heat (nEnergyShare)
                                 const scalar eFac =
-                                    Foam::max(rhoCvMixI[celli], 0.0)*rDeltaT/LvapV;
+                                    Foam::max(rhoCvMixI[celli], 0.0)*rDeltaT
+                                   /(LvapT[celli]*nEnergyShare);
                                 const scalar headUp =
                                     Foam::max(TsatI[celli] - TI[celli], 0.0);
                                 const scalar headDn =
@@ -2841,12 +2839,15 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                         1.0/rhoVapI[celli] - 1.0/rhoLiqI[celli],
                                         VSMALL
                                     );
-                                const scalar capV = etaVol*V[celli]*rDeltaT/dVspec;
+                                // (of the cell's volume, what the pairs before this one left: volUsedPC)
+                                const scalar capV =
+                                    Foam::max(etaVol - volUsedPC[celli], 0.0)*V[celli]*rDeltaT/dVspec;
                                 scalar sv = 1.0;
                                 if (mag(R)*sm > capV) { sv = capV/(mag(R)*sm); ++nClampV; }
 
                                 smI[celli] = sm;
                                 sI[celli] = sm*sv;
+                                volUsedPC[celli] += mag(R)*sm*sv*dVspec*dt/V[celli];
                             }
                         }
                         sPC.correctBoundaryConditions();
@@ -2876,6 +2877,40 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                         );
                         accPC.primitiveFieldRef() = Av[0];
                         accPC.correctBoundaryConditions();
+
+                        // Stefan sweep (stefanSweep): the evaporated vapour that actually passes through each anchor
+                        // [m3/s at the anchor's p and T]. Yv[0] is what reaches it (its own and from upstream, before the
+                        // limits); Av[0] - sPC*kPC is the part of that which is laid further down the shares (Av[0] is
+                        // b + (1 - kPC)*sum(w/W*Av[0]) of the receivers, b = sPC*kPC what stays in the anchor). A limit
+                        // refuses vapour at the cells it came from, so this is the vapour produced and laid downstream
+                        if (stefanSweep && swPair < swPass.size())
+                        {
+                            swPass.set
+                            (
+                                swPair,
+                                new volScalarField
+                                (
+                                    IOobject("sweepPass." + liq.name(), runTime.timeName(), mesh_),
+                                    mesh_,
+                                    dimensionedScalar("sweepPass", dimVolume/dimTime, Zero)
+                                )
+                            );
+                            scalarField& spI = swPass[swPair].primitiveFieldRef();
+                            const scalarField& WI = WPC.primitiveField();
+                            const scalarField& sI = sPC.primitiveField();
+                            const scalarField& rhoVapI = rhoVap.primitiveField();
+                            forAll(spI, celli)
+                            {
+                                if (WI[celli] > 0 && Yv[0][celli] > 0)
+                                {
+                                    const scalar laidDown =
+                                        Foam::max(Av[0][celli] - sI[celli]*kI[celli], 0.0);
+                                    spI[celli] = Yv[0][celli]*laidDown/rhoVapI[celli];
+                                }
+                            }
+                            swVap[swPair] = vi;
+                            ++swPair;
+                        }
 
                         // paired rates [kg/m3/s]: liquid made vapour in its cell (rL), vapour laid down (rV) and the anchor's
                         // share (rH) that pays the latent heat; the totals pair exactly
@@ -2929,8 +2964,8 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             *vDotDtPtr += rVpre/rhoVap - rLpre/rhoLiq;
                         }
 
-                        // heat via -mass_dot in TEqn [W/m3]: the anchor gives the enthalpy of vaporisation (LvapE + p*dv = Lvap)
-                        // and heats the liquid it evaporates in a neighbour; each cell gets back the p*dV its work term takes for
+                        // heat via -mass_dot in TEqn [W/m3]: the anchor gives the enthalpy of vaporisation at its temperature
+                        // (LvapE + p*dv = Lvap(T)) and heats the liquid it evaporates in a neighbour; each cell gets back the p*dV its work term takes for
                         // the phase-change volume; vapour is laid down at its birth T (else a receiver overheats, test 09)
                         {
                             const volScalarField CvV(vap.thermo().Cv());
@@ -2949,7 +2984,6 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             const scalarField& rLI = rL.primitiveField();
                             const scalarField& rVI = rV.primitiveField();
                             const scalarField& rHI = rH.primitiveField();
-                            const scalar LvapV = Lvap.value();
                             scalarField& mdI = massdotterm->primitiveFieldRef();
                             forAll(mdI, celli)
                             {
@@ -2960,7 +2994,7 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                                   - CvVI[celli]*mCond*(Av[5][celli] - TI[celli]*Av[0][celli])
                                   - CvLI[celli]*qEvI[celli]*(TI[celli]*shiftW[celli] - shiftWT[celli]);
                                 mdI[celli] +=
-                                    rHI[celli]*LvapV
+                                    rHI[celli]*LvapT[celli]
                                   + rLI[celli]*pI[celli]/rhoLiqI[celli]
                                   - rVI[celli]*pI[celli]/rhoVapI[celli]
                                   - heatIn/V[celli];
@@ -3705,6 +3739,170 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
         }
     }
 
+    // Stefan sweep (stefanSweep, off by default). An anchor passes on (1 - kPC) of the vapour that reaches it,
+    // and that vapour crosses the gas pocket on the anchor's side of the surface, so the pocket is flushed at
+    // the rate the vapour passes through it, not at the kPC share kept in it (on a boiling surface ~1/kPC,
+    // 50-1000x, faster). Per share face an equivolume swap: the pocket's gas leaves with the pocket's
+    // composition and the same volume of the passing vapour comes back from the receiver. Where the vapour's
+    // volume and momentum go (kPC) is unchanged, and the swap moves no volume (ideal gases at the cell's p and
+    // T), so phi, PCR and the closure are untouched. Exactly zero where the pocket already has the passing
+    // composition: one vapour and no other gas mass, as in every phase-change case of the verification suite
+    PtrList<surfaceScalarField> Fsw(nPhases);
+    if (stefanSweep && swPass.size())
+    {
+        const label nC = mesh_.nCells();
+        const scalarField& Vc = mesh_.V().field();
+        const scalarField& WI = WPC.primitiveField();
+        const dimensionedScalar rhoMinSw("rhoMinSw", dimDensity, 1e-3);
+
+        // vapour volume passing each anchor [m3/s], in total, and the pair each gas phase is the vapour of
+        scalarField passTot(nC, 0.0);
+        labelList passOf(nPhases, -1);
+        forAll(swPass, p)
+        {
+            if (!swPass.set(p)) continue;
+            passTot += swPass[p].primitiveField();
+            passOf[swVap[p]] = p;
+        }
+
+        // the pocket: each gas's ledger volume at (p, T) per unit cell volume, their sum, and the densities
+        PtrList<scalarField> vSw(nPhases);
+        PtrList<scalarField> rhoSw(nPhases);
+        scalarField vgSw(nC, 0.0);
+        {
+            label i = 0;
+            for (const phaseModel& ph : phases_)
+            {
+                if (isGas[i])
+                {
+                    const volScalarField rhoPh(max(ph.thermo().rho(), rhoMinSw));
+                    rhoSw.set(i, new scalarField(rhoPh.primitiveField()));
+                    vSw.set(i, new scalarField(nC, 0.0));
+                    const scalarField& cI = c_[i].primitiveField();
+                    scalarField& vI = vSw[i];
+                    forAll(vI, celli)
+                    {
+                        vI[celli] = Foam::max(cI[celli], 0.0)/rhoSw[i][celli];
+                    }
+                    vgSw += vI;
+                }
+                ++i;
+            }
+        }
+
+        // the share of each pocket the passing vapour replaces this step, 1 - exp(-passing volume*dt/pocket)
+        scalarField epsSw(nC, 0.0);
+        forAll(epsSw, celli)
+        {
+            const scalar pocket = vgSw[celli]*Vc[celli];
+            if (WI[celli] > 0 && passTot[celli] > 0 && pocket > VSMALL)
+            {
+                epsSw[celli] = 1.0 - Foam::exp(-passTot[celli]*dt/pocket);
+            }
+        }
+
+        // the share flux [kg/s] of a per-unit-share value q of the sending cells, laid out like phiPC
+        auto shareFlux = [&](const volScalarField& q, const word& nm)
+        {
+            surfaceScalarField* Fp = new surfaceScalarField
+            (
+                IOobject(nm, runTime.timeName(), mesh_),
+                mesh_,
+                dimensionedScalar("Fsw", dimMass/dimTime, Zero)
+            );
+            surfaceScalarField& F = *Fp;
+            const labelUList& own = mesh_.owner();
+            const labelUList& nei = mesh_.neighbour();
+            const scalarField& wI = wPC.primitiveField();
+            const scalarField& qI = q.primitiveField();
+            scalarField& FI = F.primitiveFieldRef();
+            forAll(FI, facei)
+            {
+                const scalar w = wI[facei];
+                if (w > 0) FI[facei] = qI[own[facei]]*w;
+                else if (w < 0) FI[facei] = qI[nei[facei]]*w;
+            }
+            forAll(F.boundaryField(), patchi)
+            {
+                scalarField& pF = F.boundaryFieldRef()[patchi];
+                pF = 0.0;
+                if (!mesh_.boundary()[patchi].coupled()) continue;
+                const scalarField& wP = wPC.boundaryField()[patchi];
+                const labelUList& fc = mesh_.boundary()[patchi].faceCells();
+                const scalarField qNb(q.boundaryField()[patchi].patchNeighbourField());
+                forAll(fc, k)
+                {
+                    if (wP[k] > 0) pF[k] = qI[fc[k]]*wP[k];
+                    else if (wP[k] < 0) pF[k] = qNb[k]*wP[k];
+                }
+            }
+            return Fp;
+        };
+
+        boolList swept(nC, false);
+        scalar ncOut = 0;   // gas that is no anchor's vapour (the atmosphere) swept out of the pockets [kg]
+        {
+            label i = 0;
+            for (const phaseModel& ph : phases_)
+            {
+                if (isGas[i])
+                {
+                    // per unit share [kg/s/m2]: E*(theta - phi)*rho/W, E = eps*pocket/dt the volume swapped [m3/s],
+                    // theta this gas's volume share of the pocket, phi its share of the passing vapour (0 for a gas
+                    // no anchor evaporates); > 0 leaves the pocket, < 0 comes in from the receivers
+                    volScalarField qSw
+                    (
+                        IOobject("qSweep." + ph.name(), runTime.timeName(), mesh_),
+                        mesh_,
+                        dimensionedScalar("qSw", dimMass/dimTime/dimArea, Zero)
+                    );
+                    scalarField& qI = qSw.primitiveFieldRef();
+                    const label p = passOf[i];
+                    bool active = false;
+                    forAll(qI, celli)
+                    {
+                        if (!(epsSw[celli] > 0)) continue;
+                        const scalar theta = vSw[i][celli]/vgSw[celli];
+                        const scalar phiP = (p >= 0) ? swPass[p][celli]/passTot[celli] : 0.0;
+                        const scalar d = theta - phiP;
+                        if (d == 0) continue;
+                        const scalar E = epsSw[celli]*vgSw[celli]*Vc[celli]*rDeltaT;
+                        qI[celli] = E*d*rhoSw[i][celli]/WI[celli];
+                        active = true;
+                        swept[celli] = true;
+                        if (p < 0) ncOut += E*d*rhoSw[i][celli]*dt;
+                    }
+                    reduce(active, orOp<bool>());
+                    if (active)
+                    {
+                        qSw.correctBoundaryConditions();
+                        Fsw.set(i, shareFlux(qSw, "Fsweep." + ph.name()));
+                    }
+                }
+                ++i;
+            }
+        }
+
+        label nSwept = 0;
+        scalar epsMax = 0;
+        forAll(swept, celli)
+        {
+            if (swept[celli])
+            {
+                ++nSwept;
+                epsMax = Foam::max(epsMax, epsSw[celli]);
+            }
+        }
+        reduce(nSwept, sumOp<label>());
+        reduce(epsMax, maxOp<scalar>());
+        reduce(ncOut, sumOp<scalar>());
+        if (nSwept)
+        {
+            Info<< "Stefan sweep: " << nSwept << " anchor pocket(s), largest share replaced " << epsMax
+                << ", atmosphere swept out " << ncOut << " kg" << endl;
+        }
+    }
+
     // --- mass fractions  
 
     const dimensionedScalar cTinyY("cTinyY", dimDensity, 1e-16);
@@ -3771,6 +3969,12 @@ Foam::tmp<Foam::volScalarField> Foam::multiphaseMixtureThermo::solveAlphas
                             )
                         );
                 }
+            }
+
+            // Stefan sweep of the anchors' gas pockets (stefanSweep, built before this loop)
+            if (Fsw.set(i))
+            {
+                Fi += Fsw[i];
             }
 
             // per-species positivity: every export route (share, Fickian, patch) bounded by what the cell has

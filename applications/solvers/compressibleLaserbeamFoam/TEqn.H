@@ -34,7 +34,8 @@
         fvc::ddt(rhoCv) + fvc::div(rhoCvPhi)
     );
 
-    // roundoff in pure-ledger mode; with ledgerFloorEOS it is the rate of change of the guard mass
+    // the phase-change mass moved between cells this step (rV - rL: liquid leaves one cell, its vapour is
+    // laid in another), round-off elsewhere; with ledgerFloorEOS also the rate of change of the guard mass
     const volScalarField contErrRho
     (
         "contErrRho",
@@ -43,6 +44,92 @@
     Info<< "contErr (rhoM): max|ddt(rhoM) + div(rhoPhi)| = "
         << gMax(mag(contErrRho.primitiveField())())
         << " kg/m3/s" << endl;
+
+    // ---- kinetic energy of the gas.
+    volScalarField kineticWork
+    (
+        IOobject
+        (
+            "kineticWork",
+            runTime.timeName(),
+            mesh,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh,
+        dimensionedScalar(dimPressure/dimTime, Zero)
+    );
+
+    if (pimple.dict().getOrDefault<Switch>("gasKineticEnergy", true))
+    {
+        // 1 in gas, 0 from a condensed fraction of 1 % (the mask ramp of the melting model), and the
+        // smaller of a cell's own value and its face neighbours'
+        const scalar cThreshGas = 1e-2;
+        const scalarField gasOwn
+        (
+            1.0 - min(max(condensate.primitiveField()/cThreshGas, scalar(0)), scalar(1))
+        );
+        scalarField gasOnly(gasOwn);
+
+        const labelUList& own = mesh.owner();
+        const labelUList& nei = mesh.neighbour();
+        forAll(nei, facei)
+        {
+            const scalar w = min(gasOwn[own[facei]], gasOwn[nei[facei]]);
+            gasOnly[own[facei]] = min(gasOnly[own[facei]], w);
+            gasOnly[nei[facei]] = min(gasOnly[nei[facei]], w);
+        }
+        forAll(condensate.boundaryField(), patchi)
+        {
+            const fvPatchScalarField& pf = condensate.boundaryField()[patchi];
+            if (pf.coupled())
+            {
+                const scalarField nb(pf.patchNeighbourField());
+                const labelUList& fc = pf.patch().faceCells();
+                forAll(fc, i)
+                {
+                    gasOnly[fc[i]] = min
+                    (
+                        gasOnly[fc[i]],
+                        1.0 - min(max(nb[i]/cThreshGas, scalar(0)), scalar(1))
+                    );
+                }
+            }
+        }
+
+        const volScalarField Knew(0.5*magSqr(U));
+        const volScalarField Kold(0.5*magSqr(U.oldTime()));
+        const surfaceScalarField& rhoPhiU = mixture.rhoPhi();
+        const surfaceScalarField& phiLedger = tphiLedger();
+
+        // The work of a body force is taken on what the fluxes moved, sum_f flux_f f.(x_f - x_P)/V, not
+        // as U.f with the cell velocity: it then vanishes where nothing flows, and for gravity it is the
+        // flux of potential energy, -rho g.U = ddt(rhoM Phi) + div(rhoPhi Phi) with Phi = -gh, so that
+        // internal + kinetic + potential energy is conserved
+        tmp<volScalarField> twork
+        (
+            (rhoM*Knew - rhoM.oldTime()*Kold)/runTime.deltaT()
+          + fvc::div(rhoPhiU*upwind<scalar>(mesh, rhoPhiU).interpolate(Knew))
+          + fvc::div(phiLedger*fvc::interpolate(p)) - p*mixture.divPhiLedger()
+          - (fvc::div(rhoPhiU*ghf) - gh*fvc::div(rhoPhiU))
+        );
+
+        if (mthd.valid())
+        {
+            // Lorentz force of UEqn.H: its work feeds the kinetic energy and is not taken from the heat
+            // (Joulesource is the resistive heating). Nothing where the gas carries no current
+            const surfaceVectorField JcrossBf(fvc::interpolate(mthd->JcrossB()));
+
+            twork.ref() -=
+                fvc::div(phiLedger*(JcrossBf & mesh.Cf()))
+              - (mesh.C() & fvc::div(phiLedger*JcrossBf));
+        }
+
+        kineticWork.primitiveFieldRef() = gasOnly*twork().primitiveField();
+
+        Info<< "kinetic energy returned to the gas: "
+            << -gSum(kineticWork.primitiveField()*mesh.V().field()) << " W" << endl;
+    }
 
     // ---- melting / solidification: source-based latent heat with a T-linearised update of epsilon1,
     // Voller & Swaminathan 1991, https://doi.org/10.1080/10407799108944962
@@ -206,6 +293,7 @@
           - fvm::Sp(contErrCv, T)
           - fvm::laplacian(kappaEff, T)
           + p*mixture.divPhiLedger()
+          + kineticWork
          ==
             laser.deposition()
           + Joulesource
@@ -362,7 +450,7 @@
             << ", max residual = " << maxResidual
             << endl;
 
-    } while ((iter < minTCorr || (maxResidual > epsilonTol.value())) && iter <= maxTCorr);
+    } while ((iter < minTCorr || (maxResidual > epsilonTol.value())) && iter < maxTCorr);
 
 
     if (newtonLatentHeat)

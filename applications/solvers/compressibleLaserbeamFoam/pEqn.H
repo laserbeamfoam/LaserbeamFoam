@@ -82,7 +82,7 @@
     surfaceScalarField phig
     (
         (
-            mixture.surfaceTensionForce()
+            stf
           - ghf*fvc::snGrad(rhoM)
         )*rAUf*mesh.magSf()
     );
@@ -92,26 +92,34 @@
     // Update the pressure BCs to ensure flux consistency
     constrainPressure(p_rgh, U, phiHbyA, rAUf);
 
-    // per-phase (1/rho_i)*D(rho_i)/Dt: only feeds phase.dgdt() for the beta transport now
+    // per-phase (1/rho_i)*D(rho_i)/Dt only feeds phase.dgdt() for the next step's beta transport, so it
+    // is assembled on the last pressure corrector of the time step alone (every earlier value was
+    // overwritten unused)
+    const bool lastCorrector =
+        pimple.finalIter() && (pimple.corrPISO() == pimple.nCorrPISO());
+
     PtrList<fvScalarMatrix> p_rghEqnComps(mixture.phases().size());
 
-    label phasei = 0;
-    forAllConstIters(mixture.phases(), phase)
+    if (lastCorrector)
     {
-        const rhoThermo& thermo = phase().thermo();
-        const tmp<volScalarField> trho(thermo.rho());
-        const volScalarField& rho = trho();
+        label phasei = 0;
+        forAllConstIters(mixture.phases(), phase)
+        {
+            const rhoThermo& thermo = phase().thermo();
+            const tmp<volScalarField> trho(thermo.rho());
+            const volScalarField& rho = trho();
 
-        p_rghEqnComps.set
-        (
-            phasei,
+            p_rghEqnComps.set
             (
-                fvc::ddt(rho) + thermo.psi()*correction(fvm::ddt(p_rgh))
-              + fvc::div(phi, rho) - fvc::Sp(fvc::div(phi), rho)
-            ).ptr()
-        );
+                phasei,
+                (
+                    fvc::ddt(rho) + thermo.psi()*correction(fvm::ddt(p_rgh))
+                  + fvc::div(phi, rho) - fvc::Sp(fvc::div(phi), rho)
+                ).ptr()
+            );
 
-        ++phasei;
+            ++phasei;
+        }
     }
 
     // adiabatic compressibility at fixed composition, chi*sum_i alpha_i*psi_i/rho_i [1/Pa]
@@ -159,14 +167,17 @@
 
         if (pimple.finalNonOrthogonalIter())
         {
-            phasei = 0;
-            for (phaseModel& phase : mixture.phases())
+            if (lastCorrector)
             {
-                phase.dgdt() =
-                    pos0(phase)
-                  *(p_rghEqnComps[phasei] & p_rgh)/phase.thermo().rho();
+                label phasei = 0;
+                for (phaseModel& phase : mixture.phases())
+                {
+                    phase.dgdt() =
+                        pos0(phase)
+                      *(p_rghEqnComps[phasei] & p_rgh)/phase.thermo().rho();
 
-                ++phasei;
+                    ++phasei;
+                }
             }
 
             phi = phiHbyA + p_rghEqnIncomp.flux();

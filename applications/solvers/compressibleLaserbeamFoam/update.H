@@ -40,16 +40,8 @@
         const phaseModel& phase1 = iter();
         const volScalarField& alpha1 = phase1;
 
-        IOdictionary phasedictionary
-        (
-            IOobject
-            (
-                "thermophysicalProperties." + phase1.name(),
-                mesh.time().constant(),
-                mesh,
-                IOobject::MUST_READ_IF_MODIFIED
-            )
-        );
+        // the phase's thermo is this dictionary (thermophysicalProperties.<phase>), already in memory
+        const dictionary& phasedictionary = phase1.thermo();
 
         dimensionedScalar phaseTSolidus
         (
@@ -157,34 +149,37 @@
     TSolidus.correctBoundaryConditions();
 
 
-    // Update the cell size fields
-    const faceList& ff = mesh.faces();
-    const pointField& pp = mesh.points();
-
-    const vectorField& CI = mesh.C();
-    scalarField& yDimI = laser.yDim();
-
-    forAll(CI, celli)
+    // Cell extent in y for the laser, rebuilt only when the mesh has changed (cellSizeStale: set in
+    // createFields.H and after a mesh update)
+    if (cellSizeStale)
     {
-        const cell& cc = mesh.cells()[celli];
-        labelList pLabels(cc.labels(ff));
-        pointField pLocal(pLabels.size(), vector::zero);
+        const faceList& ff = mesh.faces();
+        const pointField& pp = mesh.points();
+        const cellList& cellFaces = mesh.cells();
+        scalarField& yDimI = laser.yDim();
 
-        forAll(pLabels, pointi)
+        forAll(cellFaces, celli)
         {
-            pLocal[pointi] = pp[pLabels[pointi]];
+            scalar yMin = GREAT;
+            scalar yMax = -GREAT;
+
+            for (const label facei : cellFaces[celli])
+            {
+                for (const label pointi : ff[facei])
+                {
+                    const scalar y = pp[pointi].y();
+                    yMin = Foam::min(yMin, y);
+                    yMax = Foam::max(yMax, y);
+                }
+            }
+
+            yDimI[celli] = yMax - yMin;
         }
 
+        laser.yDim().correctBoundaryConditions();
 
-        yDimI[celli] =
-            Foam::max(pLocal & vector(0,1,0))
-          - Foam::min(pLocal & vector(0,1,0));
-
-        
-
+        cellSizeStale = false;
     }
-
-    laser.yDim().correctBoundaryConditions();
 
     metalaverage = fvc::average(condensate);
     condensateFiltered = max(min(condensate, scalar(1)), scalar(0));
@@ -231,6 +226,6 @@
 
     const volVectorField gradcondensate(fvc::grad(condensateFiltered));
 
-    n_filtered = fvc::grad(condensateFiltered)/((mag(gradcondensate) + deltaN));
+    n_filtered = gradcondensate/(mag(gradcondensate) + deltaN);
     n_filtered.correctBoundaryConditions();
 }
