@@ -1,0 +1,45 @@
+#!/bin/bash
+
+## Notes:
+# Runs one of the cases: ./Allrun_long v1200_5um
+# The cases use 128 or 512 cores (system/decomposeParDict) and take from 6 to
+# 77 node-hours on nodes of 128 cores: see README.md. On a cluster, call this
+# script from a job script.
+
+set -e
+
+caseName=${1:?usage: ./Allrun_long <case>, a folder of cases/}
+cd "$(dirname "$0")/cases/$caseName"
+
+# Anything that a run writes: 0 and the time directories, processor*, log.*
+if compgen -G "[0-9]*" > /dev/null || compgen -G "processor*" > /dev/null \
+    || compgen -G "log.*" > /dev/null
+then
+    echo "$caseName holds files of a run: ./Allclean_long $caseName first"
+    exit 1
+fi
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+echo "Copying 'initial' to 0"
+cp -r initial 0
+
+runApplication blockMesh
+runApplication setFields
+
+# Powder particles of constant/location
+runApplication setSolidFraction -subDivisions 1
+
+runApplication decomposePar
+
+nCores=$(\
+    foamDictionary -entry numberOfSubdomains \
+                   -value system/decomposeParDict)
+
+mpirun -np $nCores \
+    laserbeamFoam \
+    -parallel \
+    > log.laserbeamFoam 2>&1
+
+runApplication reconstructPar -latestTime

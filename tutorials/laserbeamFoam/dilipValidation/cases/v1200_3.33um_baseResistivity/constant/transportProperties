@@ -1,0 +1,96 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  10
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      phaseProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Interface tracking method: isoAdvector or MULES
+interfaceTrackingScheme isoAdvector;
+
+phases          (metal gas);
+
+// phase properties for the metal and gas phases
+metal
+{
+    transportModel      Newtonian;
+    // LPBF_large steel tutorial value: nu 5e-07
+    // Ti6Al4V value from LaserbeamFoam/cunninghamValidation: nu 3.5e-07
+    nu                  0.8e-06;
+    // LPBF_large steel tutorial value: rho 8000
+    // Ti6Al4V value from LaserbeamFoam/cunninghamValidation: rho 4430
+    rho                 4100;
+    // LPBF_large steel tutorial value: Tsolidus 1658
+    // Ti6Al4V value from LaserbeamFoam/cunninghamValidation: Tsolidus 1878
+    Tsolidus            1878;
+    // LPBF_large steel tutorial value: Tliquidus 1723
+    // Ti6Al4V value from LaserbeamFoam/cunninghamValidation: Tliquidus 1933
+    Tliquidus           1928;
+    // LPBF_large steel tutorial value: LatentHeat 2.7e5
+    // Ti6Al4V value from LaserbeamFoam/cunninghamValidation: LatentHeat 2.9e5
+    LatentHeat          2.85e5;
+    // Ti6Al4V value from LaserbeamFoam/cunninghamValidation: beta 6.2e-5
+    beta                6.2e-5;
+    // LPBF_large steel tutorial value: poly_kappa (10 0.015 0 0 0 0 0 0)
+    // Ti6Al4V effective value from LaserbeamFoam/cunninghamValidation: poly_kappa (7 0.012 0 0 0 0 0 0)
+    poly_kappa          (-0.797 18.2e-3 -2e-6 0 0 0 0 0);
+    // LPBF_large steel tutorial value: poly_cp (520 0.075 0 0 0 0 0 0)
+    // Ti6Al4V effective value from LaserbeamFoam/cunninghamValidation: poly_cp (546 0.17 0 0 0 0 0 0)
+    poly_cp             (512.4 0.15 1e-6 0 0 0 0 0);
+    // LPBF_large steel tutorial value: elec_resistivity 1.0e-6
+    // Ti6Al4V value from LaserbeamFoam/cunninghamValidation: elec_resistivity 1.9e-6
+    elec_resistivity    1.9e-6; 
+}
+
+gas
+{
+    transportModel      Newtonian;
+    nu                  1.48e-05;
+    rho                 1;
+    Tsolidus            1.0;
+    Tliquidus           10.0;
+    LatentHeat          1;
+    beta                4.0e-5;
+    poly_kappa          (0.04 0.0 0 0 0 0 0 0);
+    poly_cp             (520 0.0 0 0 0 0 0 0);
+}
+
+// phase change properties
+// LPBF_large steel tutorial value: sigma 0.07
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: sigma 1.52
+sigma                   1.68;
+// LPBF_large steel tutorial value: Marangoni_Constant -0.5e-4
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: Marangoni_Constant -5.5e-4
+Marangoni_Constant	    -2.6e-4;
+// LPBF_large steel tutorial value: p0 100000.0
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: p0 1e5
+p0		                101000;
+// LPBF_large steel tutorial value: Tvap 3068.0
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: Tvap 3560
+Tvap                    3533;
+// LPBF_large steel tutorial value: Mm 5.58e-2
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: Mm 0.05
+Mm                      0.05;
+// LPBF_large steel tutorial value: LatentHeatVap 7.45e6
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: LatentHeatVap 9.75e6
+LatentHeatVap           9.8e6;
+// LPBF_large steel tutorial value: emS 0.4
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: emS 0.4
+emS                     0.2;
+// LPBF_large steel tutorial value: emL 0.1
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: emL 0.1
+emL                     0.2;
+// LPBF_large steel tutorial value: TRef 300
+// Ti6Al4V value from LaserbeamFoam/cunninghamValidation: TRef 300
+TRef                    TRef [0 0 0 1 0 0 0]   300;
+
+// ************************************************************************* //
